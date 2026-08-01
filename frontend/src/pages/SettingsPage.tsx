@@ -24,7 +24,7 @@ export default function SettingsPage() {
     timezone: "Asia/Kolkata (IST, UTC+5:30)",
     currency: "INR (₹)",
     language: "English",
-    theme: (localStorage.getItem("app-theme") || "Light") as "Light" | "Dark" | "System",
+    theme: (localStorage.getItem("app-theme") === "Dark" ? "Dark" : "Light") as "Light" | "Dark",
   });
 
   // 2. Route & Shift Preferences
@@ -233,8 +233,8 @@ export default function SettingsPage() {
                 </div>
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Theme Mode</label>
-                  <div className="grid grid-cols-3 gap-2">
-                    {(["Light", "Dark", "System"] as const).map((t) => (
+                  <div className="grid grid-cols-2 gap-2">
+                    {(["Light", "Dark"] as const).map((t) => (
                       <button
                         key={t}
                         type="button"
@@ -244,15 +244,8 @@ export default function SettingsPage() {
                           const root = document.documentElement;
                           if (t === "Dark") {
                             root.classList.add("dark");
-                          } else if (t === "Light") {
-                            root.classList.remove("dark");
                           } else {
-                            const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-                            if (systemPrefersDark) {
-                              root.classList.add("dark");
-                            } else {
-                              root.classList.remove("dark");
-                            }
+                            root.classList.remove("dark");
                           }
                           window.dispatchEvent(new Event("storage"));
                         }}
