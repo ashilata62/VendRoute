@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
@@ -28,8 +28,12 @@ const statusOptions: (LocationStatus | "all")[] = ["all", "operational", "needs-
 
 export default function LocationsPage() {
   const navigate = useNavigate();
-  const { locations, filteredLocations, filters, setFilter, addLocation, updateLocation, deleteLocation } = useLocationStore();
+  const { locations, filteredLocations, filters, setFilter, addLocation, updateLocation, deleteLocation, fetchLocations } = useLocationStore();
   const [viewMode, setViewMode] = useState<"grid" | "list" | "map">("grid");
+
+  useEffect(() => {
+    fetchLocations();
+  }, []);
 
   // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);

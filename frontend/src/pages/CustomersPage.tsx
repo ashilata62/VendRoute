@@ -1,4 +1,4 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -10,9 +10,11 @@ import { mockCustomers, mockLocations } from "../data/mockData";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate, formatCurrency } from "../lib/utils";
 import type { Customer } from "../types";
+import { api } from "../services/api";
 
 export default function CustomersPage() {
   const navigate = useNavigate();
+  const [customersList, setCustomersList] = useState<Customer[]>(mockCustomers);
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
@@ -20,6 +22,32 @@ export default function CustomersPage() {
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addForm, setAddForm] = useState({ companyName: "", contact: "", email: "", phone: "", industry: "" });
   const [addSuccess, setAddSuccess] = useState(false);
+
+  useEffect(() => {
+    async function loadCustomers() {
+      try {
+        const res = await api.get('/customers');
+        if (res.success && Array.isArray(res.data) && res.data.length > 0) {
+          const mapped: Customer[] = res.data.map((c: any) => ({
+            id: c.id,
+            companyName: c.companyName,
+            contractStart: c.createdAt ? c.createdAt.split('T')[0] : '2026-01-01',
+            contractEnd: '2027-01-01',
+            locations: c.locations?.map((l: any) => l.id) || [],
+            primaryContact: c.contactPerson,
+            email: c.email,
+            phone: c.phone,
+            industry: c.industry || 'General',
+            totalRevenue: 45000,
+          }));
+          setCustomersList(mapped);
+        }
+      } catch (err) {
+        console.warn('Backend customers API connection fallback:', err);
+      }
+    }
+    loadCustomers();
+  }, []);
 
   const handleAddCustomer = (e: React.FormEvent) => {
     e.preventDefault();
@@ -30,7 +58,7 @@ export default function CustomersPage() {
   const itemsPerPage = 6;
 
   const filteredCustomers = useMemo(() => {
-    return mockCustomers.filter((c) => {
+    return customersList.filter((c) => {
       const matchSearch =
         !search ||
         c.companyName.toLowerCase().includes(search.toLowerCase()) ||
@@ -43,7 +71,7 @@ export default function CustomersPage() {
 
       return matchSearch && matchStatus;
     });
-  }, [search, statusFilter]);
+  }, [customersList, search, statusFilter]);
 
   const totalPages = Math.ceil(filteredCustomers.length / itemsPerPage) || 1;
   const paginatedCustomers = filteredCustomers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);

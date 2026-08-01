@@ -1,45 +1,57 @@
 import { create } from "zustand";
 import { persist } from "zustand/middleware";
 import type { AuthUser, UserRole } from "../types";
+import { api } from "../services/api";
 
 interface AuthState {
   user: AuthUser | null;
+  token: string | null;
   isAuthenticated: boolean;
-  login: (email: string, password: string, role: UserRole) => boolean;
+  login: (email: string, password: string, role?: UserRole) => Promise<boolean>;
   logout: () => void;
 }
-
-const MOCK_USERS: AuthUser[] = [
-  { id: "u1", name: "Rohit Kapoor", email: "admin@vendroute.in", role: "superadmin", avatar: "https://ui-avatars.com/api/?name=Rohit+Kapoor&background=2563EB&color=fff" },
-  { id: "u2", name: "Sunita Agarwal", email: "manager@vendroute.in", role: "supervisor", avatar: "https://ui-avatars.com/api/?name=Sunita+Agarwal&background=8B5CF6&color=fff" },
-  { id: "u3", name: "Arjun Sharma", email: "driver@vendroute.in", role: "driver", avatar: "https://ui-avatars.com/api/?name=Arjun+Sharma&background=10B981&color=fff" },
-];
 
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
       user: null,
+      token: null,
       isAuthenticated: false,
-      login: (email, _password, role) => {
-        const found = MOCK_USERS.find(
-          (u) => u.email === email || u.role === role
-        );
-        if (found) {
-          set({ user: { ...found, role }, isAuthenticated: true });
-          return true;
+      login: async (email, password, _role) => {
+        try {
+          const res = await api.post('/auth/login', { email, password });
+          if (res.success && res.token) {
+            localStorage.setItem('token', res.token);
+            
+            // Map backend role to frontend UserRole
+            const backendRole = res.user.role?.toLowerCase() || 'superadmin';
+            const roleMap: Record<string, UserRole> = {
+              admin: 'superadmin',
+              driver: 'driver',
+              customer: 'viewer',
+            };
+
+            const userObj: AuthUser = {
+              id: res.user.id,
+              name: res.user.name,
+              email: res.user.email,
+              role: roleMap[backendRole] || 'superadmin',
+              avatar: res.user.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(res.user.name)}&background=2563EB&color=fff`,
+            };
+
+            set({ user: userObj, token: res.token, isAuthenticated: true });
+            return true;
+          }
+          return false;
+        } catch (error) {
+          console.error('Login error:', error);
+          throw error;
         }
-        // default superadmin for demo
-        const defaultUser: AuthUser = {
-          id: "u1",
-          name: "Rohit Kapoor",
-          email,
-          role,
-          avatar: `https://ui-avatars.com/api/?name=Rohit+Kapoor&background=2563EB&color=fff`,
-        };
-        set({ user: defaultUser, isAuthenticated: true });
-        return true;
       },
-      logout: () => set({ user: null, isAuthenticated: false }),
+      logout: () => {
+        localStorage.removeItem('token');
+        set({ user: null, token: null, isAuthenticated: false });
+      },
     }),
     { name: "vendroute-auth" }
   )
