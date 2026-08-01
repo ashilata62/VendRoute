@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Save, Globe, CheckCircle2, Sliders, Clock, Camera, Key } from "lucide-react";
 import PageHeader from "../components/shared/PageHeader";
@@ -42,7 +42,25 @@ export default function SettingsPage() {
     currency: "INR (₹)",
     language: "English",
     theme: (localStorage.getItem("app-theme") === "Dark" ? "Dark" : "Light") as "Light" | "Dark",
+    logo: localStorage.getItem("company-logo") || "",
   });
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setCompanyForm((prev) => ({ ...prev, logo: reader.result as string }));
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const handleUploadClick = () => {
+    fileInputRef.current?.click();
+  };
 
   // 2. Route & Shift Preferences
   const [routeHoursForm, setRouteHoursForm] = useState({
@@ -121,6 +139,7 @@ export default function SettingsPage() {
 
   const handleSave = () => {
     localStorage.setItem("app-theme", companyForm.theme);
+    localStorage.setItem("company-logo", companyForm.logo);
 
     // Apply theme changes dynamically
     const root = document.documentElement;
@@ -204,10 +223,45 @@ export default function SettingsPage() {
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Company Logo</label>
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-extrabold text-sm shadow-md shadow-blue-600/25">VR</div>
-                    <button type="button" className="px-3 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-[10px] font-bold text-slate-700 cursor-pointer">
-                      Upload Logo
-                    </button>
+                    <input
+                      type="file"
+                      ref={fileInputRef}
+                      onChange={handleLogoChange}
+                      accept="image/*"
+                      className="hidden"
+                    />
+                    <div 
+                      onClick={handleUploadClick}
+                      className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center text-white font-extrabold text-sm shadow-md shadow-blue-600/25 cursor-pointer overflow-hidden relative group"
+                      title="Click to upload logo"
+                    >
+                      {companyForm.logo ? (
+                        <img src={companyForm.logo} alt="Company Logo" className="w-full h-full object-cover" />
+                      ) : (
+                        "VR"
+                      )}
+                      <div className="absolute inset-0 bg-black/45 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                        <Camera className="w-4 h-4 text-white" />
+                      </div>
+                    </div>
+                    <div className="flex gap-2">
+                      <button 
+                        type="button" 
+                        onClick={handleUploadClick}
+                        className="px-3 py-2 border border-slate-200 hover:bg-slate-50 rounded-xl text-[10px] font-bold text-slate-700 cursor-pointer"
+                      >
+                        Upload Logo
+                      </button>
+                      {companyForm.logo && (
+                        <button 
+                          type="button" 
+                          onClick={() => setCompanyForm((prev) => ({ ...prev, logo: "" }))}
+                          className="px-3 py-2 border border-red-200 text-red-600 hover:bg-red-50 rounded-xl text-[10px] font-bold cursor-pointer"
+                        >
+                          Remove
+                        </button>
+                      )}
+                    </div>
                   </div>
                 </div>
                 <div>
