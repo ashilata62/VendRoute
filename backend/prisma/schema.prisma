@@ -1,0 +1,119 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  ADMIN
+  DRIVER
+  CUSTOMER
+}
+
+enum MachineStatus {
+  ACTIVE
+  INACTIVE
+  NEEDS_MAINTENANCE
+  OUT_OF_STOCK
+}
+
+enum RouteStatus {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum StopStatus {
+  PENDING
+  REACHED
+  COMPLETED
+  SKIPPED
+}
+
+model User {
+  id            String   @id @default(uuid())
+  name          String
+  email         String   @unique
+  password      String
+  role          Role     @default(DRIVER)
+  phone         String?
+  avatar        String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  assignedRoutes Route[]
+  trackingLogs   LiveTracking[]
+}
+
+model Customer {
+  id            String   @id @default(uuid())
+  companyName   String
+  contactPerson String
+  email         String
+  phone         String
+  industry      String?
+  createdAt     DateTime @default(now())
+
+  locations     Location[]
+}
+
+model Location {
+  id          String    @id @default(uuid())
+  customerId  String
+  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  name        String
+  address     String
+  city        String
+  latitude    Float
+  longitude   Float
+  createdAt   DateTime  @default(now())
+
+  machines    Machine[]
+  routeStops  RouteStop[]
+}
+
+model Machine {
+  id          String        @id @default(uuid())
+  locationId  String
+  location    Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
+  machineCode String        @unique
+  model       String
+  fillLevel   Float         @default(100)
+  status      MachineStatus @default(ACTIVE)
+  lastRefill  DateTime      @default(now())
+}
+
+model Route {
+  id            String      @id @default(uuid())
+  driverId      String
+  driver        User        @relation(fields: [driverId], references: [id])
+  title         String
+  scheduledDate DateTime
+  status        RouteStatus @default(PENDING)
+  createdAt     DateTime    @default(now())
+
+  stops         RouteStop[]
+}
+
+model RouteStop {
+  id          String     @id @default(uuid())
+  routeId     String
+  route       Route      @relation(fields: [routeId], references: [id], onDelete: Cascade)
+  locationId  String
+  location    Location   @relation(fields: [locationId], references: [id])
+  stopOrder   Int
+  status      StopStatus @default(PENDING)
+}
+
+model LiveTracking {
+  id        String   @id @default(uuid())
+  driverId  String
+  driver    User     @relation(fields: [driverId], references: [id])
+  latitude  Float
+  longitude Float
+  timestamp DateTime @default(now())
+}

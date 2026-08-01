@@ -1,33 +1,41 @@
-# React + TypeScript + Vite
+# 🚚 VendRoute - Vending Machine Route Management & Tracking System
 
-This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
+VendRoute is a complete full-stack web application designed for managing vending machine locations, route dispatching, fleet monitoring, inventory refilling, and real-time GPS driver tracking.
 
-Currently, two official plugins are available:
+---
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+## 📁 Repository Structure
 
-## React Compiler
-
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
-
-## Expanding the Oxlint configuration
-
-If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
-
-```json
-{
-  "$schema": "./node_modules/oxlint/configuration_schema.json",
-  "plugins": ["react", "typescript", "oxc"],
-  "options": {
-    "typeAware": true
-  },
-  "rules": {
-    "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
-  }
-}
+```text
+VendRoute/
+├── frontend/             # 🎨 React + TypeScript + Vite + Tailwind CSS Frontend
+│   ├── src/              # Pages, Components, Zustand Stores, Types
+│   ├── public/           # Static assets
+│   ├── package.json      # Frontend dependencies
+│   └── vite.config.ts    # Vite configuration
+│
+└── backend/              # ⚙️ Node.js + Express + Prisma + MySQL + Socket.io Backend
+    ├── src/              # Controllers, Services, Routes, Middlewares, Validators
+    ├── prisma/           # Database schema & migrations
+    ├── .env              # MySQL Connection (Port 3307) & Secrets
+    └── package.json      # Backend dependencies
 ```
 
-See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
-"# VendRoute" 
+---
+
+## 🚀 How to Run the Project
+
+### 1. Start Backend Server:
+```bash
+cd backend
+npm run dev
+```
+- API Base URL: `http://localhost:5000/api/v1`
+- Health Check: `http://localhost:5000/health`
+
+### 2. Start Frontend App:
+```bash
+cd frontend
+npm run dev
+```
+- Frontend App URL: `http://localhost:5173`
