@@ -1,0 +1,145 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  body {
+    @apply bg-background text-text-primary font-sans antialiased;
+  }
+  :root {
+    --sidebar-width: 256px;
+    --sidebar-collapsed-width: 80px;
+    --header-height: 64px;
+  }
+}
+
+@layer components {
+  .sidebar-link {
+    @apply flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-200 cursor-pointer;
+  }
+  .sidebar-link-active {
+    @apply bg-primary-50 text-primary-600 border border-primary-100;
+  }
+  .sidebar-link-inactive {
+    @apply text-slate-600 hover:bg-slate-100 hover:text-slate-900;
+  }
+  .stat-card {
+    @apply bg-card rounded-lg border border-border shadow-sm p-6;
+  }
+  .page-container {
+    @apply flex-1 overflow-auto;
+  }
+}
+
+/* Leaflet map fix */
+.leaflet-container {
+  height: 100%;
+  width: 100%;
+  border-radius: 8px;
+  z-index: 0;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  @apply bg-transparent;
+}
+::-webkit-scrollbar-thumb {
+  @apply bg-slate-200 rounded-full;
+}
+::-webkit-scrollbar-thumb:hover {
+  @apply bg-slate-300;
+}
+
+/* Recharts tooltip */
+.recharts-tooltip-wrapper {
+  outline: none !important;
+}
+
+/* Global Dark Mode Overrides */
+html.dark body {
+  background-color: #070E28 !important;
+  color: #F8FAFC !important;
+}
+html.dark .bg-white {
+  background-color: #0F1D4A !important;
+  color: #F8FAFC !important;
+}
+html.dark .text-slate-900 {
+  color: #FFFFFF !important;
+}
+html.dark .text-slate-800 {
+  color: #E2E8F0 !important;
+}
+html.dark .text-slate-700 {
+  color: #CBD5E1 !important;
+}
+html.dark .text-slate-600 {
+  color: #94A3B8 !important;
+}
+html.dark .text-slate-500 {
+  color: #94A3B8 !important;
+}
+html.dark .border-slate-200 {
+  border-color: #1E293B !important;
+}
+html.dark .border-border {
+  border-color: #1E293B !important;
+}
+html.dark .bg-slate-50 {
+  background-color: #0B1336 !important;
+  color: #F1F5F9 !important;
+}
+html.dark .bg-card {
+  background-color: #0F1D4A !important;
+  color: #F8FAFC !important;
+}
+html.dark input, html.dark select, html.dark textarea {
+  background-color: #0A0F2D !important;
+  border-color: #1E293B !important;
+  color: #FFFFFF !important;
+}
+html.dark .border-slate-100 {
+  border-color: #1E293B !important;
+}
+html.dark header {
+  background-color: #0F1D4A !important;
+  border-color: #1E293B !important;
+}
+html.dark header span {
+  color: #F8FAFC !important;
+}
+html.dark header .text-slate-900 {
+  color: #FFFFFF !important;
+}
+html.dark header input {
+  background-color: #0B1336 !important;
+  border-color: #1E293B !important;
+  color: #FFFFFF !important;
+}
+html.dark .bg-slate-100 {
+  background-color: #0B1336 !important;
+  color: #E2E8F0 !important;
+}
+html.dark table thead {
+  background-color: #0A0F2D !important;
+  color: #94A3B8 !important;
+}
+html.dark table tbody tr:hover {
+  background-color: #0B1336 !important;
+}
+html.dark .bg-slate-150 {
+  background-color: #0A0F2D !important;
+}
+html.dark .bg-slate-200 {
+  background-color: #1E293B !important;
+}
+
