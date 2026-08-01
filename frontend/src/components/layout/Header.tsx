@@ -1,6 +1,6 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
-import { Menu, Search, Bell, ChevronDown, LogOut, User, Settings, X } from "lucide-react";
+import { Menu, Search, Bell, ChevronDown, LogOut, User, Settings, X, Sun, Moon } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { useNotificationStore } from "../../store/notificationStore";
 import { cn } from "../../lib/utils";
@@ -59,6 +59,31 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
       ).slice(0, 3),
     };
   })();
+
+  const [theme, setTheme] = useState(() => {
+    return localStorage.getItem("app-theme") === "Dark" ? "Dark" : "Light";
+  });
+
+  useEffect(() => {
+    const handleStorageChange = () => {
+      setTheme(localStorage.getItem("app-theme") === "Dark" ? "Dark" : "Light");
+    };
+    window.addEventListener("storage", handleStorageChange);
+    return () => window.removeEventListener("storage", handleStorageChange);
+  }, []);
+
+  const toggleTheme = () => {
+    const nextTheme = theme === "Light" ? "Dark" : "Light";
+    setTheme(nextTheme);
+    localStorage.setItem("app-theme", nextTheme);
+    const root = document.documentElement;
+    if (nextTheme === "Dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+    window.dispatchEvent(new Event("storage"));
+  };
 
   const segments = location.pathname.split("/").filter(Boolean);
   const breadcrumbs = segments.map((seg, i) => ({
@@ -260,6 +285,19 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
           </div>
         </div>
       )}
+
+      {/* Theme Toggle Button */}
+      <button
+        onClick={toggleTheme}
+        className="p-2 rounded-xl hover:bg-slate-100 text-slate-500 hover:text-slate-800 transition-colors flex-shrink-0 cursor-pointer"
+        title={theme === "Light" ? "Switch to Dark Mode" : "Switch to Light Mode"}
+      >
+        {theme === "Light" ? (
+          <Moon className="w-5 h-5" />
+        ) : (
+          <Sun className="w-5 h-5 text-amber-500" />
+        )}
+      </button>
 
       {/* Notification Bell */}
       <button
