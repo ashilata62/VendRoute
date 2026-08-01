@@ -1,5 +1,5 @@
 // ─── Auth ─────────────────────────────────────────────────────────────────────
-export type UserRole = "superadmin" | "supervisor" | "driver" | "viewer";
+export type UserRole = "superadmin" | "supervisor" | "driver" | "viewer" | "NIVHE";
 
 export interface AuthUser {
   id: string;

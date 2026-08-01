@@ -2,18 +2,13 @@ import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
-  MapPin, Route, Camera, BarChart3, ShieldCheck, User, Mail, Lock,
+  MapPin, Route, Camera, BarChart3, ShieldCheck, Mail, Lock,
   Eye, EyeOff, Loader2, ArrowRight, Building2, Truck
 } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
 import type { UserRole } from "../types";
 
-const roles: { value: UserRole; label: string }[] = [
-  { value: "superadmin", label: "Super Admin" },
-  { value: "supervisor", label: "Supervisor" },
-  { value: "driver", label: "Field Driver" },
-  { value: "viewer", label: "Viewer / Analyst" },
-];
+// roles constant removed since role dropdown is removed
 
 const demoCredentials: { role: UserRole; label: string; email: string; color: string; bg: string; border: string }[] = [
   { role: "superadmin", label: "Super Admin", email: "admin@vendroute.in", color: "text-blue-600", bg: "bg-blue-50/80", border: "border-blue-200/60" },
@@ -26,7 +21,7 @@ export default function LoginPage() {
   const { login } = useAuthStore();
   const [email, setEmail] = useState("admin@vendroute.in");
   const [password, setPassword] = useState("password");
-  const [role, setRole] = useState<UserRole>("superadmin");
+  const [role] = useState<UserRole>("NIVHE");
   const [showPass, setShowPass] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -47,7 +42,6 @@ export default function LoginPage() {
 
   const handleDemoSelect = (c: typeof demoCredentials[0]) => {
     setEmail(c.email);
-    setRole(c.role);
     setPassword("password");
   };
 
@@ -192,24 +186,8 @@ export default function LoginPage() {
 
             {/* Login Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Role Dropdown */}
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1.5">Role</label>
-                <div className="relative">
-                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-slate-400">
-                    <User className="w-4 h-4" />
-                  </div>
-                  <select
-                    value={role}
-                    onChange={(e) => setRole(e.target.value as UserRole)}
-                    className="w-full pl-9 pr-4 py-2.5 text-xs lg:text-sm bg-slate-50/50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 font-medium text-slate-800 transition-all"
-                  >
-                    {roles.map((r) => (
-                      <option key={r.value} value={r.value}>{r.label}</option>
-                    ))}
-                  </select>
-                </div>
-              </div>
+              {/* Hidden Role Input */}
+              <input type="hidden" name="role" value={role} />
 
               {/* Email Input */}
               <div>

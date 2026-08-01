@@ -1,96 +1,33 @@
-# 🚚 VendRoute - Vending Machine Route Management & Tracking System
+# React + TypeScript + Vite
 
-VendRoute is a modern, high-performance web application designed for managing vending machine locations, route dispatching, fleet monitoring, inventory refilling, and real-time GPS driver tracking.
+This template provides a minimal setup to get React working in Vite with HMR and some Oxlint rules.
 
----
+Currently, two official plugins are available:
 
-## 🌟 Key Features
+- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
+- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
 
-* **📊 Interactive Dashboard:** Overview of active routes, total customers, machine fill levels, and daily dispatch statistics.
-* **🏢 Customer & Location Management:** Track customer accounts, corporate sites, and installed vending machines.
-* **🍿 Vending Machine Monitoring:** Real-time stock levels, status alerts (Active, Needs Maintenance, Out of Stock), and refill logs.
-* **🚚 Route Dispatch & Stop Management:** Create, assign, and re-order route stops for delivery drivers.
-* **🗺️ Real-time GPS Tracking:** Live map tracking of active drivers using Leaflet and Socket.io.
-* **👥 User & Driver Management:** Role-based management for Admins, Drivers, and Customers.
-* **📈 Reports & Analytics:** Detailed exports and visual graphs powered by Recharts.
+## React Compiler
 
----
+The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
 
-## 🛠️ Tech Stack
+## Expanding the Oxlint configuration
 
-### Frontend
-- **Framework:** React 19 + TypeScript + Vite
-- **Styling:** Tailwind CSS + Radix UI + Framer Motion
-- **State Management:** Zustand
-- **Icons & Maps:** Lucide React + Leaflet & React-Leaflet
-- **Charts:** Recharts
+If you are developing a production application, we recommend enabling type-aware lint rules by installing `oxlint-tsgolint` and editing `.oxlintrc.json`:
 
-### Backend Architecture (Ready for Integration)
-- **Runtime:** Node.js + Express
-- **Database:** MySQL
-- **ORM:** Prisma ORM
-- **Authentication:** JWT + Bcrypt
-- **Validation:** Zod
-- **Real-time:** Socket.io
-
----
-
-## 🚀 Getting Started
-
-### Prerequisites
-- Node.js (v18 or higher)
-- npm or yarn
-
-### Installation
-
-1. **Clone the repository:**
-   ```bash
-   git clone https://github.com/ashilata62/VendRoute.git
-   cd VendRoute
-   ```
-
-2. **Install dependencies:**
-   ```bash
-   npm install
-   ```
-
-3. **Environment Setup:**
-   Create a `.env` file based on `.env.example`:
-   ```bash
-   cp .env.example .env
-   ```
-
-4. **Run Development Server:**
-   ```bash
-   npm run dev
-   ```
-
-5. **Build for Production:**
-   ```bash
-   npm run build
-   ```
-
----
-
-## 📁 Project Structure
-
-```text
-VendRoute/
-├── public/                 # Static public assets
-├── src/
-│   ├── assets/             # Images and design assets
-│   ├── components/         # Reusable UI components & layouts
-│   │   ├── layout/         # Sidebar, Header, Layout wrapper
-│   │   └── shared/         # Cards, Modals, Tables, Headers
-│   ├── data/               # Mock data for demonstration
-│   ├── lib/                # Utility functions & helpers
-│   ├── pages/              # Main application screens/views
-│   ├── store/              # Zustand state management stores
-│   ├── types/              # TypeScript interface definitions
-│   ├── App.tsx             # Main router & app entry
-│   └── main.tsx            # React DOM render entry point
-├── .env.example            # Environment template file
-├── tailwind.config.js      # Tailwind CSS configuration
-├── vite.config.ts          # Vite build configuration
-└── package.json            # Project dependencies and scripts
+```json
+{
+  "$schema": "./node_modules/oxlint/configuration_schema.json",
+  "plugins": ["react", "typescript", "oxc"],
+  "options": {
+    "typeAware": true
+  },
+  "rules": {
+    "react/rules-of-hooks": "error",
+    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+  }
+}
 ```
+
+See the [Oxlint rules documentation](https://oxc.rs/docs/guide/usage/linter/rules) for the full list of rules and categories.
+"# VendRoute" 
