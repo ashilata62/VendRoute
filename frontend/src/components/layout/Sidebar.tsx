@@ -102,7 +102,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
         </div>
 
         {/* Navigation Links */}
-        <nav className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
+        <nav className="flex-1 overflow-y-auto p-3 space-y-1.5 no-scrollbar">
           {allowedNavItems.map((item) => {
             const isActive = item.path === "/settings"
               ? (location.pathname === "/settings" && !location.search.includes("profile=true"))

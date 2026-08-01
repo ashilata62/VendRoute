@@ -59,6 +59,16 @@
   @apply bg-slate-300;
 }
 
+/* Hide scrollbar utility */
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
+.no-scrollbar {
+  -ms-overflow-style: none;  /* IE and Edge */
+  scrollbar-width: none;  /* Firefox */
+}
+
+
 /* Recharts tooltip */
 .recharts-tooltip-wrapper {
   outline: none !important;
