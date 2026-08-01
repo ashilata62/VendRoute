@@ -21,7 +21,7 @@ export default function LoginPage() {
   const { login } = useAuthStore();
   const [email, setEmail] = useState("admin@vendroute.in");
   const [password, setPassword] = useState("password");
-  const [role] = useState<UserRole>("NIVHE");
+  const [role, setRole] = useState<UserRole>("superadmin");
   const [showPass, setShowPass] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -43,6 +43,7 @@ export default function LoginPage() {
   const handleDemoSelect = (c: typeof demoCredentials[0]) => {
     setEmail(c.email);
     setPassword("password");
+    setRole(c.role);
   };
 
   return (

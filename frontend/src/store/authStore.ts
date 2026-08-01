@@ -22,21 +22,17 @@ export const useAuthStore = create<AuthState>()(
       isAuthenticated: false,
       login: (email, _password, role) => {
         const found = MOCK_USERS.find(
-          (u) => u.email === email || u.role === role
+          (u) => u.email.toLowerCase() === email.toLowerCase()
         );
-        if (found) {
-          set({ user: { ...found, role }, isAuthenticated: true });
-          return true;
-        }
-        // default superadmin for demo
-        const defaultUser: AuthUser = {
+        const finalRole: UserRole = found ? found.role : (role && role !== "NIVHE" ? role : "superadmin");
+        const userObj: AuthUser = found ? found : {
           id: "u1",
           name: "Rohit Kapoor",
           email,
-          role,
-          avatar: `https://ui-avatars.com/api/?name=Rohit+Kapoor&background=2563EB&color=fff`,
+          role: finalRole,
+          avatar: "https://ui-avatars.com/api/?name=Rohit+Kapoor&background=2563EB&color=fff",
         };
-        set({ user: defaultUser, isAuthenticated: true });
+        set({ user: userObj, isAuthenticated: true });
         return true;
       },
       logout: () => set({ user: null, isAuthenticated: false }),
