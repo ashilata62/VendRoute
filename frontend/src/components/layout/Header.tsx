@@ -350,7 +350,7 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
               </div>
               <div className="p-1.5">
                 <button
-                  onClick={() => { navigate("/settings"); setProfileOpen(false); }}
+                  onClick={() => { navigate("/settings?profile=true"); setProfileOpen(false); }}
                   className="w-full flex items-center gap-2.5 px-3 py-2.5 text-xs font-semibold text-slate-700 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer"
                 >
                   <User className="w-4 h-4 text-slate-400" /> Profile & Account
