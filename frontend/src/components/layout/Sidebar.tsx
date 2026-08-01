@@ -104,7 +104,9 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
         {/* Navigation Links */}
         <nav className="flex-1 overflow-y-auto p-3 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
           {allowedNavItems.map((item) => {
-            const isActive = location.pathname === item.path || location.pathname.startsWith(item.path + "/");
+            const isActive = item.path === "/settings"
+              ? (location.pathname === "/settings" && !location.search.includes("profile=true"))
+              : (location.pathname === item.path || location.pathname.startsWith(item.path + "/"));
             const isCollapsedDesktop = collapsed && !mobileOpen;
 
             return (
@@ -143,12 +145,12 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
           {/* Profile & Logout Section at the bottom of standard list */}
           {[
             {
-              path: "/settings",
+              path: "/settings?profile=true",
               icon: User,
               label: "Profile",
               onClick: () => {
                 onCloseMobile();
-                navigate("/settings");
+                navigate("/settings?profile=true");
               },
             },
             {
@@ -158,7 +160,9 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
               onClick: handleLogout,
             },
           ].map((item) => {
-            const isActive = location.pathname === item.path && item.label === "Profile";
+            const isActive = item.label === "Profile"
+              ? (location.pathname === "/settings" && location.search.includes("profile=true"))
+              : (location.pathname === item.path);
             const isCollapsedDesktop = collapsed && !mobileOpen;
 
             return (

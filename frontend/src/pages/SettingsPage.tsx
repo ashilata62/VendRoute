@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Save, Globe, CheckCircle2, Sliders, Clock, Camera, Key } from "lucide-react";
 import PageHeader from "../components/shared/PageHeader";
 import { useAuthStore } from "../store/authStore";
@@ -13,8 +14,24 @@ const tabs = [
 
 export default function SettingsPage() {
   const { user } = useAuthStore();
+  const location = useLocation();
+  const navigate = useNavigate();
   const [activeTab, setActiveTab] = useState("company");
   const [saved, setSaved] = useState(false);
+
+  // Sync tab with URL query parameter
+  useEffect(() => {
+    if (location.search.includes("profile=true")) {
+      setActiveTab("company");
+    }
+  }, [location.search]);
+
+  const handleTabClick = (id: string) => {
+    setActiveTab(id);
+    if (location.search.includes("profile=true")) {
+      navigate("/settings", { replace: true });
+    }
+  };
 
   // 1. Company & General Settings
   const [companyForm, setCompanyForm] = useState({
@@ -137,7 +154,7 @@ export default function SettingsPage() {
           {tabs.map(({ id, label, icon: Icon }) => (
             <button
               key={id}
-              onClick={() => setActiveTab(id)}
+              onClick={() => handleTabClick(id)}
               className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl text-xs font-bold transition-all cursor-pointer ${
                 activeTab === id
                   ? "bg-blue-600 text-white shadow-md shadow-blue-600/25"
