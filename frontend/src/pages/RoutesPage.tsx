@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import { useRouteStore } from "../store/routeStore";
-import { mockDrivers, mockVehicles, mockLocations, mockStops } from "../data/mockData";
+import { usersApi, locationsApi, vehiclesApi } from "../services/api";
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate } from "../lib/utils";
@@ -36,7 +36,28 @@ function MapFlyController({ center, zoom }: { center: [number, number]; zoom?: n
 
 export default function RoutesPage() {
   const navigate = useNavigate();
-  const { routes, createRoute, deleteRoute } = useRouteStore();
+  const { routes, createRoute, deleteRoute, fetchRoutes } = useRouteStore();
+
+  // Real data from backend
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+
+  useEffect(() => {
+    fetchRoutes();
+    // Fetch real drivers (DRIVER role users)
+    usersApi.getAll("DRIVER").then((res) => {
+      if (res.success) setDrivers(res.data);
+    }).catch(() => {});
+    // Fetch real locations for stop picker
+    locationsApi.getAll().then((res) => {
+      if (res.success) setLocations(res.data);
+    }).catch(() => {});
+    // Fetch real vehicles
+    vehiclesApi.getAll().then((res) => {
+      if (res.success) setVehicles(res.data);
+    }).catch(() => {});
+  }, [fetchRoutes]);
 
   // Tab State
   const [activeTab, setActiveTab] = useState<"active" | "scheduled" | "completed" | "calendar">("active");
@@ -72,9 +93,9 @@ export default function RoutesPage() {
   const filteredRoutes = useMemo(() => {
     return routes.filter((r) => {
       let matchTab = true;
-      if (activeTab === "active") matchTab = r.status === "active";
-      else if (activeTab === "scheduled") matchTab = r.status === "scheduled";
-      else if (activeTab === "completed") matchTab = r.status === "completed";
+      if (activeTab === "active") matchTab = r.status === "IN_PROGRESS";
+      else if (activeTab === "scheduled") matchTab = r.status === "PENDING";
+      else if (activeTab === "completed") matchTab = r.status === "COMPLETED";
 
       const matchStatus = statusFilter === "all" || r.status === statusFilter;
       const matchDriver = driverFilter === "all" || r.driverId === driverFilter;
@@ -88,12 +109,14 @@ export default function RoutesPage() {
   // Create Form Selected Locations & Coordinates
   const selectedLocationObjs = useMemo(() => {
     return createForm.stops
-      .map((id) => mockLocations.find((l) => l.id === id))
+      .map((id) => locations.find((l: any) => l.id === id))
       .filter(Boolean);
-  }, [createForm.stops]);
+  }, [createForm.stops, locations]);
 
   const previewPolylineCoords: [number, number][] = useMemo(() => {
-    return selectedLocationObjs.map((loc) => [loc!.lat, loc!.lng]);
+    return selectedLocationObjs
+      .filter((loc: any) => loc?.latitude && loc?.longitude)
+      .map((loc: any) => [loc.latitude, loc.longitude]);
   }, [selectedLocationObjs]);
 
   const previewCenter: [number, number] = useMemo(() => {
@@ -102,14 +125,20 @@ export default function RoutesPage() {
   }, [previewPolylineCoords]);
 
   // Handle Form Submit
-  const handleSaveRoute = (e: React.FormEvent) => {
+  const handleSaveRoute = async (e: React.FormEvent) => {
     e.preventDefault();
-    createRoute({
+    
+    if (createForm.stops.length === 0) {
+      alert("Please select at least one location stop to create a route.");
+      return;
+    }
+
+    const success = await createRoute({
       name: createForm.name || "New Field Route",
       date: createForm.date,
-      driverId: createForm.driverId || "d1",
-      vehicleId: createForm.vehicleId || "v1",
-      status: "scheduled",
+      driverId: createForm.driverId || (drivers.length > 0 ? drivers[0].id : undefined),
+      vehicleId: createForm.vehicleId || (vehicles && vehicles.length > 0 ? vehicles[0].id : undefined),
+      status: "PENDING",
       stops: createForm.stops,
       totalDistance: createForm.stops.length * 8 + 12,
       estimatedTime: createForm.stops.length * 30 + 45,
@@ -117,16 +146,19 @@ export default function RoutesPage() {
       startTime: null,
       endTime: null,
     });
-    setIsCreateModalOpen(false);
-    setCreateForm({
-      name: "",
-      date: new Date().toISOString().split("T")[0],
-      driverId: "",
-      vehicleId: "",
-      autoOptimize: true,
-      notes: "",
-      stops: [],
-    });
+    
+    if (success) {
+      setIsCreateModalOpen(false);
+      setCreateForm({
+        name: "",
+        date: new Date().toISOString().split("T")[0],
+        driverId: "",
+        vehicleId: "",
+        autoOptimize: true,
+        notes: "",
+        stops: [],
+      });
+    }
   };
 
   // Replay animation effect
@@ -227,7 +259,7 @@ export default function RoutesPage() {
                 className="px-3 py-2 text-xs border border-border rounded-lg bg-white focus:outline-none text-slate-700"
               >
                 <option value="all">All Drivers</option>
-                {mockDrivers.map((d) => (
+                {drivers.map((d: any) => (
                   <option key={d.id} value={d.id}>{d.name}</option>
                 ))}
               </select>
@@ -239,10 +271,10 @@ export default function RoutesPage() {
                 className="px-3 py-2 text-xs border border-border rounded-lg bg-white focus:outline-none text-slate-700"
               >
                 <option value="all">All Statuses</option>
-                <option value="scheduled">Scheduled</option>
-                <option value="active">Active</option>
-                <option value="completed">Completed</option>
-                <option value="cancelled">Cancelled</option>
+                <option value="PENDING">Scheduled</option>
+                <option value="IN_PROGRESS">Active</option>
+                <option value="COMPLETED">Completed</option>
+                <option value="CANCELLED">Cancelled</option>
               </select>
 
               {/* Date Filter */}
@@ -273,34 +305,34 @@ export default function RoutesPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredRoutes.map((route) => {
-                  const driver = mockDrivers.find((d) => d.id === route.driverId);
-                  const vehicle = mockVehicles.find((v) => v.id === route.vehicleId);
-                  const routeStops = mockStops.filter((s) => s.routeId === route.id);
-                  const completedStops = routeStops.filter((s) => s.status === "completed").length;
-                  const totalStops = routeStops.length || (route.stops.length || 4);
-                  const pct = Math.round((completedStops / totalStops) * 100) || (route.status === "completed" ? 100 : route.status === "active" ? 60 : 0);
+                  const routeStops = route.stops || [];
+                  const completedStops = routeStops.filter((s: any) => s.status === "COMPLETED").length;
+                  const totalStops = routeStops.length;
+                  const pct = totalStops === 0 ? 0 : Math.round((completedStops / totalStops) * 100) || (route.status === "COMPLETED" ? 100 : route.status === "IN_PROGRESS" ? 60 : 0);
 
                   return (
                     <tr key={route.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-600">
-                        {route.id.toUpperCase()}
+                        {route.id.slice(0, 8).toUpperCase()}
                       </td>
                       <td className="px-4 py-3">
                         <p className="font-semibold text-slate-900">{route.name}</p>
                         <p className="text-xs text-slate-400">{formatDate(route.date)}</p>
                       </td>
                       <td className="px-4 py-3">
-                        {driver ? (
+                        {(route as any).driver ? (
                           <div className="flex items-center gap-2">
-                            <img src={driver.photo} alt={driver.name} className="w-6 h-6 rounded-full object-cover" />
-                            <span className="text-xs font-medium text-slate-700">{driver.name}</span>
+                            <div className="w-6 h-6 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-[10px] font-bold">
+                              {(route as any).driver.name?.charAt(0)}
+                            </div>
+                            <span className="text-xs font-medium text-slate-700">{(route as any).driver.name}</span>
                           </div>
                         ) : (
                           <span className="text-xs text-slate-400">Unassigned</span>
                         )}
                       </td>
                       <td className="px-4 py-3 text-xs text-slate-600">
-                        {vehicle?.plateNumber || "MH-01-AB-1234"}
+                        {vehicles.find((v) => v.id === route.vehicleId)?.plateNumber || "—"}
                       </td>
                       <td className="px-4 py-3 text-xs font-medium text-slate-700">
                         {completedStops}/{totalStops}
@@ -421,8 +453,8 @@ export default function RoutesPage() {
                         key={r.id}
                         onClick={(e) => { e.stopPropagation(); setDetailRoute(r); }}
                         className={`px-1.5 py-0.5 rounded text-[10px] truncate font-medium ${
-                          r.status === "active" ? "bg-emerald-100 text-emerald-800" :
-                          r.status === "scheduled" ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-700"
+                          r.status === "IN_PROGRESS" ? "bg-emerald-100 text-emerald-800" :
+                          r.status === "PENDING" ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-700"
                         }`}
                       >
                         {r.name}
@@ -489,7 +521,7 @@ export default function RoutesPage() {
                           className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none"
                         >
                           <option value="">Select driver...</option>
-                          {mockDrivers.map((d) => (
+                          {drivers.map((d: any) => (
                             <option key={d.id} value={d.id}>{d.name}</option>
                           ))}
                         </select>
@@ -506,7 +538,7 @@ export default function RoutesPage() {
                           className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none"
                         >
                           <option value="">Select vehicle...</option>
-                          {mockVehicles.map((v) => (
+                          {vehicles.map((v) => (
                             <option key={v.id} value={v.id}>{v.model} ({v.plateNumber})</option>
                           ))}
                         </select>
@@ -540,7 +572,9 @@ export default function RoutesPage() {
                       Select Vending Locations ({createForm.stops.length} selected)
                     </label>
                     <div className="border border-border rounded-lg max-h-64 overflow-y-auto divide-y divide-border bg-slate-50">
-                      {mockLocations.map((loc) => {
+                      {locations.length === 0 ? (
+                        <p className="text-xs text-slate-400 text-center py-4">Loading locations...</p>
+                      ) : locations.map((loc: any) => {
                         const selected = createForm.stops.includes(loc.id);
                         return (
                           <div
@@ -556,7 +590,7 @@ export default function RoutesPage() {
                             }`}
                           >
                             <div>
-                              <p className="text-xs font-medium text-slate-900">{loc.customerName}</p>
+                              <p className="text-xs font-medium text-slate-900">{loc.name}</p>
                               <p className="text-[10px] text-slate-500 truncate max-w-[220px]">{loc.address}</p>
                             </div>
                             <div className={`w-4 h-4 rounded border flex items-center justify-center ${selected ? "bg-primary-600 border-primary-600 text-white" : "border-slate-300"}`}>
@@ -577,8 +611,8 @@ export default function RoutesPage() {
                       <MapFlyController center={previewCenter} />
                       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                       {selectedLocationObjs.map((loc, idx) => (
-                        <Marker key={loc!.id} position={[loc!.lat, loc!.lng]}>
-                          <Popup>{idx + 1}. {loc!.customerName}</Popup>
+                        <Marker key={loc!.id} position={[loc!.latitude, loc!.longitude]}>
+                          <Popup>{idx + 1}. {loc!.name}</Popup>
                         </Marker>
                       ))}
                       {previewPolylineCoords.length > 1 && (
@@ -643,13 +677,13 @@ export default function RoutesPage() {
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-border">
                     <p className="text-[10px] text-slate-400 uppercase">Driver</p>
                     <p className="text-xs font-bold text-slate-900 mt-0.5">
-                      {mockDrivers.find((d) => d.id === detailRoute.driverId)?.name || "Arjun Sharma"}
+                      {(detailRoute as any).driver?.name || "—"}
                     </p>
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-border">
                     <p className="text-[10px] text-slate-400 uppercase">Vehicle</p>
                     <p className="text-xs font-bold text-slate-900 mt-0.5">
-                      {mockVehicles.find((v) => v.id === detailRoute.vehicleId)?.plateNumber || "MH-01-AB-1234"}
+                      {(detailRoute as any).vehicle?.plateNumber || "—"}
                     </p>
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-border">
@@ -666,11 +700,16 @@ export default function RoutesPage() {
                 <div className="h-48 rounded-lg overflow-hidden border border-border relative">
                   <MapContainer center={[19.0760, 72.8777]} zoom={11} className="h-full w-full">
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    {mockLocations.slice(0, detailRoute.stops.length || 4).map((loc, idx) => (
-                      <Marker key={loc.id} position={[loc.lat, loc.lng]}>
-                        <Popup>{idx + 1}. {loc.customerName}</Popup>
-                      </Marker>
-                    ))}
+                    {detailRoute.stops.map((stop: any, idx) => {
+                      const locationId = typeof stop === 'string' ? stop : stop.locationId;
+                      const loc = locations.find((l) => l.id === locationId);
+                      if (!loc) return null;
+                      return (
+                        <Marker key={loc.id} position={[loc.latitude, loc.longitude]}>
+                          <Popup>{idx + 1}. {loc.name}</Popup>
+                        </Marker>
+                      );
+                    })}
                   </MapContainer>
                   {isReplaying && (
                     <div className="absolute top-2 right-2 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded-full z-[1000] flex items-center gap-1.5">
@@ -684,7 +723,10 @@ export default function RoutesPage() {
                 <div className="space-y-3">
                   <h4 className="font-semibold text-slate-900 text-xs uppercase tracking-wider">Stop Sequence Timeline</h4>
                   <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                    {mockLocations.slice(0, detailRoute.stops.length || 4).map((loc, idx) => {
+                    {detailRoute.stops.map((stop: any, idx) => {
+                      const locationId = typeof stop === 'string' ? stop : stop.locationId;
+                      const loc = locations.find((l) => l.id === locationId);
+                      if (!loc) return null;
                       const isCompleted = idx <= replayStep;
                       return (
                         <div key={loc.id} className="relative flex items-start justify-between bg-slate-50 p-3 rounded-lg border border-border">
@@ -694,7 +736,7 @@ export default function RoutesPage() {
                             {idx + 1}
                           </div>
                           <div>
-                            <p className="text-xs font-bold text-slate-900">{loc.customerName}</p>
+                            <p className="text-xs font-bold text-slate-900">{loc.name}</p>
                             <p className="text-[10px] text-slate-500">{loc.address}</p>
                           </div>
                           <div className="text-right">

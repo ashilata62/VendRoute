@@ -1,12 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users, UserCheck, Award, Star,
-  Plus, Search, Navigation, MessageSquare, X, ArrowUpRight
+  Plus, Search, Navigation, MessageSquare, X, ArrowUpRight, Loader2
 } from "lucide-react";
 
-import { mockDrivers, mockVehicles } from "../data/mockData";
+import { usersApi, vehiclesApi } from "../services/api";
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import type { Driver } from "../types";
@@ -31,27 +31,55 @@ export default function DriversPage() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [messageDriver, setMessageDriver] = useState<Driver | null>(null);
+  const [messageDriver, setMessageDriver] = useState<any | null>(null);
   const [messageText, setMessageText] = useState("");
+
+  // Real API state
+  const [allDrivers, setAllDrivers] = useState<any[]>([]);
+  const [allVehicles, setAllVehicles] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [addForm, setAddForm] = useState({ name: "", email: "", phone: "", password: "Driver@123" });
+  const [addSaving, setAddSaving] = useState(false);
 
   const itemsPerPage = 6;
 
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [drRes, vhRes] = await Promise.all([
+          usersApi.getAll("driver"),
+          vehiclesApi.getAll(),
+        ]);
+        if (drRes.success) setAllDrivers(drRes.data);
+        if (vhRes.success) setAllVehicles(vhRes.data);
+      } catch (e) {
+        console.error(e);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, []);
+
   const filteredDrivers = useMemo(() => {
-    return mockDrivers.filter((d) => {
-      const matchSearch = !search || d.name.toLowerCase().includes(search.toLowerCase()) || d.phone.includes(search);
-      const matchStatus = statusFilter === "all" || d.liveStatus === statusFilter;
-      return matchSearch && matchStatus;
+    return allDrivers.filter((d: any) => {
+      const matchSearch = !search ||
+        d.name?.toLowerCase().includes(search.toLowerCase()) ||
+        d.email?.toLowerCase().includes(search.toLowerCase()) ||
+        d.phone?.includes(search);
+      return matchSearch;
     });
-  }, [search, statusFilter]);
+  }, [search, allDrivers]);
 
   const totalPages = Math.ceil(filteredDrivers.length / itemsPerPage) || 1;
   const paginatedDrivers = filteredDrivers.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
   const stats = {
-    total: mockDrivers.length,
-    activeToday: mockDrivers.filter((d) => d.liveStatus !== "offline").length,
+    total: allDrivers.length,
+    activeToday: allDrivers.length,
     avgPerformance: "96%",
-    topDriver: "Arjun Sharma (⭐4.9)",
+    topDriver: allDrivers[0]?.name ? `${allDrivers[0].name}` : "N/A",
   };
 
   return (
@@ -73,7 +101,7 @@ export default function DriversPage() {
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {[
           { label: "Total Drivers", value: stats.total, icon: Users, color: "text-blue-600", bg: "bg-blue-50" },
-          { label: "Active Today", value: `${stats.activeToday} Online`, icon: UserCheck, color: "text-emerald-600", bg: "bg-emerald-50" },
+          { label: "Registered", value: `${stats.activeToday} Drivers`, icon: UserCheck, color: "text-emerald-600", bg: "bg-emerald-50" },
           { label: "Avg Performance", value: stats.avgPerformance, icon: ArrowUpRight, color: "text-purple-600", bg: "bg-purple-50" },
           { label: "Top Performer", value: stats.topDriver, icon: Award, color: "text-amber-600", bg: "bg-amber-50" },
         ].map(({ label, value, icon: Icon, color, bg }) => (
@@ -95,30 +123,35 @@ export default function DriversPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search drivers by name, phone, or license..."
+            placeholder="Search drivers by name or email..."
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20"
           />
         </div>
-
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value)}
-          className="px-3 py-2 text-xs border border-border rounded-lg bg-white text-slate-700 focus:outline-none"
-        >
-          <option value="all">All Live Statuses</option>
-          <option value="online">Online</option>
-          <option value="on-route">On Route</option>
-          <option value="offline">Offline</option>
-        </select>
       </div>
 
+      {/* Loading State */}
+      {loading ? (
+        <div className="flex justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+        </div>
+      ) : allDrivers.length === 0 ? (
+        <div className="text-center py-12 text-slate-400">
+          <Users className="w-12 h-12 mx-auto mb-3 opacity-30" />
+          <p className="text-sm font-semibold">No drivers found.</p>
+          <p className="text-xs mt-1">Add a driver using the button above.</p>
+        </div>
+      ) : null}
+
       {/* Driver Grid (3-column layout) */}
+      {!loading && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {paginatedDrivers.map((driver) => {
-          const vehicle = mockVehicles.find((v) => v.id === driver.assignedVehicleId);
-          const score = Math.round(driver.rating * 20); // 0-100 scale
+        {paginatedDrivers.map((driver: any) => {
+          const vehicle = allVehicles.find((v: any) => v.id === driver.assignedVehicleId || v.driverId === driver.id);
+          const score = driver.rating ? Math.round(driver.rating * 20) : 80;
+          const avatarUrl = driver.photo || driver.avatar ||
+            `https://ui-avatars.com/api/?name=${encodeURIComponent(driver.name)}&background=3B82F6&color=fff&size=80`;
 
           return (
             <motion.div
@@ -132,33 +165,26 @@ export default function DriversPage() {
                   <div className="flex items-center gap-3">
                     <div className="relative flex-shrink-0">
                       <img
-                        src={driver.photo}
+                        src={avatarUrl}
                         alt={driver.name}
-                        className="w-20 h-20 rounded-full object-cover ring-2 ring-slate-100 shadow-inner"
+                        className="w-20 h-20 rounded-full object-cover ring-2 ring-slate-100 shadow-inner bg-slate-200"
+                        onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(driver.name)}&background=3B82F6&color=fff&size=80`; }}
                       />
-                      <span
-                        className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${
-                          driver.liveStatus === "on-route"
-                            ? "bg-blue-500 animate-pulse"
-                            : driver.liveStatus === "online"
-                            ? "bg-emerald-500"
-                            : "bg-slate-300"
-                        }`}
-                      />
+                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white bg-emerald-500" />
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-900 text-base group-hover:text-primary-600 transition-colors">
                         {driver.name}
                       </h3>
                       <span className="text-[10px] bg-blue-50 text-blue-700 font-semibold px-2 py-0.5 rounded-full border border-blue-100">
-                        Senior Field Officer
+                        {driver.role === 'driver' ? 'Field Driver' : driver.role}
                       </span>
                       <div className="mt-1">
-                        <StarRating rating={driver.rating} />
+                        <StarRating rating={driver.rating || 4.0} />
                       </div>
                     </div>
                   </div>
-                  <StatusBadge status={driver.liveStatus} />
+                  <StatusBadge status="active" />
                 </div>
 
                 {/* Score & Assigned Vehicle */}
@@ -180,12 +206,12 @@ export default function DriversPage() {
                 {/* Quick Stats */}
                 <div className="grid grid-cols-2 gap-2 text-center mb-4 text-xs">
                   <div className="bg-slate-50 p-2 rounded-lg border border-border">
-                    <p className="text-slate-400 text-[10px]">Routes Completed</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{driver.totalRoutes}</p>
+                    <p className="text-slate-400 text-[10px]">Email</p>
+                    <p className="font-bold text-slate-900 mt-0.5 truncate text-[10px]">{driver.email}</p>
                   </div>
                   <div className="bg-slate-50 p-2 rounded-lg border border-border">
-                    <p className="text-slate-400 text-[10px]">Stops Done</p>
-                    <p className="font-bold text-slate-900 mt-0.5">{driver.completedStops.toLocaleString()}</p>
+                    <p className="text-slate-400 text-[10px]">Phone</p>
+                    <p className="font-bold text-slate-900 mt-0.5">{driver.phone || "—"}</p>
                   </div>
                 </div>
               </div>
@@ -215,6 +241,7 @@ export default function DriversPage() {
           );
         })}
       </div>
+      )}
 
       {/* Pagination */}
       {totalPages > 1 && (
@@ -239,7 +266,7 @@ export default function DriversPage() {
         </div>
       )}
 
-      {/* ADD DRIVER MODAL */}
+      {/* ADD DRIVER MODAL - connected to real API */}
       <AnimatePresence>
         {isAddModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
@@ -255,26 +282,44 @@ export default function DriversPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <form onSubmit={(e) => { e.preventDefault(); setIsAddModalOpen(false); }} className="p-6 space-y-4 text-xs">
+              <form onSubmit={async (e) => {
+                e.preventDefault();
+                setAddSaving(true);
+                try {
+                  const res = await usersApi.create({ ...addForm, role: 'driver' });
+                  if (res.success) {
+                    setAllDrivers(prev => [res.data, ...prev]);
+                    setIsAddModalOpen(false);
+                    setAddForm({ name: '', email: '', phone: '', password: 'Driver@123' });
+                    alert('Driver added successfully!');
+                  }
+                } catch (err: any) {
+                  alert(err.message || 'Failed to add driver');
+                } finally {
+                  setAddSaving(false);
+                }
+              }} className="p-6 space-y-4 text-xs">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Full Name *</label>
-                  <input type="text" required placeholder="e.g. Vikram Sharma" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
+                  <input type="text" required value={addForm.name} onChange={e => setAddForm(f => ({...f, name: e.target.value}))} placeholder="e.g. Vikram Sharma" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
                 </div>
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Email Address *</label>
-                  <input type="email" required placeholder="driver@vendroute.in" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
+                  <input type="email" required value={addForm.email} onChange={e => setAddForm(f => ({...f, email: e.target.value}))} placeholder="driver@vendroute.in" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Phone Number *</label>
-                  <input type="text" required placeholder="+91 98200 00000" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
+                  <label className="block font-semibold text-slate-700 mb-1">Phone Number</label>
+                  <input type="text" value={addForm.phone} onChange={e => setAddForm(f => ({...f, phone: e.target.value}))} placeholder="+91 98200 00000" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">License Number *</label>
-                  <input type="text" required placeholder="MH-012024009999" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
+                  <label className="block font-semibold text-slate-700 mb-1">Password *</label>
+                  <input type="text" required value={addForm.password} onChange={e => setAddForm(f => ({...f, password: e.target.value}))} placeholder="Default: Driver@123" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
                 </div>
                 <div className="pt-4 border-t border-border flex justify-end gap-2">
                   <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
-                  <button type="submit" className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg">Save Driver</button>
+                  <button type="submit" disabled={addSaving} className="px-4 py-2 bg-primary-600 text-white font-semibold rounded-lg flex items-center gap-2">
+                    {addSaving ? <><Loader2 className="w-3 h-3 animate-spin" /> Saving...</> : 'Save Driver'}
+                  </button>
                 </div>
               </form>
             </motion.div>

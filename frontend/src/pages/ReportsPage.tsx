@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
@@ -12,9 +12,7 @@ import {
 } from "lucide-react";
 
 import PageHeader from "../components/shared/PageHeader";
-import {
-  mockDrivers, mockRoutes, mockLocations
-} from "../data/mockData";
+import { routesApi, usersApi } from "../services/api";
 import { formatCurrency } from "../lib/utils";
 
 // ─── Extended Data for Reports ─────────────────────────────────────────────────
@@ -71,9 +69,7 @@ const radarData = [
   { metric: "Routes",  Arjun: 78, Priya: 69, Sneha: 100, Rahul: 49 },
 ];
 
-const locationRankings = mockLocations
-  .slice(0, 8)
-  .sort((a, b) => b.revenue - a.revenue);
+const locationRankings: any[] = [];
 
 const fuelCostData = [
   { month: "Feb", liters: 290, cost: 26100 },
@@ -285,13 +281,16 @@ function RevenueTab() {
 }
 
 // ─── Routes Tab ────────────────────────────────────────────────────────────────
-function RoutesTab() {
-  const total = mockRoutes.length;
-  const completed = mockRoutes.filter(r => r.status === "completed").length;
-  const active = mockRoutes.filter(r => r.status === "active").length;
-  const scheduled = mockRoutes.filter(r => r.status === "scheduled").length;
-  const totalKm = mockRoutes.reduce((s, r) => s + r.totalDistance, 0);
-  const avgTime = mockRoutes.filter(r => r.actualTime).reduce((s, r) => s + (r.actualTime || 0), 0) / mockRoutes.filter(r => r.actualTime).length;
+function RoutesTab({ routes, drivers }: { routes: any[]; drivers: any[] }) {
+  const total = routes.length;
+  const completed = routes.filter(r => r.status === "COMPLETED").length;
+  const active = routes.filter(r => r.status === "IN_PROGRESS").length;
+  const scheduled = routes.filter(r => r.status === "PENDING").length;
+  const totalKm = routes.reduce((s, r) => s + (r.totalDistance || 0), 0);
+  const routesWithTime = routes.filter(r => r.actualTime && r.estimatedTime);
+  const avgTime = routesWithTime.length > 0
+    ? routesWithTime.reduce((s, r) => s + (r.actualTime || 0), 0) / routesWithTime.length
+    : 0;
 
   const statusPie = [
     { name: "Completed", value: completed, fill: "#10B981" },
@@ -299,8 +298,9 @@ function RoutesTab() {
     { name: "Scheduled", value: scheduled, fill: "#64748B" },
   ];
 
-  const routeTimingData = mockRoutes
+  const routeTimingData = routes
     .filter(r => r.estimatedTime && r.actualTime)
+    .slice(0, 8)
     .map(r => ({
       name: r.name.split(" ").slice(0, 2).join(" "),
       estimated: r.estimatedTime,
@@ -311,9 +311,9 @@ function RoutesTab() {
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         <KpiCard label="Total Routes" value={String(total)} color="bg-primary-600" icon={Route} delay={0} />
-        <KpiCard label="Completed" value={String(completed)} trend={{ pct: `${Math.round((completed/total)*100)}%`, up: true }} color="bg-emerald-500" icon={CheckCircle2} delay={0.05} />
-        <KpiCard label="Total Distance" value={`${totalKm} km`} sub="This period" color="bg-amber-500" icon={Activity} delay={0.1} />
-        <KpiCard label="Avg Duration" value={`${Math.round(avgTime)} min`} sub="Completed routes" color="bg-violet-500" icon={Clock} delay={0.15} />
+        <KpiCard label="Completed" value={String(completed)} trend={{ pct: `${total > 0 ? Math.round((completed/total)*100) : 0}%`, up: true }} color="bg-emerald-500" icon={CheckCircle2} delay={0.05} />
+        <KpiCard label="Total Distance" value={`${totalKm.toFixed(1)} km`} sub="This period" color="bg-amber-500" icon={Activity} delay={0.1} />
+        <KpiCard label="Avg Duration" value={avgTime > 0 ? `${Math.round(avgTime)} min` : "N/A"} sub="Completed routes" color="bg-violet-500" icon={Clock} delay={0.15} />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -347,6 +347,7 @@ function RoutesTab() {
       {/* Route Detail Table */}
       <ChartCard title="All Routes Summary">
         <div className="overflow-x-auto">
+          <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-border">
@@ -356,28 +357,33 @@ function RoutesTab() {
               </tr>
             </thead>
             <tbody>
-              {mockRoutes.map(r => {
-                const driver = mockDrivers.find(d => d.id === r.driverId);
+              {routes.length === 0 ? (
+                <tr><td colSpan={8} className="text-center py-8 text-slate-400 text-xs">No routes found.</td></tr>
+              ) : routes.map(r => {
+                const driver = drivers.find((d: any) => d.id === r.driverId) || r.driver;
+                const driverName = driver?.name || r.driver?.name || 'Unknown';
+                const driverAvatar = driver?.photo || driver?.avatar ||
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(driverName)}&background=3B82F6&color=fff&size=24`;
                 const statusConfig: Record<string, { label: string; cls: string }> = {
-                  active: { label: "Active", cls: "bg-emerald-100 text-emerald-700" },
-                  completed: { label: "Completed", cls: "bg-slate-100 text-slate-700" },
-                  scheduled: { label: "Scheduled", cls: "bg-blue-100 text-blue-700" },
-                  cancelled: { label: "Cancelled", cls: "bg-red-100 text-red-700" },
+                  IN_PROGRESS: { label: "Active", cls: "bg-emerald-100 text-emerald-700" },
+                  COMPLETED:   { label: "Completed", cls: "bg-slate-100 text-slate-700" },
+                  PENDING:     { label: "Scheduled", cls: "bg-blue-100 text-blue-700" },
+                  CANCELLED:   { label: "Cancelled", cls: "bg-red-100 text-red-700" },
                 };
-                const sc = statusConfig[r.status] || statusConfig.scheduled;
+                const sc = statusConfig[r.status] || statusConfig.PENDING;
                 return (
                   <tr key={r.id} className="border-b border-border/50 last:border-0 hover:bg-slate-50 transition-colors">
                     <td className="py-3 pr-4 font-medium text-slate-900 text-xs">{r.name}</td>
                     <td className="py-3 pr-4 text-xs text-slate-500">{r.date}</td>
                     <td className="py-3 pr-4">
                       <div className="flex items-center gap-2">
-                        <img src={driver?.photo} alt="" className="w-6 h-6 rounded-full" />
-                        <span className="text-xs text-slate-700">{driver?.name.split(" ")[0]}</span>
+                        <img src={driverAvatar} alt="" className="w-6 h-6 rounded-full bg-slate-200" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                        <span className="text-xs text-slate-700">{driverName.split(" ")[0]}</span>
                       </div>
                     </td>
-                    <td className="py-3 pr-4 text-xs text-slate-600">{r.totalDistance} km</td>
-                    <td className="py-3 pr-4 text-xs text-slate-600">{r.stops.length} stops</td>
-                    <td className="py-3 pr-4 text-xs text-slate-600">{r.estimatedTime} min</td>
+                    <td className="py-3 pr-4 text-xs text-slate-600">{r.totalDistance || 0} km</td>
+                    <td className="py-3 pr-4 text-xs text-slate-600">{Array.isArray(r.stops) ? r.stops.length : 0} stops</td>
+                    <td className="py-3 pr-4 text-xs text-slate-600">{r.estimatedTime || '—'} {r.estimatedTime ? 'min' : ''}</td>
                     <td className="py-3 pr-4 text-xs text-slate-600">{r.actualTime ? `${r.actualTime} min` : "—"}</td>
                     <td className="py-3">
                       <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${sc.cls}`}>{sc.label}</span>
@@ -387,6 +393,7 @@ function RoutesTab() {
               })}
             </tbody>
           </table>
+          </div>
         </div>
       </ChartCard>
     </div>
@@ -684,6 +691,15 @@ export default function ReportsPage() {
   const [activeTab, setActiveTab] = useState("revenue");
   const [dateRange, setDateRange] = useState("This Month");
 
+  // Real API data
+  const [routes, setRoutes] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+
+  useEffect(() => {
+    routesApi.getAll().then(res => { if (res.success) setRoutes(res.data); }).catch(() => {});
+    usersApi.getAll("driver").then(res => { if (res.success) setDrivers(res.data); }).catch(() => {});
+  }, []);
+
   const handleExport = () => {
     alert("Exporting report as PDF… (demo)");
   };
@@ -760,10 +776,10 @@ export default function ReportsPage() {
           <div className="text-right">
             <p className="text-2xl font-bold">
               {activeTab === "revenue" && formatCurrency(2049000)}
-              {activeTab === "routes" && "8 Routes"}
-              {activeTab === "stops" && "286 Stops"}
-              {activeTab === "drivers" && "6 Drivers"}
-              {activeTab === "vehicles" && "6 Vehicles"}
+              {activeTab === "routes"  && `${routes.length} Routes`}
+              {activeTab === "stops"   && "Live Stops"}
+              {activeTab === "drivers" && `${drivers.length} Drivers`}
+              {activeTab === "vehicles" && "Fleet"}
             </p>
             <p className="text-xs opacity-70">Total this period</p>
           </div>
@@ -780,7 +796,7 @@ export default function ReportsPage() {
           transition={{ duration: 0.25 }}
         >
           {activeTab === "revenue"  && <RevenueTab />}
-          {activeTab === "routes"   && <RoutesTab />}
+          {activeTab === "routes"   && <RoutesTab routes={routes} drivers={drivers} />}
           {activeTab === "stops"    && <StopsTab />}
           {activeTab === "drivers"  && <DriversTab />}
           {activeTab === "vehicles" && <VehiclesTab />}

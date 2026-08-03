@@ -76,7 +76,7 @@ export interface VendingLocation {
 }
 
 // ─── Stop ─────────────────────────────────────────────────────────────────────
-export type StopStatus = "pending" | "in-progress" | "completed" | "missed";
+export type StopStatus = "PENDING" | "REACHED" | "COMPLETED" | "SKIPPED";
 
 export interface InventoryItem {
   product: string;
@@ -101,7 +101,7 @@ export interface Stop {
 }
 
 // ─── Route ────────────────────────────────────────────────────────────────────
-export type RouteStatus = "scheduled" | "active" | "completed" | "cancelled";
+export type RouteStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
 
 export interface Route {
   id: string;

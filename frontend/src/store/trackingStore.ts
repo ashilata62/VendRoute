@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { getSocket } from "../services/socket";
 import { mockDrivers } from "../data/mockData";
 import type { Driver } from "../types";
 
@@ -31,18 +32,40 @@ const initialLocations: LiveLocation[] = [
   { driverId: "d6", lat: 19.0743, lng: 73.0073, speed: 0, heading: 0, timestamp: new Date().toISOString() },
 ];
 
-export const useTrackingStore = create<TrackingState>((set) => ({
-  drivers: mockDrivers,
-  liveLocations: initialLocations,
-  selectedDriver: null,
-  isTracking: false,
-  setSelectedDriver: (d) => set({ selectedDriver: d }),
-  startTracking: () => set({ isTracking: true }),
-  stopTracking: () => set({ isTracking: false }),
-  updateLocation: (loc) =>
-    set((s) => ({
-      liveLocations: s.liveLocations.map((l) =>
-        l.driverId === loc.driverId ? loc : l
-      ),
-    })),
-}));
+export const useTrackingStore = create<TrackingState>((set) => {
+  // Initialize Socket.io connection for live tracking updates
+  const socket = getSocket();
+  
+  socket.on("tracking:location_broadcast", (loc: LiveLocation) => {
+    set((s) => {
+      // Check if driver already exists in live locations
+      const existing = s.liveLocations.find(l => l.driverId === loc.driverId);
+      if (existing) {
+        return {
+          liveLocations: s.liveLocations.map((l) =>
+            l.driverId === loc.driverId ? { ...l, ...loc } : l
+          )
+        };
+      } else {
+        // Add new active driver to map
+        return { liveLocations: [...s.liveLocations, loc] };
+      }
+    });
+  });
+
+  return {
+    drivers: mockDrivers,
+    liveLocations: initialLocations, // Still keeping initial around as fallback/seed, but will be updated
+    selectedDriver: null,
+    isTracking: false,
+    setSelectedDriver: (d) => set({ selectedDriver: d }),
+    startTracking: () => set({ isTracking: true }),
+    stopTracking: () => set({ isTracking: false }),
+    updateLocation: (loc) =>
+      set((s) => ({
+        liveLocations: s.liveLocations.map((l) =>
+          l.driverId === loc.driverId ? { ...l, ...loc } : l
+        ),
+      })),
+  };
+});

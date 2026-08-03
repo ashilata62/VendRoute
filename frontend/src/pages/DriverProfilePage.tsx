@@ -1,14 +1,14 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
 import {
   ArrowLeft, Phone, Mail, MapPin, Calendar as CalendarIcon,
-  Shield
+  Shield, Loader2
 } from "lucide-react";
 
-import { mockDrivers, mockVehicles, mockRoutes } from "../data/mockData";
+import { usersApi, routesApi, vehiclesApi } from "../services/api";
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate } from "../lib/utils";
@@ -32,11 +32,61 @@ const stopsBarData = [
 export default function DriverProfilePage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const driver = mockDrivers.find((d) => d.id === id) || mockDrivers[0];
-  const vehicle = mockVehicles.find((v) => v.id === driver.assignedVehicleId);
-  const driverRoutes = mockRoutes.filter((r) => r.driverId === driver.id);
 
+  const [driver, setDriver] = useState<any>(null);
+  const [vehicle, setVehicle] = useState<any>(null);
+  const [driverRoutes, setDriverRoutes] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "routes" | "attendance" | "performance">("overview");
+
+  useEffect(() => {
+    if (!id) return;
+    const load = async () => {
+      setLoading(true);
+      try {
+        const [userRes, routesRes, vhRes] = await Promise.all([
+          usersApi.getById(id),
+          routesApi.getAll(),
+          vehiclesApi.getAll(),
+        ]);
+        if (userRes.success) setDriver(userRes.data);
+        if (routesRes.success) {
+          setDriverRoutes(routesRes.data.filter((r: any) => r.driverId === id));
+        }
+        if (vhRes.success && userRes.success) {
+          const assignedVehicle = vhRes.data.find((v: any) =>
+            v.id === userRes.data.assignedVehicleId || v.driverId === id
+          );
+          setVehicle(assignedVehicle || null);
+        }
+      } catch (err) {
+        console.error("Failed to load driver profile:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 animate-spin text-primary-600" />
+      </div>
+    );
+  }
+
+  if (!driver) {
+    return (
+      <div className="text-center py-16 text-slate-400">
+        <p className="text-sm font-semibold">Driver not found.</p>
+        <button onClick={() => navigate('/drivers')} className="mt-3 text-xs text-primary-600 underline">Back to Drivers</button>
+      </div>
+    );
+  }
+
+  const avatarUrl = driver.photo || driver.avatar ||
+    `https://ui-avatars.com/api/?name=${encodeURIComponent(driver.name)}&background=3B82F6&color=fff&size=96`;
 
   return (
     <div className="space-y-6 pb-12">
@@ -60,16 +110,16 @@ export default function DriverProfilePage() {
         <div className="px-6 pb-6 pt-0 flex flex-col sm:flex-row items-center sm:items-end justify-between -mt-12 gap-4 relative z-10">
           <div className="flex flex-col sm:flex-row items-center gap-4 text-center sm:text-left">
             <img
-              src={driver.photo}
+              src={avatarUrl}
               alt={driver.name}
-              className="w-24 h-24 rounded-full object-cover ring-4 ring-white shadow-md bg-white"
+              className="w-24 h-24 rounded-full object-cover ring-4 ring-white shadow-md bg-white bg-slate-200"
+              onError={(e) => { (e.target as HTMLImageElement).src = avatarUrl; }}
             />
             <div className="mt-2 sm:mt-0">
               <h2 className="text-xl font-bold text-slate-900">{driver.name}</h2>
               <div className="flex items-center gap-2 mt-1 justify-center sm:justify-start">
-                <StatusBadge status={driver.status} />
-                <StatusBadge status={driver.liveStatus} />
-                <span className="text-xs text-slate-500">⭐ {driver.rating} Rating</span>
+                <StatusBadge status={driver.status || 'active'} />
+                <span className="text-xs text-slate-500">⭐ {driver.rating?.toFixed(1) || '4.0'} Rating</span>
               </div>
             </div>
           </div>
@@ -113,23 +163,23 @@ export default function DriverProfilePage() {
           {/* Personal Details */}
           <div className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-4">
             <h3 className="font-bold text-slate-900 text-sm border-b border-border pb-3">Personal & License Details</h3>
-            <div className="space-y-3 text-xs">
-              <div className="flex items-center gap-2 text-slate-600">
-                <Phone className="w-4 h-4 text-slate-400" /> <span>{driver.phone}</span>
+              <div className="space-y-3 text-xs">
+                <div className="flex items-center gap-2 text-slate-600">
+                  <Phone className="w-4 h-4 text-slate-400" /> <span>{driver.phone || 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-600">
+                  <Mail className="w-4 h-4 text-slate-400" /> <span>{driver.email}</span>
+                </div>
+                <div className="flex items-start gap-2 text-slate-600">
+                  <MapPin className="w-4 h-4 text-slate-400 mt-0.5" /> <span>{driver.address || 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-600">
+                  <Shield className="w-4 h-4 text-slate-400" /> <span>License: {driver.licenseNumber || 'N/A'}</span>
+                </div>
+                <div className="flex items-center gap-2 text-slate-600">
+                  <CalendarIcon className="w-4 h-4 text-slate-400" /> <span>Joined: {driver.createdAt ? formatDate(driver.createdAt) : 'N/A'}</span>
+                </div>
               </div>
-              <div className="flex items-center gap-2 text-slate-600">
-                <Mail className="w-4 h-4 text-slate-400" /> <span>{driver.email}</span>
-              </div>
-              <div className="flex items-start gap-2 text-slate-600">
-                <MapPin className="w-4 h-4 text-slate-400 mt-0.5" /> <span>{driver.address}</span>
-              </div>
-              <div className="flex items-center gap-2 text-slate-600">
-                <Shield className="w-4 h-4 text-slate-400" /> <span>License: {driver.licenseNumber}</span>
-              </div>
-              <div className="flex items-center gap-2 text-slate-600">
-                <CalendarIcon className="w-4 h-4 text-slate-400" /> <span>Joined: {formatDate(driver.joinedDate)}</span>
-              </div>
-            </div>
 
             <div className="pt-3 border-t border-border">
               <p className="text-xs font-semibold text-slate-700 mb-1">Emergency Contact</p>
@@ -162,11 +212,11 @@ export default function DriverProfilePage() {
             <h3 className="font-bold text-slate-900 text-sm border-b border-border pb-3">Career Achievements</h3>
             <div className="grid grid-cols-2 gap-3 text-center">
               <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
-                <p className="text-xl font-bold text-blue-700">{driver.totalRoutes}</p>
+                <p className="text-xl font-bold text-blue-700">{driverRoutes.length}</p>
                 <p className="text-[10px] text-blue-500 uppercase font-semibold">Routes Finished</p>
               </div>
               <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
-                <p className="text-xl font-bold text-emerald-700">{driver.completedStops.toLocaleString()}</p>
+                <p className="text-xl font-bold text-emerald-700">{driver.completedStops?.toLocaleString() || driverRoutes.reduce((a: number, r: any) => a + (r.stops?.filter((s: any) => s.status === 'COMPLETED').length || 0), 0)}</p>
                 <p className="text-[10px] text-emerald-500 uppercase font-semibold">Stops Visited</p>
               </div>
             </div>

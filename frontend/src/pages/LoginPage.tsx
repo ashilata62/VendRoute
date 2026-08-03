@@ -9,6 +9,9 @@ import { useAuthStore } from "../store/authStore";
 import type { UserRole } from "../types";
 import brandLogo from "../assets/maryland-logo.png";
 
+// Default demo password — matches seeded DB users
+const DEMO_PASSWORD = "password123";
+
 // roles constant removed since role dropdown is removed
 
 const demoCredentials: { role: UserRole; label: string; email: string; color: string; bg: string; border: string }[] = [
@@ -17,12 +20,20 @@ const demoCredentials: { role: UserRole; label: string; email: string; color: st
   { role: "driver", label: "Driver", email: "driver@vendroute.in", color: "text-purple-600", bg: "bg-purple-50/80", border: "border-purple-200/60" },
 ];
 
+// Role redirects after login
+const ROLE_REDIRECT: Record<UserRole, string> = {
+  superadmin: "/dashboard",
+  supervisor: "/dashboard",
+  driver: "/dashboard",
+  viewer: "/dashboard",
+  NIVHE: "/dashboard",
+};
+
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { login } = useAuthStore();
+  const { login, user } = useAuthStore();
   const [email, setEmail] = useState("admin@vendroute.in");
-  const [password, setPassword] = useState("password");
-  const [role, setRole] = useState<UserRole>("superadmin");
+  const [password, setPassword] = useState(DEMO_PASSWORD);
   const [showPass, setShowPass] = useState(false);
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
@@ -32,19 +43,20 @@ export default function LoginPage() {
     e.preventDefault();
     setError("");
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 800));
-    const ok = login(email, password, role);
-    if (ok) navigate("/dashboard");
-    else {
-      setError("Invalid credentials. Try the demo accounts below.");
+    const result = await login(email, password);
+    if (result.ok) {
+      // Redirect based on role after login
+      const role = useAuthStore.getState().user?.role ?? "superadmin";
+      navigate(ROLE_REDIRECT[role] || "/dashboard");
+    } else {
+      setError(result.error || "Login failed. Please check your credentials.");
       setLoading(false);
     }
   };
 
   const handleDemoSelect = (c: typeof demoCredentials[0]) => {
     setEmail(c.email);
-    setPassword("password");
-    setRole(c.role);
+    setPassword(DEMO_PASSWORD);
   };
 
   return (
@@ -197,8 +209,7 @@ export default function LoginPage() {
 
             {/* Login Form */}
             <form onSubmit={handleSubmit} className="space-y-4">
-              {/* Hidden Role Input */}
-              <input type="hidden" name="role" value={role} />
+              {/* Role is determined by backend response */}
 
               {/* Email Input */}
               <div>

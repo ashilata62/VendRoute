@@ -1,19 +1,17 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
-import {
-  ArrowLeft, MapPin, Phone, Package, Image as ImageIcon,
-  Clock, Upload, ShieldCheck, X, Route as RouteIcon
+import { ArrowLeft, MapPin, Phone, Package, Image as ImageIcon,
+  Clock, Upload, ShieldCheck, X, Route as RouteIcon, Loader2, AlertCircle
 } from "lucide-react";
 
-import { mockLocations, mockStops, mockCustomers, mockDrivers } from "../data/mockData";
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate } from "../lib/utils";
-import { useAuthStore } from "../store/authStore";
+import { locationsApi, stopsApi } from "../services/api";
 
 // Fix Leaflet default icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -35,10 +33,14 @@ const detailTabs = [
 export default function LocationDetailPage() {
   const { id } = useParams();
   const navigate = useNavigate();
-  const loc = mockLocations.find((l) => l.id === id) || mockLocations[0];
-  const customer = mockCustomers.find((c) => c.id === loc.customerId) || mockCustomers[0];
+
+  // State for fetched data
+  const [loc, setLoc] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const [activeTab, setActiveTab] = useState("overview");
+  const [locationStops, setLocationStops] = useState<any[]>([]);
 
   // Gallery Tab & Lightbox State
   const [galleryTab, setGalleryTab] = useState<"all" | "compare">("all");
@@ -46,53 +48,91 @@ export default function LocationDetailPage() {
   const [comparePos, setComparePos] = useState(50); // Slider % position
 
   // Notes state
-  const [notesList, setNotesList] = useState(() => {
-    const cached = localStorage.getItem(`notes_log_${loc.id}`);
-    if (cached) {
-      try {
-        return JSON.parse(cached);
-      } catch (e) {
-        console.error("Error parsing cached notes", e);
-      }
-    }
-    return [
-      { id: "n1", text: loc.notes || "Machine in good operational condition.", date: "31 Jul 2026", author: "Rohit Kapoor" },
-      { id: "n2", text: "Refilled snack tray 2 with Oreo & KitKat. Collected ₹3,200.", date: "28 Jul 2026", author: "Arjun Sharma" },
-    ];
-  });
+  const [notesList, setNotesList] = useState<any[]>([
+    { id: "n1", text: "Machine in good operational condition.", date: "31 Jul 2026", author: "Rohit Kapoor" },
+  ]);
   const [newNoteInput, setNewNoteInput] = useState("");
-  const { user } = useAuthStore();
 
-  const locationStops = mockStops.filter((s) => s.locationId === loc.id);
+  // Fetch location data on mount
+  useEffect(() => {
+    if (!id) return;
+    const fetchData = async () => {
+      try {
+        setLoading(true);
+        const res = await locationsApi.getById(id);
+        if (res.success) {
+          setLoc(res.data);
+          // Try to get stops for this location from API
+          try {
+            const stopsRes = await stopsApi.getAll();
+            if (stopsRes.success) {
+              setLocationStops(stopsRes.data.filter((s: any) => s.locationId === id));
+            } else if (res.data.stops) {
+              setLocationStops(res.data.stops);
+            }
+          } catch {
+            // Fallback to embedded stops in location data
+            if (res.data.stops) setLocationStops(res.data.stops);
+          }
+        } else {
+          setError("Failed to load location data.");
+        }
+      } catch (err: any) {
+        setError(err.message || "Something went wrong.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchData();
+  }, [id]);
 
   const handleAddNote = () => {
     if (newNoteInput.trim()) {
-      const formattedDate = new Date().toLocaleDateString("en-IN", {
-        day: "numeric",
-        month: "short",
-        year: "numeric",
-      });
-      const updatedList = [
-        { id: `n${Date.now()}`, text: newNoteInput.trim(), date: formattedDate, author: user?.name || "Rohit Kapoor" },
+      setNotesList([
+        { id: `n${Date.now()}`, text: newNoteInput.trim(), date: "Today", author: "Admin User" },
         ...notesList,
-      ];
-      setNotesList(updatedList);
-      localStorage.setItem(`notes_log_${loc.id}`, JSON.stringify(updatedList));
+      ]);
       setNewNoteInput("");
     }
   };
 
-  // Next service countdown calculation
-  const daysUntilNextService = Math.ceil(
-    (new Date(loc.nextServiceDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
-  );
+  // Data parsing
+  const customer = loc?.customer || {};
+  const firstMachine = loc?.machines?.[0] || {};
+  const photoGallery = loc?.imageUrl ? [loc.imageUrl] : ["https://picsum.photos/800/600", "https://picsum.photos/800/601"];
+  const products = ["Coca-Cola", "Lay's Chips", "Oreo", "Water Bottle"]; // Mocked since DB doesn't have products yet
+
+  // Next service countdown calculation (mocked for now)
+  const daysUntilNextService = 5;
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <Loader2 className="w-8 h-8 text-primary-600 animate-spin" />
+        <span className="ml-3 text-slate-500 text-sm">Loading location details...</span>
+      </div>
+    );
+  }
+
+  if (error || !loc) {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-3">
+        <AlertCircle className="w-10 h-10 text-red-500" />
+        <p className="text-sm text-slate-600">{error || "Location not found"}</p>
+        <button onClick={() => navigate("/locations")} className="text-xs text-primary-600 font-semibold hover:underline">
+          Go Back
+        </button>
+      </div>
+    );
+  }
+
 
   return (
     <div className="space-y-6 pb-12">
       <PageHeader
-        title={loc.customerName}
-        description={`Machine ID: ${loc.machineId} | ${loc.address}`}
-        breadcrumbs={[{ label: "Vending Machines", path: "/locations" }, { label: loc.machineId }]}
+        title={loc.name}
+        description={`Customer: ${customer.companyName || "N/A"} | ${loc.address}, ${loc.city}`}
+        breadcrumbs={[{ label: "Vending Machines", path: "/locations" }, { label: loc.name }]}
         action={
           <button
             onClick={() => navigate("/locations")}
@@ -138,19 +178,19 @@ export default function LocationDetailPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div className="bg-slate-50 p-3.5 rounded-xl border border-border">
                     <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Machine ID</p>
-                    <p className="font-bold text-slate-900 font-mono text-sm mt-1">{loc.machineId}</p>
+                    <p className="font-bold text-slate-900 font-mono text-sm mt-1">{firstMachine.machineCode || "N/A"}</p>
                   </div>
                   <div className="bg-slate-50 p-3.5 rounded-xl border border-border">
-                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Machine Name / Code</p>
-                    <p className="font-bold text-slate-900 text-sm mt-1">{loc.customerName} Unit-1</p>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Machine Model</p>
+                    <p className="font-bold text-slate-900 text-sm mt-1">{firstMachine.model || "Standard Vending Unit"}</p>
                   </div>
                   <div className="bg-slate-50 p-3.5 rounded-xl border border-border">
-                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Machine Category Type</p>
-                    <p className="font-bold text-slate-900 text-sm mt-1">{loc.machineType}</p>
+                    <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Current Fill Level</p>
+                    <p className="font-bold text-slate-900 text-sm mt-1">{firstMachine.fillLevel ?? 0}%</p>
                   </div>
                   <div className="bg-slate-50 p-3.5 rounded-xl border border-border">
                     <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Serial Number</p>
-                    <p className="font-bold text-slate-900 font-mono text-sm mt-1">SN-8290-X102</p>
+                    <p className="font-bold text-slate-900 font-mono text-sm mt-1">{firstMachine.id ? firstMachine.id.split('-')[0].toUpperCase() : "N/A"}</p>
                   </div>
                 </div>
               </div>
@@ -186,15 +226,15 @@ export default function LocationDetailPage() {
                 <div className="space-y-3 text-xs">
                   <div>
                     <p className="text-slate-450 font-bold uppercase tracking-wider text-[9px]">Account Client</p>
-                    <p className="font-extrabold text-slate-900 text-sm mt-0.5">{customer.companyName}</p>
+                    <p className="font-extrabold text-slate-900 text-sm mt-0.5">{customer.companyName || "N/A"}</p>
                   </div>
                   <div className="flex items-start gap-2 text-slate-600">
                     <MapPin className="w-4 h-4 text-slate-450 flex-shrink-0 mt-0.5" />
-                    <span>{loc.address}</span>
+                    <span>{loc.address}, {loc.city}</span>
                   </div>
                   <div className="flex items-center gap-2 text-slate-600">
                     <Phone className="w-4 h-4 text-slate-450 flex-shrink-0" />
-                    <span>{loc.contactPerson} ({loc.contactPhone})</span>
+                    <span>{customer.contactPerson || "N/A"}</span>
                   </div>
                 </div>
               </div>
@@ -205,12 +245,12 @@ export default function LocationDetailPage() {
                 <div className="space-y-3 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="text-slate-450 font-semibold">Frequency:</span>
-                    <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-full font-bold">{loc.visitFrequency}</span>
+                    <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-full font-bold">Weekly (Mock)</span>
                   </div>
                   <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between">
                     <div>
                       <p className="text-[10px] text-amber-800 font-bold uppercase tracking-wider">Next Service Date</p>
-                      <p className="text-sm font-bold text-amber-950 mt-1">{formatDate(loc.nextServiceDate)}</p>
+                      <p className="text-sm font-bold text-amber-950 mt-1">10 Aug 2026</p>
                     </div>
                     <span className="bg-amber-500 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-full shadow-sm">
                       In {daysUntilNextService} days
@@ -240,7 +280,7 @@ export default function LocationDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {loc.products.map((prodName, idx) => {
+                  {products.map((prodName, idx) => {
                     const capacity = 20;
                     const stock = idx % 2 === 0 ? 12 : 3;
                     const isLow = stock <= 5;
@@ -297,11 +337,11 @@ export default function LocationDetailPage() {
                 <div className="grid grid-cols-2 gap-3 pt-2">
                   <div className="bg-slate-50 p-3 rounded-lg border border-border">
                     <p className="text-slate-400 font-bold text-[9px]">Latitude</p>
-                    <p className="font-bold text-slate-950 font-mono text-[11px] mt-0.5">{loc.lat}</p>
+                    <p className="font-bold text-slate-950 font-mono text-[11px] mt-0.5">{loc.latitude}</p>
                   </div>
                   <div className="bg-slate-50 p-3 rounded-lg border border-border">
                     <p className="text-slate-400 font-bold text-[9px]">Longitude</p>
-                    <p className="font-bold text-slate-950 font-mono text-[11px] mt-0.5">{loc.lng}</p>
+                    <p className="font-bold text-slate-950 font-mono text-[11px] mt-0.5">{loc.longitude}</p>
                   </div>
                 </div>
                 <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-3 text-[10px] font-medium leading-relaxed">
@@ -312,13 +352,13 @@ export default function LocationDetailPage() {
 
             {/* Interactive Map */}
             <div className="lg:col-span-2 bg-card rounded-xl border border-border shadow-sm overflow-hidden h-[400px]">
-              <MapContainer center={[loc.lat, loc.lng]} zoom={14} className="h-full w-full">
+              <MapContainer center={[loc.latitude || 19.076, loc.longitude || 72.877]} zoom={14} className="h-full w-full">
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <Marker position={[loc.lat, loc.lng]}>
+                <Marker position={[loc.latitude || 19.076, loc.longitude || 72.877]}>
                   <Popup>
                     <div className="p-1 text-xs">
-                      <p className="font-bold text-slate-900">{loc.customerName}</p>
-                      <p className="text-slate-500 font-mono text-[10px]">{loc.machineId}</p>
+                      <p className="font-bold text-slate-900">{customer.companyName || loc.name}</p>
+                      <p className="text-slate-500 font-mono text-[10px]">{firstMachine.machineCode || "N/A"}</p>
                     </div>
                   </Popup>
                 </Marker>
@@ -361,7 +401,7 @@ export default function LocationDetailPage() {
             {/* Gallery Grid */}
             {galleryTab === "all" ? (
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-                {loc.photoGallery.map((imgUrl, i) => (
+                {photoGallery.map((imgUrl, i) => (
                   <div
                     key={i}
                     onClick={() => setLightboxImg(imgUrl)}
@@ -379,11 +419,11 @@ export default function LocationDetailPage() {
               <div className="space-y-3">
                 <p className="text-xs text-slate-450 font-medium">Drag slider horizontally to compare before refill vs after service</p>
                 <div className="relative h-[380px] rounded-xl overflow-hidden border border-border select-none max-w-2xl mx-auto">
-                  <img src={loc.photoGallery[1] || loc.photoGallery[0]} alt="After Service" className="absolute inset-0 w-full h-full object-cover" />
+                  <img src={photoGallery[1] || photoGallery[0]} alt="After Service" className="absolute inset-0 w-full h-full object-cover" />
                   <span className="absolute top-3 right-3 bg-emerald-600 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full shadow z-10 uppercase">AFTER REFILL</span>
 
                   <div className="absolute inset-y-0 left-0 overflow-hidden border-r-2 border-white shadow-2xl" style={{ width: `${comparePos}%` }}>
-                    <img src={loc.photoGallery[0]} alt="Before Service" className="absolute inset-0 w-full h-full object-cover" style={{ width: "672px", maxWidth: "none" }} />
+                    <img src={photoGallery[0]} alt="Before Service" className="absolute inset-0 w-full h-full object-cover" style={{ width: "672px", maxWidth: "none" }} />
                     <span className="absolute top-3 left-3 bg-amber-600 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full shadow z-10 uppercase">BEFORE SERVICE</span>
                   </div>
 
@@ -416,16 +456,13 @@ export default function LocationDetailPage() {
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(); }}
                   className="flex-1 px-3 py-2 text-xs border border-border rounded-lg focus:outline-none"
                 />
-                <button 
-                  onClick={handleAddNote} 
-                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer active:scale-95 transition-transform"
-                >
+                <button onClick={handleAddNote} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer">
                   Add
                 </button>
               </div>
 
               <div className="space-y-3">
-                {notesList.map((note: any) => (
+                {notesList.map((note) => (
                   <div key={note.id} className="p-3 rounded-xl bg-slate-50 border border-border text-xs space-y-1">
                     <div className="flex items-center justify-between text-slate-400">
                       <span className="font-bold text-slate-700">{note.author}</span>
@@ -442,8 +479,12 @@ export default function LocationDetailPage() {
               <h3 className="font-bold text-slate-900 text-sm border-b border-border pb-3">Detailed Service Visits</h3>
               
               <div className="relative pl-6 space-y-5 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                {locationStops.map((stop) => {
-                  const driver = mockDrivers.find((d) => d.id === "d1");
+                {locationStops.length === 0 ? (
+                  <div className="text-center py-8 text-slate-400">
+                    <p className="text-xs">No service visits recorded for this location yet.</p>
+                  </div>
+                ) : locationStops.map((stop) => {
+                  const driverName = stop.route?.driver?.name || stop.driverName || "Driver";
                   return (
                     <div key={stop.id} className="relative bg-slate-50 p-4 rounded-xl border border-border space-y-3 text-xs">
                       <span className="absolute -left-6.5 top-4 w-3.5 h-3.5 rounded-full bg-blue-600 border-2 border-white shadow-sm" />
@@ -459,7 +500,7 @@ export default function LocationDetailPage() {
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[11px] text-slate-600">
                         <div>
                           <p className="text-slate-400 font-bold uppercase text-[9px]">Driver</p>
-                          <p className="font-bold text-slate-800 mt-0.5">{driver?.name || "Arjun Sharma"}</p>
+                          <p className="font-bold text-slate-800 mt-0.5">{driverName}</p>
                         </div>
                         <div>
                           <p className="text-slate-400 font-bold uppercase text-[9px]">Check-in/out</p>
@@ -512,13 +553,15 @@ export default function LocationDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {locationStops.map((stop) => {
-                    const driver = mockDrivers.find((d) => d.id === "d1");
+                  {locationStops.length === 0 ? (
+                    <tr><td colSpan={7} className="text-center py-6 text-slate-400 text-xs">No route history found.</td></tr>
+                  ) : locationStops.map((stop) => {
+                    const driverName = stop.route?.driver?.name || stop.driverName || "Driver";
                     return (
                       <tr key={stop.id} className="hover:bg-slate-50/50">
                         <td className="px-4 py-3 font-bold text-slate-900 font-mono">#{stop.routeId || "101"}</td>
                         <td className="px-4 py-3 text-slate-650">{formatDate("2026-07-28")}</td>
-                        <td className="px-4 py-3 font-semibold text-slate-800">{driver?.name || "Arjun Sharma"}</td>
+                        <td className="px-4 py-3 font-semibold text-slate-800">{driverName}</td>
                         <td className="px-4 py-3 text-slate-500">Stop #{stop.sequenceNumber || "2"}</td>
                         <td className="px-4 py-3"><StatusBadge status={stop.status} /></td>
                         <td className="px-4 py-3 text-slate-600 font-mono">10:15 AM</td>
