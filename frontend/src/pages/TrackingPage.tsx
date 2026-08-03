@@ -147,16 +147,19 @@ export default function TrackingPage() {
 
           {/* Draw Stop Markers */}
           {currentSelectedRouteInfo?.stops.map((stopLoc, idx) => {
+            const lat = Number(stopLoc.lat || (stopLoc as any).latitude);
+            const lng = Number(stopLoc.lng || (stopLoc as any).longitude);
+            if (isNaN(lat) || isNaN(lng)) return null;
             const status: "completed" | "current" | "pending" = idx === 0 ? "completed" : idx === 1 ? "current" : "pending";
             return (
               <Marker
                 key={stopLoc.id}
-                position={[stopLoc.lat, stopLoc.lng]}
+                position={[lat, lng]}
                 icon={createStopIcon(status)}
               >
                 <Popup>
                   <div className="p-1 text-xs">
-                    <p className="font-bold text-slate-900">{stopLoc.customerName}</p>
+                    <p className="font-bold text-slate-900">{stopLoc.customerName || stopLoc.name}</p>
                     <p className="text-slate-500">{stopLoc.address}</p>
                     <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 capitalize">
                       {status}
@@ -171,6 +174,7 @@ export default function TrackingPage() {
           {(liveLocations || []).map((loc) => {
             const driver = drivers.find((d) => d.id === loc.driverId);
             if (!driver || driver.liveStatus === "offline") return null;
+            if (typeof loc.lat !== "number" || typeof loc.lng !== "number" || isNaN(loc.lat) || isNaN(loc.lng)) return null;
             const color = driverColors[loc.driverId] || "#2563EB";
 
             return (

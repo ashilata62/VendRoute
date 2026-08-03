@@ -610,11 +610,17 @@ export default function RoutesPage() {
                     <MapContainer center={previewCenter} zoom={11} className="h-full w-full">
                       <MapFlyController center={previewCenter} />
                       <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                      {selectedLocationObjs.map((loc, idx) => (
-                        <Marker key={loc!.id} position={[loc!.latitude, loc!.longitude]}>
-                          <Popup>{idx + 1}. {loc!.name}</Popup>
-                        </Marker>
-                      ))}
+                      {selectedLocationObjs.map((loc, idx) => {
+                        if (!loc) return null;
+                        const lat = Number(loc.latitude || loc.lat);
+                        const lng = Number(loc.longitude || loc.lng);
+                        if (isNaN(lat) || isNaN(lng) || !lat || !lng) return null;
+                        return (
+                          <Marker key={loc.id} position={[lat, lng]}>
+                            <Popup>{idx + 1}. {loc.name}</Popup>
+                          </Marker>
+                        );
+                      })}
                       {previewPolylineCoords.length > 1 && (
                         <Polyline positions={previewPolylineCoords} color="#2563EB" weight={3} />
                       )}
@@ -704,8 +710,11 @@ export default function RoutesPage() {
                       const locationId = typeof stop === 'string' ? stop : stop.locationId;
                       const loc = locations.find((l) => l.id === locationId);
                       if (!loc) return null;
+                      const lat = Number(loc.latitude || loc.lat);
+                      const lng = Number(loc.longitude || loc.lng);
+                      if (isNaN(lat) || isNaN(lng) || !lat || !lng) return null;
                       return (
-                        <Marker key={loc.id} position={[loc.latitude, loc.longitude]}>
+                        <Marker key={loc.id} position={[lat, lng]}>
                           <Popup>{idx + 1}. {loc.name}</Popup>
                         </Marker>
                       );

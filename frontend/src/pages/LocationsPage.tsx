@@ -439,8 +439,12 @@ export default function LocationsPage() {
         <div className="bg-card rounded-lg border border-border shadow-sm overflow-hidden h-[550px]">
           <MapContainer center={[20.5937, 78.9629]} zoom={5} className="h-full w-full">
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-            {filteredLocations.map((loc) => (
-              <Marker key={loc.id} position={[loc.latitude, loc.longitude]}>
+            {filteredLocations.map((loc) => {
+              const lat = Number(loc.latitude || loc.lat);
+              const lng = Number(loc.longitude || loc.lng);
+              if (isNaN(lat) || isNaN(lng) || !lat || !lng) return null;
+              return (
+                <Marker key={loc.id} position={[lat, lng]}>
                 <Popup>
                   <div className="p-1 text-xs space-y-1">
                     <p className="font-bold text-slate-900">{loc.name}</p>
@@ -454,7 +458,8 @@ export default function LocationsPage() {
                   </div>
                 </Popup>
               </Marker>
-            ))}
+            );
+          })}
           </MapContainer>
         </div>
       )}

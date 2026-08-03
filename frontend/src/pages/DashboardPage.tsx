@@ -357,6 +357,9 @@ export default function DashboardPage() {
                 }
               />
               {movingLocations.slice(0, 4).map((loc) => {
+                if (!loc || typeof loc.lat !== "number" || typeof loc.lng !== "number" || isNaN(loc.lat) || isNaN(loc.lng)) {
+                  return null;
+                }
                 const driverName = loc.driverName || "Driver";
                 const vehicleModel = loc.vehicleModel || "Vehicle";
                 const vehiclePlate = loc.vehiclePlate || "";
@@ -366,7 +369,7 @@ export default function DashboardPage() {
 
                 return (
                   <Marker
-                    key={loc.driverId}
+                    key={loc.driverId || Math.random()}
                     position={[loc.lat, loc.lng]}
                     icon={createDriverIcon(isOnline, "van")}
                   >
