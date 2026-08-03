@@ -5,6 +5,7 @@ import { useAuthStore } from "../../store/authStore";
 import { useNotificationStore } from "../../store/notificationStore";
 import { cn } from "../../lib/utils";
 import { mockLocations, mockDrivers, mockRoutes } from "../../data/mockData";
+import brandLogo from "../../assets/maryland-logo.png";
 
 interface HeaderProps {
   collapsed: boolean;
@@ -113,8 +114,11 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
       </button>
 
       {/* Breadcrumb */}
-      <div className="flex items-center gap-1.5 text-xs sm:text-sm min-w-0 overflow-hidden whitespace-nowrap">
-        <span className="text-slate-400 font-semibold hidden sm:inline">VendRoute</span>
+      <div className="flex items-center gap-2 text-xs sm:text-sm min-w-0 overflow-hidden whitespace-nowrap">
+        <div className="w-7 h-7 rounded-full bg-white shadow-sm flex items-center justify-center overflow-hidden flex-shrink-0 hidden sm:flex border border-slate-200">
+          <img src={brandLogo} alt="Logo" className="w-full h-full object-cover" />
+        </div>
+        <span className="text-slate-400 font-semibold hidden sm:inline">Maryland Vending</span>
         {breadcrumbs.map((bc, i) => (
           <span key={bc.path} className="flex items-center gap-1.5 min-w-0">
             <span className="text-slate-300 hidden sm:inline">/</span>
@@ -322,7 +326,7 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
           <img
             src={user?.avatar}
             alt={user?.name}
-            className="w-8 h-8 rounded-full object-cover ring-2 ring-blue-100"
+            className="w-8 h-8 rounded-full object-cover ring-2 ring-slate-200 shadow-sm"
           />
           <div className="hidden lg:block text-left">
             <p className="text-xs font-bold text-slate-800 leading-tight">{user?.name}</p>
@@ -339,9 +343,9 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
             <div className="fixed inset-0 z-40" onClick={() => setProfileOpen(false)} />
             <div className="absolute right-0 top-full mt-2 w-56 bg-white border border-slate-200 rounded-2xl shadow-xl z-50 overflow-hidden">
               {/* User info header */}
-              <div className="px-4 py-3 bg-gradient-to-r from-blue-600 to-blue-500 text-white">
+              <div className="px-4 py-3 bg-gradient-to-br from-[#ff3b3b] to-[#4f46e5] text-white">
                 <div className="flex items-center gap-3">
-                  <img src={user?.avatar} alt="" className="w-10 h-10 rounded-full border-2 border-white/30" />
+                  <img src={user?.avatar} alt="" className="w-10 h-10 rounded-full border-2 border-white/30 shadow-md" />
                   <div>
                     <p className="text-sm font-bold">{user?.name}</p>
                     <p className="text-[11px] opacity-80 truncate">{user?.email}</p>

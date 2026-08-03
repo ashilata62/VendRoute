@@ -259,8 +259,8 @@ export const mockNotifications: AppNotification[] = [
 
 // ─── Users ─────────────────────────────────────────────────────────────────────
 export const mockUsers: AppUser[] = [
-  { id: "u1", name: "Rohit Kapoor", email: "rohit.kapoor@vendroute.in", role: "superadmin", avatar: "https://ui-avatars.com/api/?name=Rohit+Kapoor&background=2563EB&color=fff", status: "active", lastLogin: "2026-07-31T08:00:00", createdAt: "2021-01-01" },
-  { id: "u2", name: "Sunita Agarwal", email: "sunita.agarwal@vendroute.in", role: "supervisor", avatar: "https://ui-avatars.com/api/?name=Sunita+Agarwal&background=8B5CF6&color=fff", status: "active", lastLogin: "2026-07-31T09:00:00", createdAt: "2022-03-10" },
+  { id: "u1", name: "Rohit Kapoor", email: "rohit.kapoor@vendroute.in", role: "superadmin", avatar: "https://ui-avatars.com/api/?name=Rohit+Kapoor&background=18C29C&color=fff", status: "active", lastLogin: "2026-07-31T08:00:00", createdAt: "2021-01-01" },
+  { id: "u2", name: "Sunita Agarwal", email: "sunita.agarwal@vendroute.in", role: "supervisor", avatar: "https://ui-avatars.com/api/?name=Sunita+Agarwal&background=18C29C&color=fff", status: "active", lastLogin: "2026-07-31T09:00:00", createdAt: "2022-03-10" },
   { id: "u3", name: "Arjun Sharma", email: "arjun.sharma@vendroute.in", role: "driver", avatar: "https://ui-avatars.com/api/?name=Arjun+Sharma&background=10B981&color=fff", status: "active", lastLogin: "2026-07-31T07:45:00", createdAt: "2022-03-15" },
   { id: "u4", name: "Priya Patel", email: "priya.patel@vendroute.in", role: "driver", avatar: "https://ui-avatars.com/api/?name=Priya+Patel&background=10B981&color=fff", status: "active", lastLogin: "2026-07-31T08:30:00", createdAt: "2022-07-20" },
   { id: "u5", name: "Sneha Joshi", email: "sneha.joshi@vendroute.in", role: "viewer", avatar: "https://ui-avatars.com/api/?name=Sneha+Joshi&background=F59E0B&color=fff", status: "inactive", lastLogin: "2026-07-01T10:00:00", createdAt: "2021-11-05" },

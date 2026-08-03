@@ -13,6 +13,7 @@ import { mockLocations, mockStops, mockCustomers, mockDrivers } from "../data/mo
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate } from "../lib/utils";
+import { useAuthStore } from "../store/authStore";
 
 // Fix Leaflet default icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -45,20 +46,38 @@ export default function LocationDetailPage() {
   const [comparePos, setComparePos] = useState(50); // Slider % position
 
   // Notes state
-  const [notesList, setNotesList] = useState([
-    { id: "n1", text: loc.notes || "Machine in good operational condition.", date: "31 Jul 2026", author: "Rohit Kapoor" },
-    { id: "n2", text: "Refilled snack tray 2 with Oreo & KitKat. Collected ₹3,200.", date: "28 Jul 2026", author: "Arjun Sharma" },
-  ]);
+  const [notesList, setNotesList] = useState(() => {
+    const cached = localStorage.getItem(`notes_log_${loc.id}`);
+    if (cached) {
+      try {
+        return JSON.parse(cached);
+      } catch (e) {
+        console.error("Error parsing cached notes", e);
+      }
+    }
+    return [
+      { id: "n1", text: loc.notes || "Machine in good operational condition.", date: "31 Jul 2026", author: "Rohit Kapoor" },
+      { id: "n2", text: "Refilled snack tray 2 with Oreo & KitKat. Collected ₹3,200.", date: "28 Jul 2026", author: "Arjun Sharma" },
+    ];
+  });
   const [newNoteInput, setNewNoteInput] = useState("");
+  const { user } = useAuthStore();
 
   const locationStops = mockStops.filter((s) => s.locationId === loc.id);
 
   const handleAddNote = () => {
     if (newNoteInput.trim()) {
-      setNotesList([
-        { id: `n${Date.now()}`, text: newNoteInput.trim(), date: "Today", author: "Admin User" },
+      const formattedDate = new Date().toLocaleDateString("en-IN", {
+        day: "numeric",
+        month: "short",
+        year: "numeric",
+      });
+      const updatedList = [
+        { id: `n${Date.now()}`, text: newNoteInput.trim(), date: formattedDate, author: user?.name || "Rohit Kapoor" },
         ...notesList,
-      ]);
+      ];
+      setNotesList(updatedList);
+      localStorage.setItem(`notes_log_${loc.id}`, JSON.stringify(updatedList));
       setNewNoteInput("");
     }
   };
@@ -397,13 +416,16 @@ export default function LocationDetailPage() {
                   onKeyDown={(e) => { if (e.key === "Enter") handleAddNote(); }}
                   className="flex-1 px-3 py-2 text-xs border border-border rounded-lg focus:outline-none"
                 />
-                <button onClick={handleAddNote} className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer">
+                <button 
+                  onClick={handleAddNote} 
+                  className="px-3 py-2 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-lg cursor-pointer active:scale-95 transition-transform"
+                >
                   Add
                 </button>
               </div>
 
               <div className="space-y-3">
-                {notesList.map((note) => (
+                {notesList.map((note: any) => (
                   <div key={note.id} className="p-3 rounded-xl bg-slate-50 border border-border text-xs space-y-1">
                     <div className="flex items-center justify-between text-slate-400">
                       <span className="font-bold text-slate-700">{note.author}</span>

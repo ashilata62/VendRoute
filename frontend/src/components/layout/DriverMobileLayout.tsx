@@ -9,6 +9,7 @@ import {
 import { useAuthStore } from "../../store/authStore";
 import { mockRoutes, mockLocations, mockStops } from "../../data/mockData";
 import { cn } from "../../lib/utils";
+import brandLogo from "../../assets/maryland-logo.png";
 
 export default function DriverMobileLayout() {
   const navigate = useNavigate();
@@ -170,10 +171,10 @@ export default function DriverMobileLayout() {
         {/* Mobile App Header */}
         <header className="bg-[#0B1536] text-white px-4 py-4 flex items-center justify-between shadow-md flex-shrink-0">
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center shadow-lg shadow-blue-600/30">
-              <Route className="w-4 h-4" />
+            <div className="w-9 h-9 rounded-full bg-white shadow-lg shadow-red-600/30 flex items-center justify-center overflow-hidden border border-white/20 flex-shrink-0">
+              <img src={brandLogo} alt="Maryland Driver Logo" className="w-full h-full object-cover" />
             </div>
-            <span className="font-extrabold text-sm tracking-tight">VendRoute <span className="text-blue-400">Go</span></span>
+            <span className="font-extrabold text-sm tracking-tight">Maryland <span className="text-blue-400">Driver</span></span>
           </div>
           <div className="flex items-center gap-2">
             <span
@@ -229,7 +230,7 @@ export default function DriverMobileLayout() {
                 className="p-4 space-y-4"
               >
                 {/* Driver Greeting Card */}
-                <div className="bg-gradient-to-r from-blue-700 to-indigo-800 text-white rounded-2xl p-4 shadow-lg flex items-center gap-3">
+                <div className="bg-gradient-to-br from-[#ff3b3b] to-[#4f46e5] text-white rounded-2xl p-4 shadow-lg flex items-center gap-3">
                   <img src={user?.avatar} alt="" className="w-12 h-12 rounded-full border-2 border-white/30" />
                   <div>
                     <h3 className="font-bold text-sm">Hello, {user?.name}!</h3>

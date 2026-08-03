@@ -36,8 +36,8 @@ export default function SettingsPage() {
   // 1. Company & General Settings
   const [companyForm, setCompanyForm] = useState({
     name: user?.name || "Admin User",
-    email: user?.email || "admin@vendroute.in",
-    orgName: "VendRoute Technologies Pvt. Ltd.",
+    email: user?.email || "admin@marylandvending.com",
+    orgName: "Maryland Vending Service",
     timezone: "Asia/Kolkata (IST, UTC+5:30)",
     currency: "INR (₹)",
     language: "English",

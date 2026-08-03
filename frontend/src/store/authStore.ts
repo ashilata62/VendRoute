@@ -10,8 +10,8 @@ interface AuthState {
 }
 
 const MOCK_USERS: AuthUser[] = [
-  { id: "u1", name: "Rohit Kapoor", email: "admin@vendroute.in", role: "superadmin", avatar: "https://ui-avatars.com/api/?name=Rohit+Kapoor&background=2563EB&color=fff" },
-  { id: "u2", name: "Sunita Agarwal", email: "manager@vendroute.in", role: "supervisor", avatar: "https://ui-avatars.com/api/?name=Sunita+Agarwal&background=8B5CF6&color=fff" },
+  { id: "u1", name: "Rohit Kapoor", email: "admin@vendroute.in", role: "superadmin", avatar: "https://ui-avatars.com/api/?name=Rohit+Kapoor&background=18C29C&color=fff" },
+  { id: "u2", name: "Sunita Agarwal", email: "manager@vendroute.in", role: "supervisor", avatar: "https://ui-avatars.com/api/?name=Sunita+Agarwal&background=18C29C&color=fff" },
   { id: "u3", name: "Arjun Sharma", email: "driver@vendroute.in", role: "driver", avatar: "https://ui-avatars.com/api/?name=Arjun+Sharma&background=10B981&color=fff" },
 ];
 
@@ -30,7 +30,7 @@ export const useAuthStore = create<AuthState>()(
           name: "Rohit Kapoor",
           email,
           role: finalRole,
-          avatar: "https://ui-avatars.com/api/?name=Rohit+Kapoor&background=2563EB&color=fff",
+          avatar: `https://ui-avatars.com/api/?name=Rohit+Kapoor&background=18C29C&color=fff`,
         };
         set({ user: userObj, isAuthenticated: true });
         return true;

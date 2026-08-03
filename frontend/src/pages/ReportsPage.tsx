@@ -749,14 +749,14 @@ export default function ReportsPage() {
         initial={{ opacity: 0, y: 8 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.3 }}
-        className="bg-gradient-to-r from-primary-600 to-blue-500 rounded-xl p-5 text-white flex items-center justify-between"
+        className="bg-gradient-to-r from-yellow-100 to-amber-100 rounded-xl p-5 text-amber-950 flex items-center justify-between border border-yellow-200 shadow-sm"
       >
         <div>
-          <p className="text-sm font-semibold opacity-90">{currentTab?.label} Overview — {dateRange}</p>
-          <p className="text-xs opacity-70 mt-0.5">Showing aggregated data. Last refreshed: Just now.</p>
+          <p className="text-sm font-bold opacity-90">{currentTab?.label} Overview — {dateRange}</p>
+          <p className="text-xs opacity-75 mt-0.5 font-medium text-amber-900">Showing aggregated data. Last refreshed: Just now.</p>
         </div>
         <div className="flex items-center gap-3">
-          <div className="w-px h-10 bg-white/20" />
+          <div className="w-px h-10 bg-amber-900/20" />
           <div className="text-right">
             <p className="text-2xl font-bold">
               {activeTab === "revenue" && formatCurrency(2049000)}

@@ -7,6 +7,7 @@ import {
 } from "lucide-react";
 import { cn } from "../../lib/utils";
 import { useAuthStore } from "../../store/authStore";
+import brandLogo from "../../assets/maryland-logo.png";
 
 interface SidebarProps {
   collapsed: boolean;
@@ -77,13 +78,13 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
         {/* Logo Header */}
         <div className="flex items-center justify-between h-16 px-4 border-b border-slate-800/80 flex-shrink-0 bg-[#070E28]">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 bg-blue-600 rounded-xl flex items-center justify-center flex-shrink-0 shadow-lg shadow-blue-600/40">
-              <Route className="w-5 h-5 text-white" />
+            <div className="w-10 h-10 rounded-full bg-white shadow-lg shadow-red-600/30 flex items-center justify-center overflow-hidden border border-white/20 flex-shrink-0">
+              <img src={brandLogo} alt="Maryland Vending Logo" className="w-full h-full object-cover" />
             </div>
             {(!collapsed || mobileOpen) && (
               <div className="truncate">
-                <p className="font-bold text-white text-sm leading-tight tracking-tight flex items-center gap-0.5">
-                  Vend<span className="text-blue-400">Route</span>
+                <p className="font-bold text-white text-[13px] leading-tight tracking-tight flex items-center gap-0.5">
+                  Maryland Vending
                 </p>
                 <p className="text-[10px] text-slate-400 font-medium tracking-wide">
                   {isSuperAdmin ? "Super Admin Portal" : isSupervisor ? "Supervisor Portal" : "Field Operations"}

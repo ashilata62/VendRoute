@@ -3,10 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
 import {
   MapPin, Route, Camera, BarChart3, ShieldCheck, Mail, Lock,
-  Eye, EyeOff, Loader2, ArrowRight, Building2, Truck
+  Eye, EyeOff, Loader2, ArrowRight, ArrowLeft, Building2, Truck
 } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
 import type { UserRole } from "../types";
+import brandLogo from "../assets/maryland-logo.png";
 
 // roles constant removed since role dropdown is removed
 
@@ -65,12 +66,12 @@ export default function LoginPage() {
           {/* Top Row: Brand Logo + Security Badge */}
           <div className="flex items-center justify-between z-10">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-blue-600 flex items-center justify-center shadow-lg shadow-blue-600/40">
-                <Route className="w-6 h-6 text-white" />
+              <div className="w-14 h-14 rounded-full bg-white shadow-lg shadow-white/20 flex items-center justify-center overflow-hidden border-2 border-white/30">
+                <img src={brandLogo} alt="Maryland Vending Logo" className="w-full h-full object-cover" />
               </div>
               <div>
                 <h1 className="text-xl font-bold tracking-tight text-white flex items-center gap-1">
-                  Vend<span className="text-blue-400">Route</span>
+                  Maryland Vending
                 </h1>
                 <p className="text-[11px] text-slate-400 font-medium tracking-wide">
                   Field Operations Management Platform
@@ -167,7 +168,7 @@ export default function LoginPage() {
             </div>
 
             <p className="text-[11px] text-slate-500 text-center">
-              © 2026 VendRoute Technologies Pvt. Ltd. All rights reserved.
+              © 2026 Maryland Vending Service. All rights reserved.
             </p>
           </div>
         </div>
@@ -176,13 +177,22 @@ export default function LoginPage() {
         <div className="lg:col-span-6 p-8 lg:p-12 flex flex-col justify-between bg-white">
           <div className="max-w-md mx-auto w-full space-y-6">
             {/* Form Title Header */}
-            <div>
-              <h2 className="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">
-                Welcome <span className="text-blue-600">Back!</span>
-              </h2>
-              <p className="text-xs lg:text-sm text-slate-500 mt-1 font-medium">
-                Sign in to your VendRoute account
-              </p>
+            <div className="flex justify-between items-start">
+              <div>
+                <h2 className="text-2xl lg:text-3xl font-extrabold text-slate-900 tracking-tight">
+                  Welcome <span className="text-blue-600">Back!</span>
+                </h2>
+                <p className="text-xs lg:text-sm text-slate-500 mt-1 font-medium">
+                  Sign in to your VendRoute account
+                </p>
+              </div>
+              <button 
+                type="button"
+                onClick={() => navigate('/')}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 hover:shadow-sm rounded-lg transition-all border border-blue-100"
+              >
+                <ArrowLeft className="w-3.5 h-3.5" /> Back to Home
+              </button>
             </div>
 
             {/* Login Form */}

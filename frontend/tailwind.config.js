@@ -5,13 +5,27 @@ export default {
   theme: {
     extend: {
       colors: {
+        // Map all 'blue' classes to 'red' to instantly change the global theme
+        blue: {
+          50: "#fef2f2",
+          100: "#fee2e2",
+          200: "#fecaca",
+          300: "#fca5a5",
+          400: "#f87171",
+          500: "#ef4444",
+          600: "#dc2626",
+          700: "#b91c1c",
+          800: "#991b1b",
+          900: "#7f1d1d",
+          950: "#450a0a",
+        },
         primary: {
-          DEFAULT: "#2563EB",
-          50: "#EFF6FF",
-          100: "#DBEAFE",
-          500: "#3B82F6",
-          600: "#2563EB",
-          700: "#1D4ED8",
+          DEFAULT: "#dc2626",
+          50: "#fef2f2",
+          100: "#fee2e2",
+          500: "#ef4444",
+          600: "#dc2626",
+          700: "#b91c1c",
         },
         secondary: { DEFAULT: "#64748B" },
         background: "#F8FAFC",
