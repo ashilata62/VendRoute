@@ -40,14 +40,15 @@ interface StatusBadgeProps {
 }
 
 export default function StatusBadge({ status, withDot = false, className }: StatusBadgeProps) {
-  const config = statusConfig[status] || { label: status, className: "bg-slate-50 text-slate-600 border-slate-200" };
+  const normalizedStatus = (status || "").toLowerCase().replace("_", "-");
+  const config = statusConfig[normalizedStatus] || { label: status, className: "bg-slate-50 text-slate-600 border-slate-200" };
   return (
     <span className={cn("inline-flex items-center gap-1.5 px-2.5 py-0.5 text-xs font-medium rounded-full border", config.className, className)}>
       {withDot && (
         <span className={cn("w-1.5 h-1.5 rounded-full",
-          status === "operational" || status === "active" || status === "online" || status === "completed" || status === "available" ? "bg-emerald-500" :
-          status === "needs-service" || status === "pending" || status === "maintenance" ? "bg-amber-500" :
-          status === "offline" || status === "inactive" || status === "cancelled" || status === "missed" ? "bg-red-500" :
+          normalizedStatus === "operational" || normalizedStatus === "active" || normalizedStatus === "online" || normalizedStatus === "completed" || normalizedStatus === "available" ? "bg-emerald-500" :
+          normalizedStatus === "needs-service" || normalizedStatus === "pending" || normalizedStatus === "maintenance" ? "bg-amber-500" :
+          normalizedStatus === "offline" || normalizedStatus === "inactive" || normalizedStatus === "cancelled" || normalizedStatus === "missed" ? "bg-red-500" :
           "bg-blue-500"
         )} />
       )}

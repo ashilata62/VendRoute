@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 
 import { useTrackingStore } from "../store/trackingStore";
-import { mockRoutes, mockLocations } from "../data/mockData";
+import { routesApi, locationsApi } from "../services/api";
 import StatusBadge from "../components/shared/StatusBadge";
 import type { Driver } from "../types";
 
@@ -78,30 +78,13 @@ export default function TrackingPage() {
   const [mapCenter, setMapCenter] = useState<[number, number]>([19.0760, 72.8777]);
   const [mapZoom, setMapZoom] = useState<number>(12);
   const [refreshing, setRefreshing] = useState(false);
+  const [realRoutes, setRealRoutes] = useState<any[]>([]);
+  const [realLocations, setRealLocations] = useState<any[]>([]);
 
-  // Auto Refresh driver location positions simulation every 10 seconds
   useEffect(() => {
-    const interval = setInterval(() => {
-      if (liveLocations && Array.isArray(liveLocations)) {
-        liveLocations.forEach((loc) => {
-          const deltaLat = (Math.random() - 0.5) * 0.003;
-          const deltaLng = (Math.random() - 0.5) * 0.003;
-          const newSpeed = Math.floor(25 + Math.random() * 35);
-          const newHeading = Math.floor(Math.random() * 360);
-          updateLocation({
-            ...loc,
-            lat: loc.lat + deltaLat,
-            lng: loc.lng + deltaLng,
-            speed: newSpeed,
-            heading: newHeading,
-            timestamp: new Date().toISOString(),
-          });
-        });
-      }
-    }, 10000);
-
-    return () => clearInterval(interval);
-  }, [liveLocations, updateLocation]);
+    routesApi.getAll().then(res => { if (res.success) setRealRoutes(res.data); }).catch(() => {});
+    locationsApi.getAll().then(res => { if (res.success) setRealLocations(res.data); }).catch(() => {});
+  }, []);
 
   const activeDrivers = useMemo(() => {
     return (drivers || []).filter((d) => d.liveStatus !== "offline");
@@ -123,18 +106,18 @@ export default function TrackingPage() {
 
   const driverRoutes = useMemo(() => {
     return activeDrivers.map((driver) => {
-      const route = mockRoutes.find((r) => r.driverId === driver.id && r.status === "active") || mockRoutes[0];
-      const locs = mockLocations.slice(0, 4);
-      const coords: [number, number][] = locs.map((l) => [l.lat, l.lng]);
+      const route = realRoutes.find((r: any) => r.driverId === driver.id && (r.status === "IN_PROGRESS" || r.status === "PENDING")) || realRoutes[0];
+      const locs = realLocations.slice(0, 4);
+      const coords: [number, number][] = locs.map((l: any) => [l.lat, l.lng]);
       return {
         driverId: driver.id,
-        routeName: route.name,
+        routeName: route?.name || "Active Route",
         color: driverColors[driver.id] || "#2563EB",
         coords,
         stops: locs,
       };
     });
-  }, [activeDrivers]);
+  }, [activeDrivers, realRoutes, realLocations]);
 
   const currentSelectedDriver = selectedDriver || activeDrivers[0] || drivers[0];
   const currentSelectedRouteInfo = driverRoutes.find((r) => r.driverId === currentSelectedDriver?.id);

@@ -19,7 +19,7 @@ import { useLocationStore } from "../store/locationStore";
 import { useAuthStore } from "../store/authStore";
 import PageHeader from "../components/shared/PageHeader";
 import { formatCurrency } from "../lib/utils";
-import { mockStops, mockDrivers, mockVehicles } from "../data/mockData";
+import { reportsApi } from "../services/api";
 
 // Leaflet Icon setup
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -79,14 +79,24 @@ export default function DashboardPage() {
   const [movingLocations, setMovingLocations] = useState(liveLocations);
   const [mapTile, setMapTile] = useState<"standard" | "satellite">("standard");
 
-  // Dynamic Metrics
-  const totalRoutesToday = routes.filter((r) => r.date === "2026-07-31" || r.date === "2026-07-30").length || 8;
-  const activeDriversCount = drivers.filter((d) => d.liveStatus !== "offline").length;
-  const totalDriversCount = drivers.length;
-  const completedStopsCount = mockStops.filter((s) => s.status === "completed").length;
-  const totalStopsCount = mockStops.length;
-  const missedStopsCount = mockStops.filter((s) => s.status === "missed").length;
-  const todayRevenue = mockStops.filter((s) => s.status === "completed").reduce((acc, s) => acc + s.cashCollected, 0);
+  // Real stats from backend
+  const [dbStats, setDbStats] = useState<any>(null);
+
+  useEffect(() => {
+    reportsApi.getDashboard().then((res) => {
+      if (res.success) setDbStats(res.data);
+    }).catch(() => {});
+  }, []);
+
+  // Metrics — real DB values with fallback
+  const totalRoutesToday = dbStats?.routes?.today ?? routes.filter((r) => r.date === new Date().toISOString().split('T')[0]).length;
+  const activeDriversCount = dbStats?.drivers?.total ?? drivers.filter((d) => d.liveStatus !== "offline").length;
+  const totalDriversCount = dbStats?.drivers?.total ?? drivers.length;
+  const completedStopsCount = dbStats?.stops?.completed ?? 0;
+  const totalStopsCount = dbStats?.stops?.total ?? 0;
+  const missedStopsCount = 0;
+  const machineAlertsCount = dbStats?.machines?.alerts ?? 0;
+  const todayRevenue = 0; // Will be real from future cash-collection API
 
   // Donut chart machine status
   const machineStatusCounts = useMemo(() => {
@@ -100,20 +110,11 @@ export default function DashboardPage() {
     ];
   }, [locations]);
 
-  // Live Auto-Refresh simulation for vehicle map markers
+  // Live Auto-Refresh is now handled by the centralized trackingStore via WebSockets.
+  // We can just use liveLocations from trackingStore directly.
   useEffect(() => {
-    const interval = setInterval(() => {
-      setMovingLocations((prev) =>
-        prev.map((loc) => ({
-          ...loc,
-          lat: loc.lat + (Math.random() - 0.5) * 0.0015,
-          lng: loc.lng + (Math.random() - 0.5) * 0.0015,
-          speed: Math.floor(20 + Math.random() * 25),
-        }))
-      );
-    }, 5000);
-    return () => clearInterval(interval);
-  }, []);
+    setMovingLocations(liveLocations);
+  }, [liveLocations]);
 
   const handleMarkAllRead = () => {
     setAlerts((prev) => prev.map((a) => ({ ...a, read: true })));
@@ -126,19 +127,22 @@ export default function DashboardPage() {
   // Active Route Progress calculation
   const activeRoutesProgress = useMemo(() => {
     return routes.slice(0, 4).map((r) => {
-      const driver = mockDrivers.find((d) => d.id === r.driverId);
-      const routeStops = mockStops.filter((s) => s.routeId === r.id);
-      const done = routeStops.filter((s) => s.status === "completed").length;
-      const total = routeStops.length || 4;
-      const pct = Math.round((done / total) * 100) || (r.status === "completed" ? 100 : r.status === "active" ? 65 : 20);
+      const driverName = (r as any).driver?.name || "Driver";
+      const pct = r.status === "COMPLETED" ? 100 : r.status === "IN_PROGRESS" ? 65 : 20;
+      const avatarUrl = (r as any).driver?.photo ||
+        `https://ui-avatars.com/api/?name=${encodeURIComponent(driverName)}&background=3B82F6&color=fff&size=32`;
       return {
-        ...r,
-        driverName: driver?.name || "Driver",
-        avatar: driver?.photo,
+        id: r.id,
+        name: r.name,
+        driverId: r.driverId,
+        driverName,
+        avatar: avatarUrl,
         percentage: pct,
+        status: r.status,
       };
     });
   }, [routes]);
+
 
   const totalProgressPct = Math.round(
     activeRoutesProgress.reduce((acc, r) => acc + r.percentage, 0) / (activeRoutesProgress.length || 1)
@@ -213,7 +217,7 @@ export default function DashboardPage() {
           <div className="mt-3 flex items-center justify-between">
             <div>
               <p className="text-xl font-bold text-slate-900">{completedStopsCount}/{totalStopsCount}</p>
-              <p className="text-xs text-slate-400 mt-1">{Math.round((completedStopsCount / totalStopsCount) * 100)}% target</p>
+              <p className="text-xs text-slate-400 mt-1">{totalStopsCount > 0 ? Math.round((completedStopsCount / totalStopsCount) * 100) : 0}% target</p>
             </div>
             {/* SVG Circular Progress */}
             <div className="relative w-10 h-10 flex items-center justify-center">
@@ -223,7 +227,7 @@ export default function DashboardPage() {
                   cx="20" cy="20" r="16"
                   stroke="#06B6D4" strokeWidth="3" fill="transparent"
                   strokeDasharray={100}
-                  strokeDashoffset={100 - (completedStopsCount / totalStopsCount) * 100}
+                  strokeDashoffset={100 - (totalStopsCount > 0 ? (completedStopsCount / totalStopsCount) * 100 : 0)}
                   strokeLinecap="round"
                 />
               </svg>
@@ -299,9 +303,9 @@ export default function DashboardPage() {
             </div>
           </div>
           <div className="mt-3 flex items-center justify-between">
-            <p className="text-2xl font-bold text-slate-900">7</p>
+            <p className="text-2xl font-bold text-slate-900">{machineAlertsCount}</p>
             <span className="text-xs bg-amber-100 text-amber-800 font-medium px-2 py-0.5 rounded-full">
-              4 service
+              {machineAlertsCount > 0 ? "Need attention" : "All good"}
             </span>
           </div>
         </motion.div>
@@ -352,24 +356,26 @@ export default function DashboardPage() {
                 }
               />
               {movingLocations.slice(0, 4).map((loc) => {
-                const driver = mockDrivers.find((d) => d.id === loc.driverId);
-                const vehicle = mockVehicles.find((v) => v.id === driver?.assignedVehicleId);
-                if (!driver) return null;
-                const isOnline = driver.liveStatus !== "offline";
+                const driverName = loc.driverName || "Driver";
+                const vehicleModel = loc.vehicleModel || "Vehicle";
+                const vehiclePlate = loc.vehiclePlate || "";
+                const driverPhoto = loc.driverPhoto ||
+                  `https://ui-avatars.com/api/?name=${encodeURIComponent(driverName)}&background=3B82F6&color=fff&size=24`;
+                const isOnline = true;
 
                 return (
                   <Marker
                     key={loc.driverId}
                     position={[loc.lat, loc.lng]}
-                    icon={createDriverIcon(isOnline, vehicle?.type || "van")}
+                    icon={createDriverIcon(isOnline, "van")}
                   >
                     <Popup>
                       <div className="p-1 text-xs space-y-1">
                         <div className="flex items-center gap-2">
-                          <img src={driver.photo} alt={driver.name} className="w-6 h-6 rounded-full" />
-                          <p className="font-bold text-slate-900">{driver.name}</p>
+                          <img src={driverPhoto} alt={driverName} className="w-6 h-6 rounded-full bg-slate-200" onError={(e) => { (e.target as HTMLImageElement).style.display='none'; }} />
+                          <p className="font-bold text-slate-900">{driverName}</p>
                         </div>
-                        <p className="text-slate-600">Vehicle: <span className="font-semibold">{vehicle?.model || "Tata Ace"} ({vehicle?.plateNumber})</span></p>
+                        <p className="text-slate-600">Vehicle: <span className="font-semibold">{vehicleModel} ({vehiclePlate})</span></p>
                         <p className="text-slate-600">Speed: <span className="font-semibold text-emerald-600">{loc.speed} km/h</span></p>
                         <p className="text-slate-400 text-[10px]">Updated: Just now</p>
                       </div>
@@ -482,27 +488,33 @@ export default function DashboardPage() {
           </div>
 
           <div className="relative h-44 flex items-center justify-center">
-            <ResponsiveContainer width="100%" height="100%">
-              <PieChart>
-                <Pie
-                  data={machineStatusCounts}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={55}
-                  outerRadius={75}
-                  dataKey="value"
-                  paddingAngle={4}
-                >
-                  {machineStatusCounts.map((entry, index) => (
-                    <Cell key={index} fill={entry.color} />
-                  ))}
-                </Pie>
-                <RechartsTooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-              </PieChart>
-            </ResponsiveContainer>
+            {machineStatusCounts.reduce((acc, curr) => acc + curr.value, 0) > 0 ? (
+              <ResponsiveContainer width="100%" height="100%">
+                <PieChart>
+                  <Pie
+                    data={machineStatusCounts}
+                    cx="50%"
+                    cy="50%"
+                    innerRadius={55}
+                    outerRadius={75}
+                    dataKey="value"
+                    paddingAngle={4}
+                  >
+                    {machineStatusCounts.map((entry, index) => (
+                      <Cell key={index} fill={entry.color} />
+                    ))}
+                  </Pie>
+                  <RechartsTooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                </PieChart>
+              </ResponsiveContainer>
+            ) : (
+              <div className="w-full h-full flex flex-col items-center justify-center text-slate-400">
+                <p className="text-xs font-semibold">No machine data</p>
+              </div>
+            )}
             {/* Donut Center Overlay */}
             <div className="absolute flex flex-col items-center justify-center">
-              <span className="text-xl font-bold text-slate-900">25</span>
+              <span className="text-xl font-bold text-slate-900">{locations.length}</span>
               <span className="text-[10px] text-slate-400">Total</span>
             </div>
           </div>
@@ -515,7 +527,7 @@ export default function DashboardPage() {
                   <span className="text-xs text-slate-500 font-medium">{item.name}</span>
                 </div>
                 <span className="text-sm font-bold text-slate-900 mt-0.5">
-                  {item.value} ({Math.round((item.value / locations.length) * 100)}%)
+                  {item.value} ({locations.length > 0 ? Math.round((item.value / locations.length) * 100) : 0}%)
                 </span>
               </div>
             ))}
@@ -613,13 +625,16 @@ export default function DashboardPage() {
 
         {/* Route Segments List */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-          {activeRoutesProgress.map((route) => (
+          {activeRoutesProgress.length === 0 ? (
+          <p className="text-xs text-slate-400 col-span-4 text-center py-4">No active routes today.</p>
+        ) : (
+          activeRoutesProgress.map((route) => (
             <div
               key={route.id}
               className="p-3 rounded-lg border border-border bg-slate-50/80 hover:bg-slate-100 transition-colors relative group"
             >
               <div className="flex items-center gap-2.5 mb-2">
-                <img src={route.avatar} alt={route.driverName} className="w-7 h-7 rounded-full object-cover" />
+                <img src={route.avatar || ''} alt={route.driverName} className="w-7 h-7 rounded-full object-cover bg-slate-200" onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(route.driverName)}&background=3B82F6&color=fff&size=28`; }} />
                 <div className="flex-1 min-w-0">
                   <p className="text-xs font-semibold text-slate-900 truncate">{route.name}</p>
                   <p className="text-[10px] text-slate-400 truncate">{route.driverName}</p>
@@ -638,7 +653,8 @@ export default function DashboardPage() {
                 {route.name}: {route.percentage}% done
               </div>
             </div>
-          ))}
+          ))
+        )}
         </div>
       </div>
     </div>

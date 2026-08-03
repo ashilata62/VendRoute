@@ -19,7 +19,7 @@ export default function MainLayout() {
 
   if (!isAuthenticated) return <Navigate to="/login" replace />;
 
-  if (user?.role === "driver") {
+  if (user?.role?.toLowerCase() === "driver") {
     return <DriverMobileLayout />;
   }
 

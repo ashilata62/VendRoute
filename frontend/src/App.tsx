@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, Component, type ReactNode } from "react";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import MainLayout from "./components/layout/MainLayout";
 import LoginPage from "./pages/LoginPage";
@@ -17,9 +17,52 @@ import ReportsPage from "./pages/ReportsPage";
 import NotificationsPage from "./pages/NotificationsPage";
 import UsersPage from "./pages/UsersPage";
 import SettingsPage from "./pages/SettingsPage";
+import { useAuthStore } from "./store/authStore";
+
+// --- Global Error Boundary to prevent blank white screens ---
+interface EBState { hasError: boolean; error: Error | null; }
+class ErrorBoundary extends Component<{ children: ReactNode }, EBState> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+  static getDerivedStateFromError(error: Error): EBState {
+    return { hasError: true, error };
+  }
+  componentDidCatch(error: Error, info: any) {
+    console.error("🔴 React Error Boundary caught:", error, info);
+  }
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: "40px", fontFamily: "sans-serif", maxWidth: "700px", margin: "60px auto" }}>
+          <h2 style={{ color: "#DC2626", marginBottom: "12px" }}>⚠️ Something went wrong</h2>
+          <p style={{ color: "#475569", marginBottom: "16px" }}>The page crashed. Check the browser console (F12) for details.</p>
+          <pre style={{ background: "#FEF2F2", border: "1px solid #FCA5A5", borderRadius: "8px", padding: "16px", fontSize: "12px", whiteSpace: "pre-wrap", wordBreak: "break-all", color: "#7F1D1D" }}>
+            {this.state.error?.message}
+            {"\n"}
+            {this.state.error?.stack}
+          </pre>
+          <button
+            onClick={() => { this.setState({ hasError: false, error: null }); window.location.href = "/dashboard"; }}
+            style={{ marginTop: "20px", padding: "10px 24px", background: "#2563EB", color: "white", border: "none", borderRadius: "8px", cursor: "pointer", fontWeight: "bold" }}
+          >
+            Reload Dashboard
+          </button>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
 
 export default function App() {
+  const { fetchMe } = useAuthStore();
+
   useEffect(() => {
+    // Validate existing session on app startup
+    fetchMe();
+
     const applyTheme = () => {
       const theme = localStorage.getItem("app-theme") || "Light";
       const root = document.documentElement;
@@ -58,28 +101,30 @@ export default function App() {
   }, []);
 
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/" element={<Navigate to="/dashboard" replace />} />
-        <Route element={<MainLayout />}>
-          <Route path="/dashboard" element={<DashboardPage />} />
-          <Route path="/routes" element={<RoutesPage />} />
-          <Route path="/routes/create" element={<RouteCreatePage />} />
-          <Route path="/tracking" element={<TrackingPage />} />
-          <Route path="/locations" element={<LocationsPage />} />
-          <Route path="/locations/:id" element={<LocationDetailPage />} />
-          <Route path="/stops" element={<StopsPage />} />
-          <Route path="/drivers" element={<DriversPage />} />
-          <Route path="/drivers/:id" element={<DriverProfilePage />} />
-          <Route path="/vehicles" element={<VehiclesPage />} />
-          <Route path="/customers" element={<CustomersPage />} />
-          <Route path="/reports" element={<ReportsPage />} />
-          <Route path="/notifications" element={<NotificationsPage />} />
-          <Route path="/users" element={<UsersPage />} />
-          <Route path="/settings" element={<SettingsPage />} />
-        </Route>
-      </Routes>
-    </BrowserRouter>
+    <ErrorBoundary>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route element={<MainLayout />}>
+            <Route path="/dashboard" element={<DashboardPage />} />
+            <Route path="/routes" element={<RoutesPage />} />
+            <Route path="/routes/create" element={<RouteCreatePage />} />
+            <Route path="/tracking" element={<TrackingPage />} />
+            <Route path="/locations" element={<LocationsPage />} />
+            <Route path="/locations/:id" element={<LocationDetailPage />} />
+            <Route path="/stops" element={<StopsPage />} />
+            <Route path="/drivers" element={<DriversPage />} />
+            <Route path="/drivers/:id" element={<DriverProfilePage />} />
+            <Route path="/vehicles" element={<VehiclesPage />} />
+            <Route path="/customers" element={<CustomersPage />} />
+            <Route path="/reports" element={<ReportsPage />} />
+            <Route path="/notifications" element={<NotificationsPage />} />
+            <Route path="/users" element={<UsersPage />} />
+            <Route path="/settings" element={<SettingsPage />} />
+          </Route>
+        </Routes>
+      </BrowserRouter>
+    </ErrorBoundary>
   );
 }

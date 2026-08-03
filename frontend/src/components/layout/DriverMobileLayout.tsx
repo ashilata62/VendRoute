@@ -7,7 +7,8 @@ import {
   Navigation, ShieldCheck, QrCode
 } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
-import { mockRoutes, mockLocations, mockStops } from "../../data/mockData";
+import { stopsApi } from "../../services/api";
+import { mockRoutes, mockLocations } from "../../data/mockData";
 import { cn } from "../../lib/utils";
 
 export default function DriverMobileLayout() {
@@ -71,15 +72,48 @@ export default function DriverMobileLayout() {
     { date: "2026-07-28", route: "South Zone Hub Route", stops: 8, cash: 12000, photos: 3, notes: "Cleaned coin slot of VM-104." }
   ]);
 
-  // Driver route stops (Mock Driver Arjun has route 'r1')
-  const driverRoute = mockRoutes.find(r => r.driverId === "d1") || mockRoutes[0];
-  const allStopsForRoute = mockStops.filter(s => s.routeId === driverRoute.id);
-  const [stopsList, setStopsList] = useState(allStopsForRoute);
+  // Driver route stops
+  const [stopsList, setStopsList] = useState<any[]>([]);
+  const [historyRoutes, setHistoryRoutes] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
 
-  const completedCount = stopsList.filter(s => s.status === "completed").length;
+  const fetchStops = async () => {
+    try {
+      const res = await stopsApi.getAll();
+      if (res.success) {
+        // Find stops assigned to the current driver
+        const allDriverStops = res.data.filter((s: any) => s.route?.driver?.id === user?.id);
+        
+        // Active stops are for routes that are NOT completed
+        const activeStops = allDriverStops.filter((s: any) => s.route?.status !== "COMPLETED");
+        setStopsList(activeStops);
+
+        // Extract unique completed routes for history
+        const completedStops = allDriverStops.filter((s: any) => s.route?.status === "COMPLETED");
+        const uniqueRoutesMap = new Map();
+        completedStops.forEach((s: any) => {
+          if (s.route && !uniqueRoutesMap.has(s.route.id)) {
+            uniqueRoutesMap.set(s.route.id, s.route);
+          }
+        });
+        setHistoryRoutes(Array.from(uniqueRoutesMap.values()));
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchStops();
+  }, [user]);
+
+  const completedCount = stopsList.filter(s => s.status === "COMPLETED").length;
   const pendingCount = stopsList.length - completedCount;
-  const currentStop = stopsList.find(s => s.status === "pending" || s.status === "in-progress") || stopsList[stopsList.length - 1];
-  const currentLocation = mockLocations.find(l => l.id === currentStop?.locationId);
+  const currentStop = stopsList.find(s => s.status === "PENDING" || s.status === "REACHED") || (stopsList.length > 0 && pendingCount > 0 ? stopsList[stopsList.length - 1] : undefined);
+  const currentLocation = currentStop?.location;
+  const driverRoute = currentStop?.route || (stopsList.length > 0 ? stopsList[0].route : null) || { name: "No Active Route" };
 
   const handleStartRoute = () => {
     setIsRouteStarted(true);
@@ -109,26 +143,46 @@ export default function DriverMobileLayout() {
     setStopPhotos([...stopPhotos, "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=300&auto=format&fit=crop&q=60"]);
   };
 
-  const handleCompleteStop = () => {
-    if (!isCheckedIn) return;
+  const handleCompleteStop = async () => {
+    if (!isCheckedIn || !currentStop) return;
     
+    const checkInData = {
+      gpsVerified: true,
+      cashCollected: Number(cashCollected) || 0,
+      notes: stopNotes,
+      machineIssues: reportedIssue,
+      productsRefilled: refillItems,
+      signatureUrl: isSigned ? "https://example.com/signature.png" : null,
+    };
+
     // If offline, cache the completed stop locally for sync
     if (!isOnline) {
       const cached = JSON.parse(localStorage.getItem("pending_stops_sync") || "[]");
       cached.push({
         stopId: currentStop.id,
-        cash: cashCollected,
-        notes: stopNotes,
-        issue: reportedIssue,
-        items: refillItems,
+        ...checkInData,
         timestamp: new Date().toISOString()
       });
       localStorage.setItem("pending_stops_sync", JSON.stringify(cached));
       alert("Offline Mode: Data saved locally. It will auto-sync when you go back online!");
+      
+      // Optimistic update
+      setStopsList(prev => prev.map(s => s.id === currentStop.id ? { ...s, status: "COMPLETED" } : s));
+    } else {
+      // Online: call API
+      try {
+        setSyncing(true);
+        const res = await stopsApi.checkIn(currentStop.id, checkInData);
+        if (res.success) {
+          // Update active stop status
+          setStopsList(prev => prev.map(s => s.id === currentStop.id ? { ...s, ...res.data, status: "COMPLETED" } : s));
+        }
+      } catch (err) {
+        alert("Failed to submit check-in");
+      } finally {
+        setSyncing(false);
+      }
     }
-
-    // Update active stop status
-    setStopsList(prev => prev.map(s => s.id === currentStop.id ? { ...s, status: "completed" } : s));
     
     // Reset inputs
     setIsCheckedIn(false);
@@ -237,12 +291,13 @@ export default function DriverMobileLayout() {
                   </div>
                 </div>
 
-                {/* Today's Route Summary */}
+                {/* Today's Route Summary - only when active stops exist */}
+                {stopsList.length > 0 && (
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
                   <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                     <span className="text-xs font-bold text-slate-800">Today's Route Progress</span>
                     <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-full">
-                      {driverRoute.name}
+                      {driverRoute?.name || "Route"}
                     </span>
                   </div>
                   
@@ -266,7 +321,7 @@ export default function DriverMobileLayout() {
                     <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
                       <div 
                         className="bg-blue-600 h-full rounded-full transition-all duration-500" 
-                        style={{ width: `${(completedCount / stopsList.length) * 100}%` }}
+                        style={{ width: `${Math.round((completedCount / stopsList.length) * 100)}%` }}
                       />
                     </div>
                     <p className="text-[9px] text-slate-400 text-right font-semibold">
@@ -274,6 +329,18 @@ export default function DriverMobileLayout() {
                     </p>
                   </div>
                 </div>
+                )}
+
+                {/* If no active routes */}
+                {stopsList.length === 0 && (
+                  <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-6 text-center space-y-3 shadow-sm">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+                      <CheckCircle2 className="w-6 h-6 text-emerald-600" />
+                    </div>
+                    <h3 className="text-sm font-bold text-emerald-800">All Caught Up!</h3>
+                    <p className="text-xs text-emerald-600">You have no pending routes assigned for today.</p>
+                  </div>
+                )}
 
                 {/* Next Stop Card */}
                 {currentStop && (
@@ -285,7 +352,7 @@ export default function DriverMobileLayout() {
                         <MapPin className="w-4 h-4" />
                       </div>
                       <div>
-                        <p className="text-xs font-bold text-slate-900">{currentLocation?.customerName}</p>
+                        <p className="text-xs font-bold text-slate-900">{currentLocation?.customer?.companyName || currentLocation?.name}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">{currentLocation?.address}</p>
                         <div className="flex gap-4 mt-2 text-[10px] text-slate-500 font-bold">
                           <span>📍 2.4 km away</span>
@@ -358,8 +425,8 @@ export default function DriverMobileLayout() {
                 <div className="space-y-4 relative pl-4 border-l border-slate-200 ml-3">
                   {stopsList.map((stop, index) => {
                     const loc = mockLocations.find(l => l.id === stop.locationId);
-                    const isCompleted = stop.status === "completed";
-                    const isActive = stop.status === "in-progress" || (stop.status === "pending" && index === completedCount);
+                    const isCompleted = stop.status === "COMPLETED";
+                    const isActive = stop.status === "REACHED" || (stop.status === "PENDING" && index === completedCount);
 
                     return (
                       <div
@@ -395,9 +462,9 @@ export default function DriverMobileLayout() {
                         <div className="flex justify-between items-start">
                           <div>
                             <p className={`text-xs font-bold ${isCompleted ? "line-through text-slate-400" : "text-slate-900"}`}>
-                              {loc?.customerName}
+                              {stop.location?.customer?.companyName || stop.location?.name}
                             </p>
-                            <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[240px]">{loc?.address}</p>
+                            <p className="text-[10px] text-slate-400 mt-0.5 truncate max-w-[240px]">{stop.location?.address}</p>
                           </div>
                           <span
                             className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${
@@ -438,16 +505,16 @@ export default function DriverMobileLayout() {
                 {/* Stop Header info */}
                 {(() => {
                   const stop = stopsList.find(s => s.id === selectedStopId)!;
-                  const loc = mockLocations.find(l => l.id === stop.locationId)!;
+                  const loc = stop.location || mockLocations[0];
                   return (
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
                       <div className="flex justify-between items-start">
                         <div>
-                          <h3 className="font-extrabold text-sm text-slate-900">{loc.customerName}</h3>
+                          <h3 className="font-extrabold text-sm text-slate-900">{loc.customer?.companyName || loc.name}</h3>
                           <p className="text-[10px] text-slate-400 mt-0.5">{loc.address}</p>
                         </div>
                         <span className="text-[10px] bg-indigo-50 text-indigo-700 border border-indigo-100 font-bold px-2.5 py-0.5 rounded-full">
-                          {loc.machineId}
+                          {stop.route?.vehicle?.plateNumber || "VH-Unknown"}
                         </span>
                       </div>
 
@@ -740,39 +807,42 @@ export default function DriverMobileLayout() {
             {activeTab === "history" && (
               <motion.div
                 key="history"
-                initial={{ opacity: 0, y: 10 }}
-                animate={{ opacity: 1, y: 0 }}
-                exit={{ opacity: 0 }}
+                initial={{ opacity: 0, x: 20 }}
+                animate={{ opacity: 1, x: 0 }}
+                exit={{ opacity: 0, x: -20 }}
                 className="p-4 space-y-4"
               >
-                <h3 className="font-bold text-sm text-slate-900">Completed Routes History</h3>
+                <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-sm flex justify-between items-center">
+                  <div>
+                    <h2 className="font-bold text-slate-900 text-sm">Route History</h2>
+                    <p className="text-[10px] text-slate-500">Your past completed routes</p>
+                  </div>
+                  <div className="w-10 h-10 bg-slate-50 rounded-full flex items-center justify-center">
+                    <History className="w-5 h-5 text-slate-400" />
+                  </div>
+                </div>
 
                 <div className="space-y-3">
-                  {historyRecords.map((rec, i) => (
-                    <div key={i} className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-2">
-                      <div className="flex justify-between items-center border-b border-slate-50 pb-1.5">
-                        <span className="text-xs font-bold text-slate-800">{rec.route}</span>
-                        <span className="text-[10px] font-semibold text-slate-400">{rec.date}</span>
-                      </div>
-                      <div className="grid grid-cols-3 gap-2 text-center text-xs pt-1">
-                        <div>
-                          <p className="font-bold text-slate-800">{rec.stops} Stops</p>
-                          <p className="text-[9px] text-slate-400 uppercase tracking-wide">Serviced</p>
+                  {historyRoutes.length === 0 ? (
+                    <div className="text-center p-6 text-slate-400 text-xs">No completed routes yet.</div>
+                  ) : (
+                    historyRoutes.map((route, idx) => (
+                      <div key={idx} className="bg-white rounded-xl border border-slate-200 p-3 shadow-sm flex items-center justify-between hover:bg-slate-50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-lg bg-slate-50 flex items-center justify-center border border-slate-100">
+                            <CheckCircle2 className="w-5 h-5 text-emerald-500" />
+                          </div>
+                          <div>
+                            <p className="text-xs font-bold text-slate-900">{route.name}</p>
+                            <p className="text-[10px] text-slate-500">{new Date(route.date).toLocaleDateString()}</p>
+                          </div>
                         </div>
-                        <div>
-                          <p className="font-bold text-emerald-600">₹{rec.cash.toLocaleString()}</p>
-                          <p className="text-[9px] text-slate-400 uppercase tracking-wide">Collected</p>
-                        </div>
-                        <div>
-                          <p className="font-bold text-slate-800">{rec.photos} Photos</p>
-                          <p className="text-[9px] text-slate-400 uppercase tracking-wide">Uploaded</p>
+                        <div className="text-right">
+                          <p className="text-[10px] font-bold text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full border border-emerald-100">COMPLETED</p>
                         </div>
                       </div>
-                      <p className="text-[10px] text-slate-500 bg-slate-50 p-2.5 rounded-lg border border-slate-100 mt-2">
-                        <strong>Driver Notes:</strong> {rec.notes}
-                      </p>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </motion.div>
             )}

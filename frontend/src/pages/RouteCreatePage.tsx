@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { ArrowLeft, Plus, Save, Loader2, RefreshCw } from "lucide-react";
 import { useRouteStore } from "../store/routeStore";
-import { mockDrivers, mockVehicles, mockLocations } from "../data/mockData";
+import { usersApi, vehiclesApi, locationsApi } from "../services/api";
 import PageHeader from "../components/shared/PageHeader";
 
 export default function RouteCreatePage() {
@@ -10,6 +10,13 @@ export default function RouteCreatePage() {
   const { createRoute } = useRouteStore();
   const [saving, setSaving] = useState(false);
   const [calculatingRoute, setCalculatingRoute] = useState(false);
+
+  // Real API data
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
+  const [loadingData, setLoadingData] = useState(true);
+
   const [form, setForm] = useState({
     name: "",
     date: new Date().toISOString().split("T")[0],
@@ -20,6 +27,28 @@ export default function RouteCreatePage() {
     estimatedTime: 0,
   });
 
+  // Load dropdowns from real API on mount
+  useEffect(() => {
+    const loadData = async () => {
+      setLoadingData(true);
+      try {
+        const [driversRes, vehiclesRes, locationsRes] = await Promise.all([
+          usersApi.getAll("driver"),
+          vehiclesApi.getAll(),
+          locationsApi.getAll(),
+        ]);
+        if (driversRes.success) setDrivers(driversRes.data);
+        if (vehiclesRes.success) setVehicles(vehiclesRes.data);
+        if (locationsRes.success) setLocations(locationsRes.data);
+      } catch (err) {
+        console.error("Failed to load form data:", err);
+      } finally {
+        setLoadingData(false);
+      }
+    };
+    loadData();
+  }, []);
+
   const fetchOSRMRoute = async (stops: string[]) => {
     if (stops.length < 2) {
       setForm(f => ({ ...f, totalDistance: 0, estimatedTime: 0 }));
@@ -28,7 +57,7 @@ export default function RouteCreatePage() {
     setCalculatingRoute(true);
     try {
       const coords = stops.map(stopId => {
-        const loc = mockLocations.find(l => l.id === stopId);
+        const loc = locations.find((l: any) => l.id === stopId);
         return loc ? `${loc.lng},${loc.lat}` : null;
       }).filter(Boolean).join(";");
 
@@ -52,8 +81,8 @@ export default function RouteCreatePage() {
   };
 
   useEffect(() => {
-    fetchOSRMRoute(form.stops);
-  }, [form.stops]);
+    if (locations.length > 0) fetchOSRMRoute(form.stops);
+  }, [form.stops, locations]);
 
   const toggleStop = (locId: string) => {
     setForm((f) => ({
@@ -64,17 +93,32 @@ export default function RouteCreatePage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!form.driverId) { alert("Please select a driver."); return; }
+    if (form.stops.length === 0) { alert("Please select at least one stop."); return; }
     setSaving(true);
-    await new Promise((r) => setTimeout(r, 600));
-    createRoute({
+    const success = await createRoute({
       ...form,
-      status: "scheduled",
+      status: "PENDING" as any,
       actualTime: null,
       startTime: null,
       endTime: null,
     });
-    navigate("/routes");
+    setSaving(false);
+    if (success) navigate("/routes");
   };
+
+  const selectedDriver = drivers.find((d: any) => d.id === form.driverId);
+
+  if (loadingData) {
+    return (
+      <div className="flex items-center justify-center h-64">
+        <div className="flex items-center gap-3 text-slate-500">
+          <Loader2 className="w-6 h-6 animate-spin text-primary-600" />
+          <span className="text-sm font-medium">Loading drivers, vehicles and locations...</span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div>
@@ -137,10 +181,13 @@ export default function RouteCreatePage() {
                     className="w-full px-3 py-2.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20 focus:border-primary-600 bg-white"
                   >
                     <option value="">Select driver...</option>
-                    {mockDrivers.filter((d) => d.status === "active").map((d) => (
+                    {drivers.map((d: any) => (
                       <option key={d.id} value={d.id}>{d.name}</option>
                     ))}
                   </select>
+                  {drivers.length === 0 && (
+                    <p className="text-[10px] text-amber-600 mt-1">No drivers found. <a href="/users" className="underline">Add a driver first.</a></p>
+                  )}
                 </div>
                 <div>
                   <label className="block text-xs font-medium text-slate-700 mb-1.5">Assign Vehicle *</label>
@@ -150,8 +197,8 @@ export default function RouteCreatePage() {
                     onChange={(e) => setForm({ ...form, vehicleId: e.target.value })}
                     className="w-full px-3 py-2.5 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20 focus:border-primary-600 bg-white"
                   >
-                    <option value="">Select vehicle...</option>
-                    {mockVehicles.map((v) => (
+                    <option value="">Select vehicle (optional)...</option>
+                    {vehicles.map((v: any) => (
                       <option key={v.id} value={v.id}>{v.model} – {v.plateNumber}</option>
                     ))}
                   </select>
@@ -173,27 +220,32 @@ export default function RouteCreatePage() {
               <h3 className="font-semibold text-slate-900 text-sm border-b border-border pb-3 mb-4">
                 Select Stops <span className="text-slate-400 font-normal">({form.stops.length} selected)</span>
               </h3>
-              <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
-                {mockLocations.map((loc) => {
-                  const selected = form.stops.includes(loc.id);
-                  return (
-                    <div
-                      key={loc.id}
-                      onClick={() => toggleStop(loc.id)}
-                      className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${selected ? "border-primary-600 bg-primary-50" : "border-border hover:bg-slate-50"}`}
-                    >
-                      <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${selected ? "bg-primary-600 border-primary-600" : "border-slate-300"}`}>
-                        {selected && <Plus className="w-3 h-3 text-white rotate-0" />}
+              {locations.length === 0 ? (
+                <p className="text-sm text-slate-400 text-center py-6">No locations found. <a href="/locations" className="text-primary-600 underline">Add locations first.</a></p>
+              ) : (
+                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                  {locations.map((loc: any) => {
+                    const selected = form.stops.includes(loc.id);
+                    const displayName = loc.customer?.companyName || loc.customerName || loc.name || "Unknown";
+                    return (
+                      <div
+                        key={loc.id}
+                        onClick={() => toggleStop(loc.id)}
+                        className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${selected ? "border-primary-600 bg-primary-50" : "border-border hover:bg-slate-50"}`}
+                      >
+                        <div className={`w-5 h-5 rounded border-2 flex items-center justify-center flex-shrink-0 ${selected ? "bg-primary-600 border-primary-600" : "border-slate-300"}`}>
+                          {selected && <Plus className="w-3 h-3 text-white" />}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-medium text-slate-900 truncate">{displayName}</p>
+                          <p className="text-xs text-slate-400 truncate">{loc.address}</p>
+                        </div>
+                        <span className="text-xs text-slate-500 flex-shrink-0">{loc.machineType || loc.type || ""}</span>
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium text-slate-900 truncate">{loc.customerName}</p>
-                        <p className="text-xs text-slate-400 truncate">{loc.address}</p>
-                      </div>
-                      <span className="text-xs text-slate-500 flex-shrink-0">{loc.machineType}</span>
-                    </div>
-                  );
-                })}
-              </div>
+                    );
+                  })}
+                </div>
+              )}
             </div>
           </div>
 
@@ -212,7 +264,7 @@ export default function RouteCreatePage() {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Driver</span>
-                  <span className="font-medium text-slate-900">{mockDrivers.find((d) => d.id === form.driverId)?.name || "—"}</span>
+                  <span className="font-medium text-slate-900">{selectedDriver?.name || "—"}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="text-slate-500">Stops</span>
@@ -239,6 +291,9 @@ export default function RouteCreatePage() {
               >
                 {saving ? <><Loader2 className="w-4 h-4 animate-spin" /> Creating...</> : <><Save className="w-4 h-4" /> Create Route</>}
               </button>
+              {(form.stops.length === 0 || !form.driverId) && (
+                <p className="text-[10px] text-slate-400 text-center mt-2">Select a driver and at least 1 stop</p>
+              )}
             </div>
           </div>
         </div>

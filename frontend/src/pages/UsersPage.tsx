@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { mockUsers } from "../data/mockData";
+import { useState, useEffect } from "react";
+import { usersApi } from "../services/api";
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate } from "../lib/utils";
@@ -14,37 +14,54 @@ const rolePermissions: Record<string, string[]> = {
 };
 
 export default function UsersPage() {
-  const [usersList, setUsersList] = useState<AppUser[]>(mockUsers);
+  const [usersList, setUsersList] = useState<AppUser[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [isInviteModalOpen, setIsInviteModalOpen] = useState(false);
   const [form, setForm] = useState({
     name: "",
     email: "",
-    role: "supervisor" as UserRole,
+    role: "SUPERVISOR" as UserRole,
   });
   const [invitedSuccess, setInvitedSuccess] = useState(false);
+  const [errorMsg, setErrorMsg] = useState("");
 
-  const handleInviteSubmit = (e: React.FormEvent) => {
+  const fetchUsers = () => {
+    usersApi.getAll().then(res => {
+      if (res.success) {
+        const dbUsers = res.data.map((u: any) => ({
+          ...u,
+          status: "active",
+          lastLogin: u.createdAt || new Date().toISOString()
+        }));
+        setUsersList(dbUsers);
+      }
+      setIsLoading(false);
+    }).catch(() => setIsLoading(false));
+  };
+
+  useEffect(() => {
+    fetchUsers();
+  }, []);
+
+  const handleInviteSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name || !form.email) return;
+    setErrorMsg("");
 
-    const newUser: AppUser = {
-      id: `u-${Date.now()}`,
-      name: form.name,
-      email: form.email,
-      role: form.role,
-      avatar: `https://ui-avatars.com/api/?name=${encodeURIComponent(form.name)}&background=2563EB&color=fff`,
-      status: "active",
-      lastLogin: new Date().toISOString(),
-      createdAt: new Date().toISOString().split("T")[0],
-    };
-
-    setUsersList([newUser, ...usersList]);
-    setInvitedSuccess(true);
-    setTimeout(() => {
-      setInvitedSuccess(false);
-      setIsInviteModalOpen(false);
-      setForm({ name: "", email: "", role: "supervisor" });
-    }, 1200);
+    try {
+      const res = await usersApi.create(form);
+      if (res.success) {
+        fetchUsers();
+        setInvitedSuccess(true);
+        setTimeout(() => {
+          setInvitedSuccess(false);
+          setIsInviteModalOpen(false);
+          setForm({ name: "", email: "", role: "SUPERVISOR" as UserRole });
+        }, 1200);
+      }
+    } catch (err: any) {
+      setErrorMsg(err.message || "Failed to create user");
+    }
   };
 
   return (
@@ -176,12 +193,17 @@ export default function UsersPage() {
                   onChange={(e) => setForm({ ...form, role: e.target.value as UserRole })}
                   className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                 >
-                  <option value="superadmin">Super Admin</option>
-                  <option value="supervisor">Supervisor</option>
-                  <option value="driver">Field Driver</option>
-                  <option value="viewer">Viewer / Analyst</option>
+                  <option value="ADMIN">Super Admin</option>
+                  <option value="SUPERVISOR">Supervisor</option>
+                  <option value="DRIVER">Field Driver</option>
                 </select>
               </div>
+
+              {errorMsg && (
+                <div className="bg-red-50 text-red-700 p-2.5 rounded-xl text-xs font-semibold">
+                  {errorMsg}
+                </div>
+              )}
 
               {invitedSuccess && (
                 <div className="bg-emerald-50 text-emerald-700 p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2">

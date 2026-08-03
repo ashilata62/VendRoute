@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Polyline, Popup } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
@@ -9,10 +9,12 @@ import {
   Truck, Wrench, Plus,
 } from "lucide-react";
 
-import { mockVehicles, mockDrivers } from "../data/mockData";
+import { vehiclesApi, usersApi } from "../services/api";
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate, formatCurrency } from "../lib/utils";
+import { motion, AnimatePresence } from "framer-motion";
+import { X } from "lucide-react";
 
 // Leaflet default icon fix
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -49,9 +51,45 @@ function FuelBar({ level }: { level: number }) {
 export default function VehiclesPage() {
   const [activeTab, setActiveTab] = useState<"fleet" | "schedule" | "fuel" | "history">("fleet");
   const [selectedVehicleId, setSelectedVehicleId] = useState<string>("v1");
-  const [, setIsAddModalOpen] = useState(false);
+  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
+  
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [createForm, setCreateForm] = useState({ model: "", plateNumber: "", fuelType: "diesel", type: "van" });
 
-  const selectedVehicle = mockVehicles.find((v) => v.id === selectedVehicleId) || mockVehicles[0];
+  const fetchVehicles = () => {
+    vehiclesApi.getAll().then(res => {
+      if (res.success) {
+        setVehicles(res.data);
+        if (res.data.length > 0 && selectedVehicleId === "v1") {
+          setSelectedVehicleId(res.data[0].id);
+        }
+      }
+    }).catch(() => {});
+  };
+
+  useEffect(() => {
+    fetchVehicles();
+    usersApi.getAll("DRIVER").then(res => {
+      if (res.success) setDrivers(res.data);
+    }).catch(() => {});
+  }, []);
+
+  const handleCreateVehicle = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const res = await vehiclesApi.create(createForm);
+      if (res.success) {
+        setIsAddModalOpen(false);
+        setCreateForm({ model: "", plateNumber: "", fuelType: "diesel", type: "van" });
+        fetchVehicles();
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) || vehicles[0] || null;
 
   return (
     <div className="space-y-6 pb-12">
@@ -95,8 +133,8 @@ export default function VehiclesPage() {
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
           {/* Left Cards List (4 cols) */}
           <div className="lg:col-span-4 space-y-4">
-            {mockVehicles.map((vehicle) => {
-              const assignedDriver = mockDrivers.find((d) => d.id === vehicle.assignedDriverId);
+            {vehicles.map((vehicle) => {
+              const assignedDriver = drivers.find((d) => d.id === vehicle.assignedDriverId);
               const isSelected = selectedVehicle.id === vehicle.id;
 
               return (
@@ -124,9 +162,9 @@ export default function VehiclesPage() {
                     <div>
                       <div className="flex justify-between text-slate-500 mb-1">
                         <span>Fuel Level</span>
-                        <span className="font-semibold text-slate-800">{vehicle.currentFuelLevel}%</span>
+                        <span className="font-semibold text-slate-800">{vehicle.currentFuelLevel || 75}%</span>
                       </div>
-                      <FuelBar level={vehicle.currentFuelLevel} />
+                      <FuelBar level={vehicle.currentFuelLevel || 75} />
                     </div>
 
                     <div className="flex justify-between border-t border-border pt-2 text-[11px] text-slate-500">
@@ -175,7 +213,7 @@ export default function VehiclesPage() {
         <div className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-4">
           <h3 className="font-bold text-slate-900 text-sm border-b border-border pb-3">Upcoming Maintenance Schedule</h3>
           <div className="space-y-3">
-            {mockVehicles.map((v) => (
+            {vehicles.map((v) => (
               <div key={v.id} className="p-4 rounded-xl bg-slate-50 border border-border flex items-center justify-between text-xs">
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 bg-amber-50 text-amber-600 rounded-lg flex items-center justify-center">
@@ -183,7 +221,7 @@ export default function VehiclesPage() {
                   </div>
                   <div>
                     <p className="font-bold text-slate-900 text-sm">{v.model} ({v.plateNumber})</p>
-                    <p className="text-slate-500">Scheduled Service: <strong>{formatDate(v.nextMaintenance)}</strong></p>
+                    <p className="text-slate-500">Scheduled Service: <strong>{formatDate(v.nextMaintenance || new Date(Date.now() + 30 * 24 * 60 * 60 * 1000))}</strong></p>
                   </div>
                 </div>
                 <span className="bg-amber-100 text-amber-800 font-semibold px-2.5 py-1 rounded-full text-[10px]">
@@ -238,6 +276,95 @@ export default function VehiclesPage() {
           </table>
         </div>
       )}
+
+      {/* CREATE VEHICLE MODAL */}
+      <AnimatePresence>
+        {isAddModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-xl border border-border shadow-2xl w-full max-w-lg overflow-hidden flex flex-col"
+            >
+              <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-slate-50">
+                <h3 className="font-bold text-slate-900 text-base">Add New Vehicle</h3>
+                <button onClick={() => setIsAddModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleCreateVehicle} className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Model / Make *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. Tata Ace Gold"
+                    value={createForm.model}
+                    onChange={(e) => setCreateForm({ ...createForm, model: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">License Plate Number *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="e.g. MH-01-AB-1234"
+                    value={createForm.plateNumber}
+                    onChange={(e) => setCreateForm({ ...createForm, plateNumber: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none"
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Vehicle Type *</label>
+                    <select
+                      value={createForm.type}
+                      onChange={(e) => setCreateForm({ ...createForm, type: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none"
+                    >
+                      <option value="van">Van</option>
+                      <option value="truck">Truck</option>
+                      <option value="car">Car</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Fuel Type *</label>
+                    <select
+                      value={createForm.fuelType}
+                      onChange={(e) => setCreateForm({ ...createForm, fuelType: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none"
+                    >
+                      <option value="diesel">Diesel</option>
+                      <option value="petrol">Petrol</option>
+                      <option value="electric">Electric</option>
+                      <option value="cng">CNG</option>
+                    </select>
+                  </div>
+                </div>
+
+                <div className="pt-4 flex justify-end gap-3 border-t border-border mt-6">
+                  <button
+                    type="button"
+                    onClick={() => setIsAddModalOpen(false)}
+                    className="px-4 py-2 text-sm font-medium text-slate-600 hover:text-slate-800 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    className="px-4 py-2 text-sm font-medium bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors shadow-sm"
+                  >
+                    Add Vehicle
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

@@ -1,17 +1,26 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Search, CheckCircle2, XCircle, ShieldCheck, Camera, DollarSign,
   AlertTriangle, Check, MapPin, FileText, ExternalLink, X
 } from "lucide-react";
 
-import { mockStops, mockLocations, mockRoutes, mockDrivers } from "../data/mockData";
+import { stopsApi } from "../services/api";
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatCurrency } from "../lib/utils";
-import type { Stop, StopStatus } from "../types";
+import type { StopStatus } from "../types";
 
 export default function StopsPage() {
+  const [stopsList, setStopsList] = useState<any[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    stopsApi.getAll().then(res => {
+      if (res.success) setStopsList(res.data);
+      setIsLoading(false);
+    }).catch(() => setIsLoading(false));
+  }, []);
   // Filters State
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<StopStatus | "all">("all");
@@ -19,33 +28,31 @@ export default function StopsPage() {
   const [routeFilter, setRouteFilter] = useState("all");
 
   // Modal / Lightbox State
-  const [selectedStop, setSelectedStop] = useState<Stop | null>(null);
+  const [selectedStop, setSelectedStop] = useState<any | null>(null);
   const [galleryModalPhotos, setGalleryModalPhotos] = useState<string[] | null>(null);
 
   // Filtered Stops Logic
   const filteredStops = useMemo(() => {
-    return mockStops.filter((s) => {
-      const loc = mockLocations.find((l) => l.id === s.locationId);
-      const route = mockRoutes.find((r) => r.id === s.routeId);
-
-      const matchStatus = statusFilter === "all" || s.status === statusFilter;
-      const matchDriver = driverFilter === "all" || route?.driverId === driverFilter;
+    return stopsList.filter((s) => {
+      const locName = s.location?.name || s.location?.customer?.companyName || "";
+      const matchStatus = statusFilter === "all" || s.status.toLowerCase() === statusFilter.toLowerCase();
+      const matchDriver = driverFilter === "all" || s.route?.driver?.id === driverFilter;
       const matchRoute = routeFilter === "all" || s.routeId === routeFilter;
       const matchSearch =
         !search ||
-        loc?.customerName.toLowerCase().includes(search.toLowerCase()) ||
+        locName.toLowerCase().includes(search.toLowerCase()) ||
         s.id.toLowerCase().includes(search.toLowerCase());
 
       return matchStatus && matchDriver && matchRoute && matchSearch;
     });
-  }, [search, statusFilter, driverFilter, routeFilter]);
+  }, [search, statusFilter, driverFilter, routeFilter, stopsList]);
 
   const stats = useMemo(() => ({
-    completed: mockStops.filter((s) => s.status === "completed").length,
-    missed: mockStops.filter((s) => s.status === "missed").length,
-    gpsVerified: mockStops.filter((s) => s.gpsVerified).length,
-    totalCash: mockStops.reduce((a, s) => a + s.cashCollected, 0),
-  }), []);
+    completed: stopsList.filter((s) => s.status === "COMPLETED").length,
+    missed: stopsList.filter((s) => s.status === "SKIPPED").length,
+    gpsVerified: stopsList.filter((s) => s.gpsVerified).length,
+    totalCash: stopsList.reduce((a, s) => a + (s.cashCollected || 0), 0),
+  }), [stopsList]);
 
   return (
     <div className="space-y-6 pb-12">
@@ -59,7 +66,7 @@ export default function StopsPage() {
         {[
           { label: "Completed Stops", value: stats.completed, icon: CheckCircle2, color: "text-emerald-600", bg: "bg-emerald-50" },
           { label: "Missed Stops", value: stats.missed, icon: XCircle, color: "text-danger", bg: "bg-red-50" },
-          { label: "GPS Verified", value: `${stats.gpsVerified}/${mockStops.length}`, icon: ShieldCheck, color: "text-blue-600", bg: "bg-blue-50" },
+          { label: "GPS Verified", value: `${stats.gpsVerified}/${stopsList.length}`, icon: ShieldCheck, color: "text-blue-600", bg: "bg-blue-50" },
           { label: "Cash Collected", value: formatCurrency(stats.totalCash), icon: DollarSign, color: "text-amber-600", bg: "bg-amber-50" },
         ].map(({ label, value, icon: Icon, color, bg }) => (
           <div key={label} className="stat-card flex items-center gap-3">
@@ -95,9 +102,10 @@ export default function StopsPage() {
             className="px-3 py-2 text-xs border border-border rounded-lg bg-white text-slate-700 focus:outline-none"
           >
             <option value="all">All Drivers</option>
-            {mockDrivers.map((d) => (
-              <option key={d.id} value={d.id}>{d.name}</option>
-            ))}
+            {Array.from(new Set(stopsList.map(s => s.route?.driver?.id))).map((driverId: any) => {
+              const d = stopsList.find(s => s.route?.driver?.id === driverId)?.route?.driver;
+              return d ? <option key={d.id} value={d.id}>{d.name}</option> : null;
+            })}
           </select>
 
           {/* Route Filter */}
@@ -107,9 +115,10 @@ export default function StopsPage() {
             className="px-3 py-2 text-xs border border-border rounded-lg bg-white text-slate-700 focus:outline-none"
           >
             <option value="all">All Routes</option>
-            {mockRoutes.map((r) => (
-              <option key={r.id} value={r.id}>{r.name}</option>
-            ))}
+            {Array.from(new Set(stopsList.map(s => s.route?.id))).map((routeId: any) => {
+              const r = stopsList.find(s => s.route?.id === routeId)?.route;
+              return r ? <option key={r.id} value={r.id}>{r.name}</option> : null;
+            })}
           </select>
 
           {/* Status Filter */}
@@ -147,24 +156,36 @@ export default function StopsPage() {
           </thead>
           <tbody className="divide-y divide-border">
             {filteredStops.map((stop) => {
-              const loc = mockLocations.find((l) => l.id === stop.locationId);
-              const route = mockRoutes.find((r) => r.id === stop.routeId);
-              const driver = mockDrivers.find((d) => d.id === route?.driverId);
+              const loc = stop.location;
+              const route = stop.route;
+              const driver = route?.driver;
 
               const arrTime = stop.arrivalTime ? new Date(stop.arrivalTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—";
               const depTime = stop.departureTime ? new Date(stop.departureTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—";
+              
+              // Handle photos arrays correctly if stringified
+              let photosArray = stop.photos || [];
+              if (typeof photosArray === 'string') {
+                try { photosArray = JSON.parse(photosArray); } catch (e) { photosArray = []; }
+              }
+              
+              // Handle inventory products
+              let refilledArray = stop.productsRefilled || [];
+              if (typeof refilledArray === 'string') {
+                try { refilledArray = JSON.parse(refilledArray); } catch (e) { refilledArray = []; }
+              }
 
               return (
                 <tr
                   key={stop.id}
-                  onClick={() => setSelectedStop(stop)}
+                  onClick={() => setSelectedStop({ ...stop, parsedRefilled: refilledArray })}
                   className="hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-600">
-                    {stop.id.toUpperCase()}
+                    {stop.id.slice(0, 8).toUpperCase()}
                   </td>
                   <td className="px-4 py-3">
-                    <p className="font-semibold text-slate-900">{loc?.customerName}</p>
+                    <p className="font-semibold text-slate-900">{loc?.customer?.companyName || loc?.name}</p>
                     <p className="text-xs text-slate-400 truncate max-w-[200px]">{loc?.address}</p>
                   </td>
                   <td className="px-4 py-3">
@@ -187,12 +208,12 @@ export default function StopsPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {stop.photos.length > 0 ? (
+                    {photosArray.length > 0 ? (
                       <button
-                        onClick={(e) => { e.stopPropagation(); setGalleryModalPhotos(stop.photos); }}
+                        onClick={(e) => { e.stopPropagation(); setGalleryModalPhotos(photosArray); }}
                         className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md font-medium"
                       >
-                        <Camera className="w-3.5 h-3.5" /> {stop.photos.length} photos
+                        <Camera className="w-3.5 h-3.5" /> {photosArray.length} photos
                       </button>
                     ) : (
                       <span className="text-xs text-slate-300">0</span>
@@ -200,23 +221,23 @@ export default function StopsPage() {
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-medium">
-                      {stop.inventoryRefilled.length || 2} items
+                      {refilledArray.length} items
                     </span>
                   </td>
                   <td className="px-4 py-3 text-xs font-bold text-slate-900">
                     {stop.cashCollected > 0 ? formatCurrency(stop.cashCollected) : "—"}
                   </td>
                   <td className="px-4 py-3">
-                    {stop.machineIssues ? (
+                    {stop.notes ? (
                       <span className="inline-flex items-center gap-1 text-[10px] bg-red-50 text-danger border border-red-200 px-2 py-0.5 rounded-full font-medium truncate max-w-[120px]">
-                        <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {stop.machineIssues}
+                        <AlertTriangle className="w-3 h-3 flex-shrink-0" /> {stop.notes}
                       </span>
                     ) : (
                       <span className="text-xs text-slate-300">None</span>
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {stop.signature ? (
+                    {stop.signatureUrl ? (
                       <Check className="w-4 h-4 text-emerald-600" />
                     ) : (
                       <span className="text-xs text-slate-300">—</span>
@@ -251,9 +272,9 @@ export default function StopsPage() {
             >
               <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-slate-50">
                 <div>
-                  <h3 className="font-bold text-slate-900 text-base">Stop Details - {selectedStop.id.toUpperCase()}</h3>
+                  <h3 className="font-bold text-slate-900 text-base">Stop Details - {selectedStop.id.slice(0, 8).toUpperCase()}</h3>
                   <p className="text-xs text-slate-500">
-                    {mockLocations.find((l) => l.id === selectedStop.locationId)?.customerName}
+                    {selectedStop.location?.customer?.companyName || selectedStop.location?.name}
                   </p>
                 </div>
                 <button onClick={() => setSelectedStop(null)} className="text-slate-400 hover:text-slate-600">
@@ -294,17 +315,17 @@ export default function StopsPage() {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border">
-                      {(selectedStop.inventoryRefilled.length > 0
-                        ? selectedStop.inventoryRefilled
-                        : [{ product: "Lays Chips", qty: 12 }, { product: "Pepsi Can", qty: 10 }]
-                      ).map((item, idx) => (
-                        <tr key={idx} className="hover:bg-slate-50">
-                          <td className="px-3 py-2 font-medium text-slate-900">{item.product}</td>
-                          <td className="px-3 py-2 text-slate-500">4 units</td>
-                          <td className="px-3 py-2 font-bold text-emerald-600">+{item.qty} units</td>
-                          <td className="px-3 py-2 font-medium text-slate-800">{4 + item.qty} units</td>
-                        </tr>
-                      ))}
+                      {selectedStop.parsedRefilled.length > 0
+                        ? selectedStop.parsedRefilled.map((item: any, idx: number) => (
+                          <tr key={idx} className="hover:bg-slate-50">
+                            <td className="px-3 py-2 font-medium text-slate-900">{item.name}</td>
+                            <td className="px-3 py-2 text-slate-500">4 units</td>
+                            <td className="px-3 py-2 font-bold text-emerald-600">+{item.quantity} units</td>
+                            <td className="px-3 py-2 font-medium text-slate-800">{4 + item.quantity} units</td>
+                          </tr>
+                        ))
+                        : <tr><td colSpan={4} className="px-3 py-4 text-center text-slate-500">No items refilled</td></tr>
+                      }
                     </tbody>
                   </table>
                 </div>
@@ -323,9 +344,15 @@ export default function StopsPage() {
 
                   <div className="bg-slate-50 p-4 rounded-xl border border-border space-y-2">
                     <p className="text-xs text-slate-400 uppercase font-semibold">Signature Captured</p>
-                    <div className="h-20 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 text-xs italic font-serif">
-                      [ Signed: Vikram Desai ]
-                    </div>
+                    {selectedStop.signatureUrl ? (
+                      <div className="h-20 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
+                        <img src={selectedStop.signatureUrl} alt="Signature" className="h-full object-contain mix-blend-multiply" />
+                      </div>
+                    ) : (
+                      <div className="h-20 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 text-xs italic font-serif">
+                        [ No Signature ]
+                      </div>
+                    )}
                   </div>
                 </div>
 
