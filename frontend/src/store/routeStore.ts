@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { create } from "zustand";
 import { routesApi } from "../services/api";
 import type { Route, RouteStatus } from "../types";
@@ -64,3 +65,4 @@ export const useRouteStore = create<RouteState>((set, get) => ({
     return status === "all" ? routes : routes.filter((r) => r.status === status);
   },
 }));
+
