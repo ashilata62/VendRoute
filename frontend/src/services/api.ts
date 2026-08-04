@@ -74,6 +74,24 @@ export const authApi = {
 
   me: () =>
     apiFetch<{ success: boolean; user: LoginResponse["user"] }>("/auth/me"),
+
+  forgotPassword: (email: string) =>
+    apiFetch<{ success: boolean; message: string; otp?: string }>("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email }),
+    }),
+
+  verifyOtp: (email: string, otp: string) =>
+    apiFetch<{ success: boolean; message: string }>("/auth/verify-otp", {
+      method: "POST",
+      body: JSON.stringify({ email, otp }),
+    }),
+
+  resetPassword: (email: string, otp: string, newPassword: string) =>
+    apiFetch<{ success: boolean; message: string }>("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({ email, otp, newPassword }),
+    }),
 };
 
 // ─── Customers APIs ────────────────────────────────────────────────────────────

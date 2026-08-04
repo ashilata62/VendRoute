@@ -440,8 +440,8 @@ export default function LocationsPage() {
           <MapContainer center={[20.5937, 78.9629]} zoom={5} className="h-full w-full">
             <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
             {filteredLocations.map((loc) => {
-              const lat = Number(loc.latitude || loc.lat);
-              const lng = Number(loc.longitude || loc.lng);
+              const lat = Number(loc.latitude || (loc as any).lat);
+              const lng = Number(loc.longitude || (loc as any).lng);
               if (isNaN(lat) || isNaN(lng) || !lat || !lng) return null;
               return (
                 <Marker key={loc.id} position={[lat, lng]}>

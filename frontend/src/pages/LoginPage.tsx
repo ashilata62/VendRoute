@@ -1,11 +1,13 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   MapPin, Route, Camera, BarChart3, ShieldCheck, Mail, Lock,
-  Eye, EyeOff, Loader2, ArrowRight, ArrowLeft, Building2, Truck
+  Eye, EyeOff, Loader2, ArrowRight, ArrowLeft, Building2, Truck,
+  X, KeyRound, Check, RefreshCw
 } from "lucide-react";
 import { useAuthStore } from "../store/authStore";
+import { authApi } from "../services/api";
 import type { UserRole } from "../types";
 import brandLogo from "../assets/maryland-logo.png";
 
@@ -38,6 +40,87 @@ export default function LoginPage() {
   const [remember, setRemember] = useState(true);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+
+  // Forgot Password Modal State
+  const [forgotModalOpen, setForgotModalOpen] = useState(false);
+  const [forgotStep, setForgotStep] = useState<1 | 2 | 3 | 4>(1);
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotOtp, setForgotOtp] = useState("");
+  const [newPassword, setNewPassword] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState("");
+  const [forgotSuccess, setForgotSuccess] = useState("");
+  const [timerSeconds, setTimerSeconds] = useState(300); // 5 minutes = 300 seconds
+
+  // 5-Minute Timer Effect
+  useEffect(() => {
+    let interval: any = null;
+    if (forgotModalOpen && forgotStep === 2 && timerSeconds > 0) {
+      interval = setInterval(() => {
+        setTimerSeconds((prev) => prev - 1);
+      }, 1000);
+    }
+    return () => {
+      if (interval) clearInterval(interval);
+    };
+  }, [forgotModalOpen, forgotStep, timerSeconds]);
+
+  const formatTimer = (sec: number) => {
+    const mins = Math.floor(sec / 60);
+    const secs = sec % 60;
+    return `${mins.toString().padStart(2, "0")}:${secs.toString().padStart(2, "0")}`;
+  };
+
+  // Handlers for Forgot Password Flow
+  const handleSendOtp = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    setForgotError("");
+    setForgotLoading(true);
+    try {
+      const res = await authApi.forgotPassword(forgotEmail);
+      if (res.success) {
+        setTimerSeconds(300); // Reset to 5 mins
+        setForgotStep(2);
+      }
+    } catch (err: any) {
+      setForgotError(err.message || "Failed to send OTP. Please check your email.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleVerifyOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError("");
+    setForgotLoading(true);
+    try {
+      const res = await authApi.verifyOtp(forgotEmail, forgotOtp);
+      if (res.success) {
+        setForgotStep(3);
+      }
+    } catch (err: any) {
+      setForgotError(err.message || "Invalid or expired OTP. Please try again.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setForgotError("");
+    setForgotLoading(true);
+    try {
+      const res = await authApi.resetPassword(forgotEmail, forgotOtp, newPassword);
+      if (res.success) {
+        setForgotStep(4);
+        setForgotSuccess(res.message || "Password reset successfully!");
+      }
+    } catch (err: any) {
+      setForgotError(err.message || "Failed to reset password. Please try again.");
+    } finally {
+      setForgotLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -265,7 +348,19 @@ export default function LoginPage() {
                   />
                   <span>Remember me</span>
                 </label>
-                <button type="button" className="font-semibold text-blue-600 hover:underline">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setForgotModalOpen(true);
+                    setForgotStep(1);
+                    setForgotEmail(email || "");
+                    setForgotOtp("");
+                    setNewPassword("");
+                    setForgotError("");
+                    setForgotSuccess("");
+                  }}
+                  className="font-semibold text-blue-600 hover:underline cursor-pointer"
+                >
                   Forgot password?
                 </button>
               </div>
@@ -344,6 +439,190 @@ export default function LoginPage() {
           </div>
         </div>
       </motion.div>
+
+      {/* ── FORGOT PASSWORD OTP MODAL ────────────────────────────────────── */}
+      <AnimatePresence>
+        {forgotModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95, y: 10 }}
+              animate={{ opacity: 1, scale: 1, y: 0 }}
+              exit={{ opacity: 0, scale: 0.95, y: 10 }}
+              className="bg-white rounded-3xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden"
+            >
+              {/* Header */}
+              <div className="px-6 py-5 border-b border-slate-100 flex items-center justify-between bg-slate-50/80">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-9 h-9 rounded-xl bg-blue-100 text-blue-600 flex items-center justify-center">
+                    <KeyRound className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-base">Reset Password</h3>
+                    <p className="text-[11px] text-slate-500 font-medium">OTP Verification Service</p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setForgotModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="p-6 space-y-4 text-xs">
+                {/* Error Banner */}
+                {forgotError && (
+                  <div className="bg-red-50 border border-red-200 text-red-700 p-3 rounded-xl font-medium text-xs">
+                    {forgotError}
+                  </div>
+                )}
+
+                {/* ── STEP 1: Enter Registered Email ──────────────────────── */}
+                {forgotStep === 1 && (
+                  <form onSubmit={handleSendOtp} className="space-y-4">
+                    <p className="text-slate-600 font-medium leading-relaxed">
+                      Enter your registered email address below. We will send a 6-digit OTP code to verify your identity.
+                    </p>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1.5">Registered Email Address *</label>
+                      <div className="relative">
+                        <Mail className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                        <input
+                          type="email"
+                          required
+                          value={forgotEmail}
+                          onChange={(e) => setForgotEmail(e.target.value)}
+                          placeholder="driver@vendroute.in"
+                          className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={forgotLoading}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-3 rounded-xl transition-all shadow-md shadow-blue-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {forgotLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Sending OTP...</> : <>Send 6-Digit OTP <ArrowRight className="w-4 h-4" /></>}
+                    </button>
+                  </form>
+                )}
+
+                {/* ── STEP 2: Enter 6-Digit OTP Code ─────────────────────── */}
+                {forgotStep === 2 && (
+                  <form onSubmit={handleVerifyOtp} className="space-y-4">
+                    <div className="bg-blue-50/80 border border-blue-100 p-3 rounded-xl text-blue-900 flex justify-between items-center">
+                      <div>
+                        <p className="font-semibold text-xs mb-0.5">OTP Code Dispatched!</p>
+                        <p className="text-[11px] text-blue-700">Check registered inbox for <strong className="font-bold">{forgotEmail}</strong></p>
+                      </div>
+                      <div className="text-right">
+                        <span className="text-xs font-mono font-bold px-2 py-1 bg-white border border-blue-200 rounded text-blue-800 shadow-sm block">
+                          ⏱️ {formatTimer(timerSeconds)}
+                        </span>
+                        <span className="text-[9px] text-slate-500 font-medium">Valid for 5 mins</span>
+                      </div>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="font-semibold text-slate-700">Enter 6-Digit OTP Code *</label>
+                        <button
+                          type="button"
+                          disabled={timerSeconds > 0 || forgotLoading}
+                          onClick={() => handleSendOtp()}
+                          className="text-[11px] text-blue-600 hover:underline disabled:opacity-50 disabled:no-underline font-semibold flex items-center gap-1 cursor-pointer"
+                        >
+                          <RefreshCw className={`w-3 h-3 ${forgotLoading ? 'animate-spin' : ''}`} /> Resend OTP
+                        </button>
+                      </div>
+                      <input
+                        type="text"
+                        required
+                        maxLength={6}
+                        value={forgotOtp}
+                        onChange={(e) => setForgotOtp(e.target.value)}
+                        placeholder="e.g. 327639"
+                        className="w-full text-center tracking-[0.4em] font-mono text-lg font-bold px-3 py-2.5 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                      />
+                    </div>
+
+                    <div className="flex gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setForgotStep(1)}
+                        className="w-1/3 border border-slate-200 text-slate-600 font-semibold py-2.5 rounded-xl hover:bg-slate-50"
+                      >
+                        Change Email
+                      </button>
+                      <button
+                        type="submit"
+                        disabled={forgotLoading || timerSeconds === 0}
+                        className="w-2/3 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-bold py-2.5 rounded-xl transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer"
+                      >
+                        {forgotLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Verifying...</> : <>Verify OTP <Check className="w-4 h-4" /></>}
+                      </button>
+                    </div>
+                  </form>
+                )}
+
+                {/* ── STEP 3: Enter New Password ─────────────────────────── */}
+                {forgotStep === 3 && (
+                  <form onSubmit={handleResetPassword} className="space-y-4">
+                    <p className="text-slate-600 font-medium">OTP Verified! Create a new secure password for your account.</p>
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1.5">New Password *</label>
+                      <div className="relative">
+                        <Lock className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                        <input
+                          type="password"
+                          required
+                          minLength={6}
+                          value={newPassword}
+                          onChange={(e) => setNewPassword(e.target.value)}
+                          placeholder="Enter new password (min 6 chars)"
+                          className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                        />
+                      </div>
+                    </div>
+                    <button
+                      type="submit"
+                      disabled={forgotLoading}
+                      className="w-full bg-emerald-600 hover:bg-emerald-700 text-white font-bold py-3 rounded-xl transition-all shadow-md shadow-emerald-600/20 flex items-center justify-center gap-2 cursor-pointer"
+                    >
+                      {forgotLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Updating...</> : <>Reset & Save Password <Check className="w-4 h-4" /></>}
+                    </button>
+                  </form>
+                )}
+
+                {/* ── STEP 4: Success Confirmation ───────────────────────── */}
+                {forgotStep === 4 && (
+                  <div className="py-4 text-center space-y-4">
+                    <div className="w-14 h-14 bg-emerald-100 text-emerald-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+                      <Check className="w-7 h-7" />
+                    </div>
+                    <div>
+                      <h4 className="font-bold text-slate-900 text-base">Password Reset Successfully!</h4>
+                      <p className="text-slate-500 text-xs mt-1 font-medium">{forgotSuccess}</p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setForgotModalOpen(false);
+                        setPassword(newPassword);
+                        setEmail(forgotEmail);
+                      }}
+                      className="w-full bg-blue-600 hover:bg-blue-700 text-white font-bold py-2.5 rounded-xl transition-all shadow-md cursor-pointer"
+                    >
+                      Back to Sign In
+                    </button>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

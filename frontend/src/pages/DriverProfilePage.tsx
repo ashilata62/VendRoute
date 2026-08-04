@@ -183,7 +183,7 @@ export default function DriverProfilePage() {
 
             <div className="pt-3 border-t border-border">
               <p className="text-xs font-semibold text-slate-700 mb-1">Emergency Contact</p>
-              <p className="text-xs text-slate-500">Ramesh Sharma (Brother) · +91 98200 99887</p>
+              <p className="text-xs text-slate-500">{driver.emergencyContact || 'N/A'}</p>
             </div>
           </div>
 

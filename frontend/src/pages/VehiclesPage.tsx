@@ -133,9 +133,16 @@ export default function VehiclesPage() {
         <div className="grid grid-cols-1 lg:grid-cols-10 gap-6">
           {/* Left Cards List (4 cols) */}
           <div className="lg:col-span-4 space-y-4">
-            {vehicles.map((vehicle) => {
-              const assignedDriver = drivers.find((d) => d.id === vehicle.assignedDriverId);
-              const isSelected = selectedVehicle.id === vehicle.id;
+            {vehicles.length === 0 ? (
+              <div className="bg-card rounded-xl border border-border p-8 text-center text-slate-400">
+                <Truck className="w-8 h-8 mx-auto mb-2 opacity-30" />
+                <p className="text-xs font-semibold">No vehicles in fleet.</p>
+                <p className="text-[10px] text-slate-400 mt-1">Click "+ Add Vehicle" to register one.</p>
+              </div>
+            ) : (
+              vehicles.map((vehicle) => {
+                const assignedDriver = drivers.find((d) => d.id === vehicle.assignedDriverId);
+                const isSelected = selectedVehicle?.id === vehicle.id;
 
               return (
                 <div
@@ -174,36 +181,47 @@ export default function VehiclesPage() {
                   </div>
                 </div>
               );
-            })}
+            })
+            )}
           </div>
 
           {/* Right Map Detail (6 cols) */}
           <div className="lg:col-span-6 bg-card rounded-xl border border-border shadow-sm overflow-hidden flex flex-col h-[520px]">
-            <div className="p-4 border-b border-border bg-slate-50 flex items-center justify-between">
-              <div>
-                <h3 className="font-bold text-slate-900 text-sm">{selectedVehicle.model} ({selectedVehicle.plateNumber})</h3>
-                <p className="text-xs text-slate-400">Live GPS Location & Route History</p>
-              </div>
-              <StatusBadge status={selectedVehicle.status} />
-            </div>
+            {selectedVehicle ? (
+              <>
+                <div className="p-4 border-b border-border bg-slate-50 flex items-center justify-between">
+                  <div>
+                    <h3 className="font-bold text-slate-900 text-sm">{selectedVehicle.model} ({selectedVehicle.plateNumber})</h3>
+                    <p className="text-xs text-slate-400">Live GPS Location & Route History</p>
+                  </div>
+                  <StatusBadge status={selectedVehicle.status} />
+                </div>
 
-            <div className="flex-1 relative">
-              <MapContainer center={[19.0760, 72.8777]} zoom={12} className="h-full w-full">
-                <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <Marker position={[19.0760, 72.8777]}>
-                  <Popup>
-                    <p className="font-bold text-xs">{selectedVehicle.model}</p>
-                    <p className="text-[10px] text-slate-500">{selectedVehicle.plateNumber}</p>
-                  </Popup>
-                </Marker>
-                <Polyline
-                  positions={[[19.0596, 72.8656], [19.0760, 72.8777], [19.1196, 72.9050]]}
-                  color="#2563EB"
-                  weight={4}
-                  dashArray="5 5"
-                />
-              </MapContainer>
-            </div>
+                <div className="flex-1 relative">
+                  <MapContainer center={[19.0760, 72.8777]} zoom={12} className="h-full w-full">
+                    <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                    <Marker position={[19.0760, 72.8777]}>
+                      <Popup>
+                        <p className="font-bold text-xs">{selectedVehicle.model}</p>
+                        <p className="text-[10px] text-slate-500">{selectedVehicle.plateNumber}</p>
+                      </Popup>
+                    </Marker>
+                    <Polyline
+                      positions={[[19.0596, 72.8656], [19.0760, 72.8777], [19.1196, 72.9050]]}
+                      color="#2563EB"
+                      weight={4}
+                      dashArray="5 5"
+                    />
+                  </MapContainer>
+                </div>
+              </>
+            ) : (
+              <div className="flex flex-col items-center justify-center h-full text-slate-400 p-6">
+                <Truck className="w-12 h-12 mb-2 opacity-20" />
+                <p className="text-sm font-semibold">No Vehicle Selected</p>
+                <p className="text-xs mt-1">Select a vehicle from the list to view its map telemetry.</p>
+              </div>
+            )}
           </div>
         </div>
       )}

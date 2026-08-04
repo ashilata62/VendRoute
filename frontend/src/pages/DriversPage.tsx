@@ -38,7 +38,7 @@ export default function DriversPage() {
   const [allDrivers, setAllDrivers] = useState<any[]>([]);
   const [allVehicles, setAllVehicles] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
-  const [addForm, setAddForm] = useState({ name: "", email: "", phone: "", password: "Driver@123" });
+  const [addForm, setAddForm] = useState({ name: "", email: "", phone: "", licenseNumber: "", address: "", emergencyContact: "", password: "Driver@123" });
   const [addSaving, setAddSaving] = useState(false);
 
   const itemsPerPage = 6;
@@ -290,7 +290,7 @@ export default function DriversPage() {
                   if (res.success) {
                     setAllDrivers(prev => [res.data, ...prev]);
                     setIsAddModalOpen(false);
-                    setAddForm({ name: '', email: '', phone: '', password: 'Driver@123' });
+                    setAddForm({ name: '', email: '', phone: '', licenseNumber: '', address: '', emergencyContact: '', password: 'Driver@123' });
                     alert('Driver added successfully!');
                   }
                 } catch (err: any) {
@@ -298,22 +298,38 @@ export default function DriversPage() {
                 } finally {
                   setAddSaving(false);
                 }
-              }} className="p-6 space-y-4 text-xs">
+              }} className="p-6 space-y-3.5 text-xs max-h-[80vh] overflow-y-auto">
                 <div>
                   <label className="block font-semibold text-slate-700 mb-1">Full Name *</label>
                   <input type="text" required value={addForm.name} onChange={e => setAddForm(f => ({...f, name: e.target.value}))} placeholder="e.g. Vikram Sharma" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
                 </div>
-                <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Email Address *</label>
-                  <input type="email" required value={addForm.email} onChange={e => setAddForm(f => ({...f, email: e.target.value}))} placeholder="driver@vendroute.in" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Email Address *</label>
+                    <input type="email" required value={addForm.email} onChange={e => setAddForm(f => ({...f, email: e.target.value}))} placeholder="driver@vendroute.in" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Phone Number</label>
+                    <input type="text" value={addForm.phone} onChange={e => setAddForm(f => ({...f, phone: e.target.value}))} placeholder="+91 98200 00000" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
+                  </div>
+                </div>
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">License Number</label>
+                    <input type="text" value={addForm.licenseNumber} onChange={e => setAddForm(f => ({...f, licenseNumber: e.target.value}))} placeholder="MH-0120260099" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Password *</label>
+                    <input type="text" required value={addForm.password} onChange={e => setAddForm(f => ({...f, password: e.target.value}))} placeholder="Default: Driver@123" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
+                  </div>
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Phone Number</label>
-                  <input type="text" value={addForm.phone} onChange={e => setAddForm(f => ({...f, phone: e.target.value}))} placeholder="+91 98200 00000" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
+                  <label className="block font-semibold text-slate-700 mb-1">Residential Address</label>
+                  <input type="text" value={addForm.address} onChange={e => setAddForm(f => ({...f, address: e.target.value}))} placeholder="e.g. Bandra West, Mumbai" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
                 </div>
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Password *</label>
-                  <input type="text" required value={addForm.password} onChange={e => setAddForm(f => ({...f, password: e.target.value}))} placeholder="Default: Driver@123" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
+                  <label className="block font-semibold text-slate-700 mb-1">Emergency Contact</label>
+                  <input type="text" value={addForm.emergencyContact} onChange={e => setAddForm(f => ({...f, emergencyContact: e.target.value}))} placeholder="e.g. Ramesh Sharma (Brother) · +91 98200 99887" className="w-full px-3 py-2 border border-border rounded-lg focus:outline-none" />
                 </div>
                 <div className="pt-4 border-t border-border flex justify-end gap-2">
                   <button type="button" onClick={() => setIsAddModalOpen(false)} className="px-4 py-2 text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>

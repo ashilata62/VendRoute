@@ -108,7 +108,15 @@ export default function TrackingPage() {
     return activeDrivers.map((driver) => {
       const route = realRoutes.find((r: any) => r.driverId === driver.id && (r.status === "IN_PROGRESS" || r.status === "PENDING")) || realRoutes[0];
       const locs = realLocations.slice(0, 4);
-      const coords: [number, number][] = locs.map((l: any) => [l.lat, l.lng]);
+      const coords: [number, number][] = locs
+        .map((l: any) => {
+          const lat = Number(l.lat ?? l.latitude);
+          const lng = Number(l.lng ?? l.longitude);
+          if (isNaN(lat) || isNaN(lng) || !lat || !lng) return null;
+          return [lat, lng] as [number, number];
+        })
+        .filter((c): c is [number, number] => c !== null);
+
       return {
         driverId: driver.id,
         routeName: route?.name || "Active Route",
@@ -134,16 +142,19 @@ export default function TrackingPage() {
           />
 
           {/* Draw Driver Routes & Polylines */}
-          {driverRoutes.map((r) => (
-            <Polyline
-              key={r.driverId}
-              positions={r.coords}
-              color={r.color}
-              weight={4}
-              opacity={0.7}
-              dashArray="6 6"
-            />
-          ))}
+          {driverRoutes.map((r) => {
+            if (!r.coords || r.coords.length < 2) return null;
+            return (
+              <Polyline
+                key={r.driverId}
+                positions={r.coords}
+                color={r.color}
+                weight={4}
+                opacity={0.7}
+                dashArray="6 6"
+              />
+            );
+          })}
 
           {/* Draw Stop Markers */}
           {currentSelectedRouteInfo?.stops.map((stopLoc, idx) => {
