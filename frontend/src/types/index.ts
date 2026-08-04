@@ -7,6 +7,10 @@ export interface AuthUser {
   email: string;
   role: UserRole;
   avatar: string;
+  phone?: string;
+  address?: string;
+  licenseNumber?: string;
+  emergencyContact?: string;
 }
 
 // ─── Driver ───────────────────────────────────────────────────────────────────

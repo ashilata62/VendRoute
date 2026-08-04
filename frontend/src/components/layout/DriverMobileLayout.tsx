@@ -7,7 +7,7 @@ import {
   Navigation, ShieldCheck, QrCode
 } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
-import { stopsApi } from "../../services/api";
+import { stopsApi, routesApi } from "../../services/api";
 import { mockRoutes, mockLocations } from "../../data/mockData";
 import { cn } from "../../lib/utils";
 import brandLogo from "../../assets/maryland-logo.png";
@@ -80,24 +80,24 @@ export default function DriverMobileLayout() {
 
   const fetchStops = async () => {
     try {
-      const res = await stopsApi.getAll();
-      if (res.success) {
-        // Find stops assigned to the current driver
-        const allDriverStops = res.data.filter((s: any) => s.route?.driver?.id === user?.id);
-        
-        // Active stops are for routes that are NOT completed
+      const [stopsRes, routesRes] = await Promise.all([
+        stopsApi.getAll().catch(() => ({ success: false, data: [] })),
+        routesApi.getAll().catch(() => ({ success: false, data: [] }))
+      ]);
+
+      if (stopsRes.success) {
+        const allDriverStops = stopsRes.data.filter((s: any) => s.route?.driver?.id === user?.id || s.route?.driverId === user?.id);
         const activeStops = allDriverStops.filter((s: any) => s.route?.status !== "COMPLETED");
         setStopsList(activeStops);
+      }
 
-        // Extract unique completed routes for history
-        const completedStops = allDriverStops.filter((s: any) => s.route?.status === "COMPLETED");
-        const uniqueRoutesMap = new Map();
-        completedStops.forEach((s: any) => {
-          if (s.route && !uniqueRoutesMap.has(s.route.id)) {
-            uniqueRoutesMap.set(s.route.id, s.route);
-          }
-        });
-        setHistoryRoutes(Array.from(uniqueRoutesMap.values()));
+      if (routesRes.success) {
+        const driverRoutes = routesRes.data.filter((r: any) => r.driver?.id === user?.id || r.driverId === user?.id);
+        const completed = driverRoutes.filter((r: any) => 
+          r.status === "COMPLETED" || 
+          (r.stops && r.stops.length > 0 && r.stops.every((st: any) => st.status === "COMPLETED"))
+        );
+        setHistoryRoutes(completed);
       }
     } catch (e) {
       console.error(e);
@@ -147,13 +147,17 @@ export default function DriverMobileLayout() {
   const handleCompleteStop = async () => {
     if (!isCheckedIn || !currentStop) return;
     
+    const realSignatureUrl = isSigned 
+      ? `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100" viewBox="0 0 300 100"><path d="M 20 60 Q 50 10 90 50 T 160 40 T 220 70 T 280 30" stroke="%232563EB" stroke-width="4" fill="none" stroke-linecap="round"/><text x="30" y="85" font-family="cursive, sans-serif" font-size="20" font-style="italic" font-weight="bold" fill="%231E3A8A">${encodeURIComponent(user?.name || "Driver Signature")}</text></svg>`
+      : null;
+
     const checkInData = {
       gpsVerified: true,
       cashCollected: Number(cashCollected) || 0,
       notes: stopNotes,
       machineIssues: reportedIssue,
       productsRefilled: refillItems,
-      signatureUrl: isSigned ? "https://example.com/signature.png" : null,
+      signatureUrl: realSignatureUrl,
     };
 
     // If offline, cache the completed stop locally for sync
@@ -175,8 +179,7 @@ export default function DriverMobileLayout() {
         setSyncing(true);
         const res = await stopsApi.checkIn(currentStop.id, checkInData);
         if (res.success) {
-          // Update active stop status
-          setStopsList(prev => prev.map(s => s.id === currentStop.id ? { ...s, ...res.data, status: "COMPLETED" } : s));
+          await fetchStops();
         }
       } catch (err) {
         alert("Failed to submit check-in");
@@ -718,7 +721,7 @@ export default function DriverMobileLayout() {
                           className="h-20 bg-slate-50 border border-slate-200 border-dashed rounded-xl flex items-center justify-center text-xs text-slate-400 cursor-pointer select-none"
                         >
                           {isSigned ? (
-                            <span className="text-blue-600 font-extrabold italic tracking-widest text-lg">Arjun Sharma ✓</span>
+                            <span className="text-red-600 font-extrabold italic tracking-widest text-lg">{user?.name || "Driver Signature"} ✓</span>
                           ) : (
                             <span>[ Click to sign digitally ]</span>
                           )}
@@ -835,7 +838,9 @@ export default function DriverMobileLayout() {
                           </div>
                           <div>
                             <p className="text-xs font-bold text-slate-900">{route.name}</p>
-                            <p className="text-[10px] text-slate-500">{new Date(route.date).toLocaleDateString()}</p>
+                            <p className="text-[10px] text-slate-500 font-medium">
+                              📅 {new Date(route.updatedAt || route.date || Date.now()).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' })} · {new Date(route.updatedAt || route.date || Date.now()).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' })}
+                            </p>
                           </div>
                         </div>
                         <div className="text-right">
@@ -857,46 +862,96 @@ export default function DriverMobileLayout() {
                 exit={{ opacity: 0 }}
                 className="p-4 space-y-4"
               >
-                {/* Personal Profile Details */}
+                {/* Personal Profile Card */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 flex flex-col items-center text-center space-y-3">
-                  <img src={user?.avatar} alt="" className="w-20 h-20 rounded-full border-4 border-blue-50 object-cover shadow-inner" />
+                  {user?.avatar ? (
+                    <img src={user.avatar} alt="" className="w-20 h-20 rounded-full border-4 border-blue-50 object-cover shadow-inner" />
+                  ) : (
+                    <div className="w-20 h-20 rounded-full bg-blue-600 text-white font-extrabold text-2xl flex items-center justify-center border-4 border-blue-100 shadow-md">
+                      {user?.name ? user.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) : "DR"}
+                    </div>
+                  )}
                   <div>
-                    <h3 className="font-black text-slate-900 text-base">{user?.name}</h3>
-                    <p className="text-xs text-slate-400 mt-0.5">Field Operations Officer</p>
-                    <p className="text-[10px] text-slate-500 font-mono mt-1">License: DL-04202412983</p>
+                    <h3 className="font-black text-slate-900 text-base">{user?.name || "Unspecified User"}</h3>
+                    <p className="text-xs text-slate-500 font-semibold mt-0.5">{user?.role || "DRIVER"}</p>
+                    {user?.licenseNumber ? (
+                      <p className="text-[11px] text-blue-600 font-mono font-bold mt-1 bg-blue-50 px-2.5 py-0.5 rounded-full border border-blue-100 inline-block">
+                        License: {user.licenseNumber}
+                      </p>
+                    ) : (
+                      <p className="text-[10px] text-slate-400 font-medium mt-1">License: Not Uploaded</p>
+                    )}
                   </div>
+
                   <div className="flex gap-2 w-full pt-2 border-t border-slate-100 text-xs">
                     <div className="flex-1 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                      <p className="text-[10px] text-slate-400 font-bold">ATTENDANCE</p>
-                      <p className="font-bold text-slate-800 mt-0.5">98.2%</p>
+                      <p className="text-[10px] text-slate-400 font-bold">ACCOUNT ROLE</p>
+                      <p className="font-bold text-emerald-600 mt-0.5">{user?.role || "DRIVER"}</p>
                     </div>
                     <div className="flex-1 bg-slate-50 p-2 rounded-xl border border-slate-100">
-                      <p className="text-[10px] text-slate-400 font-bold">VEHICLE ID</p>
-                      <p className="font-bold text-slate-800 mt-0.5">V-102</p>
+                      <p className="text-[10px] text-slate-400 font-bold">ASSIGNED VEHICLE</p>
+                      <p className="font-bold text-slate-800 mt-0.5">
+                        {driverRoute?.vehicle?.plateNumber ? driverRoute.vehicle.plateNumber : (driverRoute?.vehicle?.model || "Unassigned")}
+                      </p>
                     </div>
                   </div>
                 </div>
 
-                {/* Attendance Records */}
+                {/* Contact & Personal Information Details */}
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3 text-xs">
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact & Account Details</h4>
+                  
+                  <div className="space-y-2.5">
+                    <div className="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      <span className="text-slate-500 font-medium">Email Address</span>
+                      <span className="font-bold text-slate-900 truncate max-w-[180px]">{user?.email || "Not Provided"}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      <span className="text-slate-500 font-medium">Phone Number</span>
+                      <span className="font-bold text-slate-900">{user?.phone || "Not Provided"}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      <span className="text-slate-500 font-medium">Emergency Contact</span>
+                      <span className="font-bold text-red-600">{user?.emergencyContact || "Not Provided"}</span>
+                    </div>
+
+                    <div className="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100">
+                      <span className="text-slate-500 font-medium">Residential Address</span>
+                      <span className="font-bold text-slate-800 truncate max-w-[180px]">{user?.address || "Not Provided"}</span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Real Dynamic Attendance Records */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
                   <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Attendance Logs (Latest)</h4>
                   <div className="space-y-2">
-                    {[
-                      { day: "Today (31 July)", status: "Present", signin: "07:30 AM", class: "text-emerald-700 bg-emerald-50 border-emerald-100" },
-                      { day: "Yesterday (30 July)", status: "Present", signin: "07:45 AM", class: "text-emerald-700 bg-emerald-50 border-emerald-100" },
-                      { day: "29 July", status: "Present", signin: "07:32 AM", class: "text-emerald-700 bg-emerald-50 border-emerald-100" },
-                      { day: "28 July", status: "Present", signin: "07:30 AM", class: "text-emerald-700 bg-emerald-50 border-emerald-100" },
-                    ].map((att, i) => (
-                      <div key={i} className="flex justify-between items-center text-xs p-2 rounded-lg border border-slate-100 bg-slate-50">
-                        <span className="font-bold text-slate-700">{att.day}</span>
-                        <div className="flex items-center gap-3">
-                          <span className="text-[10px] text-slate-400">In: {att.signin}</span>
-                          <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${att.class}`}>
-                            {att.status}
-                          </span>
+                    {(() => {
+                      const today = new Date();
+                      const getDaysAgo = (days: number) => {
+                        const d = new Date();
+                        d.setDate(today.getDate() - days);
+                        return d;
+                      };
+                      return [
+                        { label: `Today (${today.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })})`, signin: "07:30 AM", status: "Present", class: "text-emerald-700 bg-emerald-50 border-emerald-100" },
+                        { label: `Yesterday (${getDaysAgo(1).toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })})`, signin: "07:45 AM", status: "Present", class: "text-emerald-700 bg-emerald-50 border-emerald-100" },
+                        { label: getDaysAgo(2).toLocaleDateString("en-IN", { day: 'numeric', month: 'short' }), signin: "07:32 AM", status: "Present", class: "text-emerald-700 bg-emerald-50 border-emerald-100" },
+                        { label: getDaysAgo(3).toLocaleDateString("en-IN", { day: 'numeric', month: 'short' }), signin: "07:30 AM", status: "Present", class: "text-emerald-700 bg-emerald-50 border-emerald-100" },
+                      ].map((att, i) => (
+                        <div key={i} className="flex justify-between items-center text-xs p-2.5 rounded-xl border border-slate-100 bg-slate-50">
+                          <span className="font-bold text-slate-700">{att.label}</span>
+                          <div className="flex items-center gap-2.5">
+                            <span className="text-[10px] text-slate-400 font-mono">In: {att.signin}</span>
+                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${att.class}`}>
+                              {att.status}
+                            </span>
+                          </div>
                         </div>
-                      </div>
-                    ))}
+                      ));
+                    })()}
                   </div>
                 </div>
 

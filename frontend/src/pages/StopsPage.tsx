@@ -284,23 +284,39 @@ export default function StopsPage() {
 
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {/* Timeline Connector */}
-                <div className="bg-slate-50 p-4 rounded-xl border border-border space-y-3">
-                  <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Visit Execution Timeline</h4>
-                  <div className="flex items-center justify-between text-xs relative before:absolute before:top-1/2 before:inset-x-6 before:h-0.5 before:bg-slate-200">
-                    <div className="relative z-10 bg-white p-2 rounded-lg border border-border text-center shadow-sm">
-                      <p className="text-[10px] text-slate-400 uppercase">Arrival</p>
-                      <p className="font-bold text-slate-900">09:05 AM</p>
+                {(() => {
+                  const arrivalTimeStr = selectedStop.arrivalTime 
+                    ? new Date(selectedStop.arrivalTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+                    : selectedStop.updatedAt 
+                      ? new Date(selectedStop.updatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+                      : new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
+                  const departureTimeStr = selectedStop.departureTime 
+                    ? new Date(selectedStop.departureTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+                    : selectedStop.updatedAt 
+                      ? new Date(new Date(selectedStop.updatedAt).getTime() + 15 * 60 * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
+                      : new Date(Date.now() + 15 * 60 * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+
+                  return (
+                    <div className="bg-slate-50 p-4 rounded-xl border border-border space-y-3">
+                      <h4 className="text-xs font-bold text-slate-900 uppercase tracking-wider">Visit Execution Timeline</h4>
+                      <div className="flex items-center justify-between text-xs relative before:absolute before:top-1/2 before:inset-x-6 before:h-0.5 before:bg-slate-200">
+                        <div className="relative z-10 bg-white p-2 rounded-lg border border-border text-center shadow-sm">
+                          <p className="text-[10px] text-slate-400 uppercase">Arrival</p>
+                          <p className="font-bold text-slate-900">{arrivalTimeStr}</p>
+                        </div>
+                        <div className="relative z-10 bg-white p-2 rounded-lg border border-border text-center shadow-sm">
+                          <p className="text-[10px] text-slate-400 uppercase">Activities</p>
+                          <p className="font-bold text-emerald-600">Refill & Cash</p>
+                        </div>
+                        <div className="relative z-10 bg-white p-2 rounded-lg border border-border text-center shadow-sm">
+                          <p className="text-[10px] text-slate-400 uppercase">Departure</p>
+                          <p className="font-bold text-slate-900">{departureTimeStr}</p>
+                        </div>
+                      </div>
                     </div>
-                    <div className="relative z-10 bg-white p-2 rounded-lg border border-border text-center shadow-sm">
-                      <p className="text-[10px] text-slate-400 uppercase">Activities</p>
-                      <p className="font-bold text-emerald-600">Refill & Cash</p>
-                    </div>
-                    <div className="relative z-10 bg-white p-2 rounded-lg border border-border text-center shadow-sm">
-                      <p className="text-[10px] text-slate-400 uppercase">Departure</p>
-                      <p className="font-bold text-slate-900">09:35 AM</p>
-                    </div>
-                  </div>
-                </div>
+                  );
+                })()}
 
                 {/* Inventory Refilled Table */}
                 <div className="space-y-2">

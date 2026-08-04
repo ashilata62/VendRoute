@@ -43,6 +43,10 @@ export const useAuthStore = create<AuthState>()(
               avatar:
                 res.user.avatar ||
                 `https://ui-avatars.com/api/?name=${encodeURIComponent(res.user.name)}&background=2563EB&color=fff`,
+              phone: (res.user as any).phone || undefined,
+              address: (res.user as any).address || undefined,
+              licenseNumber: (res.user as any).licenseNumber || undefined,
+              emergencyContact: (res.user as any).emergencyContact || undefined,
             };
             set({ user, isAuthenticated: true, isLoading: false });
             return { ok: true };
@@ -74,6 +78,10 @@ export const useAuthStore = create<AuthState>()(
               avatar:
                 res.user.avatar ||
                 `https://ui-avatars.com/api/?name=${encodeURIComponent(res.user.name)}&background=2563EB&color=fff`,
+              phone: (res.user as any).phone || undefined,
+              address: (res.user as any).address || undefined,
+              licenseNumber: (res.user as any).licenseNumber || undefined,
+              emergencyContact: (res.user as any).emergencyContact || undefined,
             };
             set({ user });
           }
