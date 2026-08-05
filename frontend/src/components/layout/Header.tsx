@@ -1,10 +1,10 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import { Menu, Search, Bell, ChevronDown, LogOut, User, Settings, X, Sun, Moon } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { useNotificationStore } from "../../store/notificationStore";
 import { cn } from "../../lib/utils";
-import { mockLocations, mockDrivers, mockRoutes } from "../../data/mockData";
+import { locationsApi, usersApi, routesApi } from "../../services/api";
 import brandLogo from "../../assets/maryland-logo.png";
 
 interface HeaderProps {
@@ -32,34 +32,62 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout } = useAuthStore();
-  const { unreadCount } = useNotificationStore();
+  const { unreadCount, fetchNotifications } = useNotificationStore();
   const [profileOpen, setProfileOpen] = useState(false);
   const [searchValue, setSearchValue] = useState("");
   const [mobileSearchOpen, setMobileSearchOpen] = useState(false);
   const [showResults, setShowResults] = useState(false);
 
-  const searchResults = (() => {
-    if (!searchValue.trim()) return { locations: [], drivers: [], routes: [] };
-    const q = searchValue.toLowerCase();
-    return {
-      locations: mockLocations.filter(
-        (l) =>
-          l.machineId.toLowerCase().includes(q) ||
-          l.customerName.toLowerCase().includes(q) ||
-          l.address.toLowerCase().includes(q)
-      ).slice(0, 3),
-      drivers: mockDrivers.filter(
-        (d) =>
-          d.name.toLowerCase().includes(q) ||
-          d.phone.toLowerCase().includes(q)
-      ).slice(0, 3),
-      routes: mockRoutes.filter(
-        (r) =>
-          r.name.toLowerCase().includes(q) ||
-          r.id.toLowerCase().includes(q)
-      ).slice(0, 3),
-    };
-  })();
+  // Load real notification count from backend on mount
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
+
+  // ── Real backend search ───────────────────────────────────────────
+  const [searchResults, setSearchResults] = useState<{ locations: any[]; drivers: any[]; routes: any[] }>({
+    locations: [], drivers: [], routes: []
+  });
+  const [searchLoading, setSearchLoading] = useState(false);
+
+  const runSearch = useCallback(async (q: string) => {
+    if (!q.trim()) {
+      setSearchResults({ locations: [], drivers: [], routes: [] });
+      return;
+    }
+    setSearchLoading(true);
+    try {
+      const [locRes, drvRes, rtRes] = await Promise.all([
+        locationsApi.getAll().catch(() => ({ success: false, data: [] })),
+        usersApi.getAll('DRIVER').catch(() => ({ success: false, data: [] })),
+        routesApi.getAll().catch(() => ({ success: false, data: [] })),
+      ]);
+      const ql = q.toLowerCase();
+      setSearchResults({
+        locations: (locRes.success ? locRes.data : []).filter((l: any) =>
+          l.name?.toLowerCase().includes(ql) ||
+          l.address?.toLowerCase().includes(ql) ||
+          l.city?.toLowerCase().includes(ql) ||
+          l.customer?.companyName?.toLowerCase().includes(ql)
+        ).slice(0, 3),
+        drivers: (drvRes.success ? drvRes.data : []).filter((d: any) =>
+          d.name?.toLowerCase().includes(ql) ||
+          d.phone?.includes(q)
+        ).slice(0, 3),
+        routes: (rtRes.success ? rtRes.data : []).filter((r: any) =>
+          r.name?.toLowerCase().includes(ql) ||
+          r.id?.toLowerCase().includes(ql)
+        ).slice(0, 3),
+      });
+    } catch {}
+    setSearchLoading(false);
+  }, []);
+
+  // Debounce: run search 350ms after user stops typing
+  useEffect(() => {
+    const timer = setTimeout(() => runSearch(searchValue), 350);
+    return () => clearTimeout(timer);
+  }, [searchValue, runSearch]);
 
   const [theme, setTheme] = useState(() => {
     return localStorage.getItem("app-theme") === "Dark" ? "Dark" : "Light";
@@ -179,8 +207,8 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
                       }}
                       className="flex justify-between items-center px-2 py-1.5 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors"
                     >
-                      <span className="text-xs font-semibold text-slate-700 truncate max-w-[150px]">{loc.customerName}</span>
-                      <span className="text-[9px] font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-500">{loc.machineId}</span>
+                      <span className="text-xs font-semibold text-slate-700 truncate max-w-[150px]">{loc.name || loc.customer?.companyName}</span>
+                      <span className="text-[9px] font-mono bg-slate-100 px-1 py-0.5 rounded text-slate-500">{loc.city}</span>
                     </div>
                   ))}
                 </div>
@@ -202,8 +230,11 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
                       }}
                       className="flex items-center gap-2 px-2 py-1.5 hover:bg-slate-50 rounded-lg cursor-pointer transition-colors"
                     >
-                      <img src={drv.photo} alt="" className="w-4.5 h-4.5 rounded-full object-cover" />
+                      <div className="w-5 h-5 rounded-full bg-blue-600 text-white text-[9px] font-bold flex items-center justify-center flex-shrink-0">
+                        {drv.name?.charAt(0).toUpperCase()}
+                      </div>
                       <span className="text-xs font-semibold text-slate-700">{drv.name}</span>
+                      <span className="text-[9px] text-slate-400 ml-auto">{drv.phone || ''}</span>
                     </div>
                   ))}
                 </div>
@@ -235,7 +266,7 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
 
             {searchResults.locations.length === 0 && searchResults.drivers.length === 0 && searchResults.routes.length === 0 && (
               <div className="text-center py-3 text-xs text-slate-400 font-medium">
-                No records match query.
+                {searchLoading ? "Searching..." : "No records match query."}
               </div>
             )}
           </div>
@@ -323,11 +354,20 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
           onClick={() => setProfileOpen(!profileOpen)}
           className="flex items-center gap-2 p-1 sm:pl-2 sm:pr-3 sm:py-1.5 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all cursor-pointer"
         >
-          <img
-            src={user?.avatar}
-            alt={user?.name}
-            className="w-8 h-8 rounded-full object-cover ring-2 ring-slate-200 shadow-sm"
-          />
+          {user?.avatar && (user.avatar.startsWith("http") || user.avatar.startsWith("data:image")) ? (
+            <img
+              src={user.avatar}
+              alt={user?.name}
+              className="w-8 h-8 rounded-full object-cover ring-2 ring-slate-200 shadow-sm"
+              onError={(e) => {
+                (e.target as HTMLImageElement).style.display = "none";
+              }}
+            />
+          ) : (
+            <div className="w-8 h-8 rounded-full bg-blue-600 text-white font-bold text-xs flex items-center justify-center shadow-sm">
+              {user?.name ? user.name.split(" ").map((n) => n[0]).join("").toUpperCase().slice(0, 2) : "AD"}
+            </div>
+          )}
           <div className="hidden lg:block text-left">
             <p className="text-xs font-bold text-slate-800 leading-tight">{user?.name}</p>
             <p className="text-[10px] text-slate-400 font-semibold capitalize">

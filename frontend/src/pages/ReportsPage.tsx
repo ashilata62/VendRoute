@@ -1,84 +1,19 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  BarChart, Bar, LineChart, Line, PieChart, Pie, Cell, AreaChart, Area,
-  XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, RadarChart,
-  PolarGrid, PolarAngleAxis, PolarRadiusAxis, Radar
+  BarChart, Bar, LineChart, Line, AreaChart, Area,
+  XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend
 } from "recharts";
 import {
   DownloadCloud, TrendingUp, DollarSign, Route, Users,
-  CheckCircle2, XCircle, Clock, Star, Trophy, Target, Activity,
-  ArrowUpRight, ArrowDownRight, Truck, MapPin, Zap, ChevronDown
+  CheckCircle2, Clock, Trophy, Target, Activity,
+  Truck, MapPin, Zap, ChevronDown, ArrowUpRight, ArrowDownRight, Star
 } from "lucide-react";
 
 import PageHeader from "../components/shared/PageHeader";
-import { routesApi, usersApi } from "../services/api";
+import { routesApi, usersApi, reportsApi, stopsApi, vehiclesApi } from "../services/api";
 import { formatCurrency } from "../lib/utils";
-
-// ─── Extended Data for Reports ─────────────────────────────────────────────────
-
-const monthlyRevenueExtended = [
-  { month: "Jan", revenue: 241000, target: 250000, lastYear: 198000 },
-  { month: "Feb", revenue: 284000, target: 270000, lastYear: 220000 },
-  { month: "Mar", revenue: 312000, target: 300000, lastYear: 248000 },
-  { month: "Apr", revenue: 298000, target: 310000, lastYear: 260000 },
-  { month: "May", revenue: 345000, target: 320000, lastYear: 282000 },
-  { month: "Jun", revenue: 389000, target: 350000, lastYear: 310000 },
-  { month: "Jul", revenue: 421000, target: 380000, lastYear: 340000 },
-];
-
-const revenueByCustomer = [
-  { name: "Infosys Ltd", value: 238700, color: "#2563EB" },
-  { name: "Phoenix Mills", value: 308700, color: "#10B981" },
-  { name: "Reliance Ind.", value: 159300, color: "#F59E0B" },
-  { name: "L&T Infra", value: 109300, color: "#8B5CF6" },
-  { name: "Hiranandani", value: 84400, color: "#EF4444" },
-];
-
-const revenueByMachineType = [
-  { type: "Coffee", revenue: 312000, stops: 48, avgPerStop: 6500 },
-  { type: "Snack", revenue: 198000, stops: 62, avgPerStop: 3194 },
-  { type: "Beverage", revenue: 145000, stops: 35, avgPerStop: 4143 },
-  { type: "Combo", revenue: 228000, stops: 52, avgPerStop: 4385 },
-];
-
-const weeklyStopDetailed = [
-  { day: "Mon", completed: 42, missed: 2, pending: 5, onTime: 38 },
-  { day: "Tue", completed: 38, missed: 1, pending: 8, onTime: 35 },
-  { day: "Wed", completed: 51, missed: 3, pending: 3, onTime: 46 },
-  { day: "Thu", completed: 45, missed: 0, pending: 6, onTime: 44 },
-  { day: "Fri", completed: 60, missed: 4, pending: 2, onTime: 55 },
-  { day: "Sat", completed: 30, missed: 1, pending: 4, onTime: 29 },
-  { day: "Sun", completed: 20, missed: 0, pending: 2, onTime: 20 },
-];
-
-const driverPerformanceData = [
-  { name: "Arjun Sharma", routes: 312, stops: 2840, rating: 4.8, onTime: 96, revenue: 89400, color: "#2563EB" },
-  { name: "Priya Patel",  routes: 278, stops: 2511, rating: 4.9, onTime: 98, revenue: 82100, color: "#10B981" },
-  { name: "Sneha Joshi",  routes: 401, stops: 3620, rating: 4.7, onTime: 94, revenue: 112000, color: "#8B5CF6" },
-  { name: "Rahul Verma",  routes: 195, stops: 1780, rating: 4.5, onTime: 90, revenue: 64200, color: "#F59E0B" },
-  { name: "Karan Mehta",  routes: 167, stops: 1540, rating: 4.6, onTime: 92, revenue: 55800, color: "#EC4899" },
-  { name: "Dev Singh",    routes: 98,  stops: 890,  rating: 4.3, onTime: 88, revenue: 31200, color: "#64748B" },
-];
-
-const radarData = [
-  { metric: "On-Time", Arjun: 96, Priya: 98, Sneha: 94, Rahul: 90 },
-  { metric: "Revenue", Arjun: 88, Priya: 81, Sneha: 100, Rahul: 63 },
-  { metric: "Stops",   Arjun: 94, Priya: 84, Sneha: 100, Rahul: 59 },
-  { metric: "Rating",  Arjun: 96, Priya: 98, Sneha: 94, Rahul: 90 },
-  { metric: "Routes",  Arjun: 78, Priya: 69, Sneha: 100, Rahul: 49 },
-];
-
-const locationRankings: any[] = [];
-
-const fuelCostData = [
-  { month: "Feb", liters: 290, cost: 26100 },
-  { month: "Mar", liters: 350, cost: 31500 },
-  { month: "Apr", liters: 310, cost: 27900 },
-  { month: "May", liters: 380, cost: 34200 },
-  { month: "Jun", liters: 410, cost: 36900 },
-  { month: "Jul", liters: 445, cost: 40050 },
-];
 
 // ─── Tab Definitions ──────────────────────────────────────────────────────────
 const TABS = [
@@ -149,136 +84,105 @@ const CustomTooltipStyle = {
   fontSize: 12, borderRadius: 8, border: "1px solid #E2E8F0", background: "#fff",
 };
 
-// ─── Revenue Tab ──────────────────────────────────────────────────────────────
-function RevenueTab() {
-  const totalRev = monthlyRevenueExtended.reduce((s, d) => s + d.revenue, 0);
-  const totalTarget = monthlyRevenueExtended.reduce((s, d) => s + d.target, 0);
-  const lastYearTotal = monthlyRevenueExtended.reduce((s, d) => s + d.lastYear, 0);
-  const growth = (((totalRev - lastYearTotal) / lastYearTotal) * 100).toFixed(1);
-  const attainment = ((totalRev / totalTarget) * 100).toFixed(1);
+// ─── Revenue Tab (Real Backend Data) ─────────────────────────────────────────
+function RevenueTab({ routes, stops }: { routes: any[]; stops: any[] }) {
+  const totalCash = stops.reduce((s, stop) => s + (stop.cashCollected || 0), 0);
+  const completedRoutes = routes.filter(r => r.status === "COMPLETED").length;
+  const completedStops = stops.filter(s => s.status === "COMPLETED").length;
+  const avgPerStop = completedStops > 0 ? totalCash / completedStops : 0;
+
+  // Group cash collected by date for a chart
+  const byDate: Record<string, number> = {};
+  stops.forEach(s => {
+    if (s.status === "COMPLETED" && s.cashCollected > 0) {
+      const dt = s.route?.date || new Date().toISOString().split("T")[0];
+      byDate[dt] = (byDate[dt] || 0) + (s.cashCollected || 0);
+    }
+  });
+  const revenueByDate = Object.entries(byDate)
+    .sort(([a], [b]) => a.localeCompare(b))
+    .slice(-10)
+    .map(([date, cash]) => ({ date: date.slice(5), cash })); // show MM-DD
+
+  // Cash by route
+  const cashByRoute = routes
+    .map(r => ({
+      name: r.name?.split(" ").slice(0, 2).join(" ") || "Route",
+      cash: (r.stops || []).reduce((s: number, stop: any) => s + (stop.cashCollected || 0), 0),
+    }))
+    .filter(r => r.cash > 0)
+    .sort((a, b) => b.cash - a.cash)
+    .slice(0, 6);
 
   return (
     <div className="space-y-6">
       {/* KPI Row */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard label="Total Revenue (YTD)" value={formatCurrency(totalRev)} trend={{ pct: `+${growth}%`, up: true }} color="bg-primary-600" icon={DollarSign} delay={0} />
-        <KpiCard label="Monthly Avg" value={formatCurrency(Math.round(totalRev / 7))} sub="Last 7 months" color="bg-emerald-500" icon={TrendingUp} delay={0.05} />
-        <KpiCard label="Target Attainment" value={`${attainment}%`} sub={`Target: ${formatCurrency(totalTarget)}`} trend={{ pct: "+3.2%", up: true }} color="bg-violet-500" icon={Target} delay={0.1} />
-        <KpiCard label="Best Month" value="July 2026" sub={formatCurrency(421000)} color="bg-amber-500" icon={Trophy} delay={0.15} />
+        <KpiCard label="Total Cash Collected" value={formatCurrency(totalCash)} sub="From completed stops" color="bg-primary-600" icon={DollarSign} delay={0} />
+        <KpiCard label="Avg Per Stop" value={formatCurrency(Math.round(avgPerStop))} sub={`${completedStops} completed stops`} color="bg-emerald-500" icon={TrendingUp} delay={0.05} />
+        <KpiCard label="Completed Routes" value={String(completedRoutes)} sub="With cash data" color="bg-violet-500" icon={Target} delay={0.1} />
+        <KpiCard label="Total Stops" value={String(stops.length)} sub="Across all routes" color="bg-amber-500" icon={Trophy} delay={0.15} />
       </div>
 
-      {/* Revenue Area Chart */}
-      <ChartCard title="Monthly Revenue vs Target vs Last Year" sub="Area trend with year-over-year comparison">
-        <ResponsiveContainer width="100%" height={300}>
-          <AreaChart data={monthlyRevenueExtended}>
-            <defs>
-              <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#2563EB" stopOpacity={0.2} />
-                <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="lyGrad" x1="0" y1="0" x2="0" y2="1">
-                <stop offset="5%" stopColor="#10B981" stopOpacity={0.15} />
-                <stop offset="95%" stopColor="#10B981" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-            <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-            <YAxis tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
-            <Tooltip contentStyle={CustomTooltipStyle} formatter={(val) => [formatCurrency(Number(val)), ""]} />
-            <Legend wrapperStyle={{ fontSize: 12 }} />
-            <Area type="monotone" dataKey="lastYear" stroke="#10B981" strokeWidth={2} fill="url(#lyGrad)" name="Last Year" strokeDasharray="5 5" />
-            <Area type="monotone" dataKey="target" stroke="#94A3B8" strokeWidth={1.5} fill="none" name="Target" strokeDasharray="4 4" />
-            <Area type="monotone" dataKey="revenue" stroke="#2563EB" strokeWidth={2.5} fill="url(#revGrad)" name="Revenue" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </ChartCard>
-
-      {/* Revenue Split Row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        {/* By Customer */}
-        <ChartCard title="Revenue by Customer" sub="Top 5 corporate accounts">
-          <ResponsiveContainer width="100%" height={260}>
-            <PieChart>
-              <Pie data={revenueByCustomer} cx="50%" cy="50%" innerRadius={60} outerRadius={100} dataKey="value" paddingAngle={3} label={({ percent }) => `${((percent ?? 0) * 100).toFixed(0)}%`}>
-                {revenueByCustomer.map((entry, i) => <Cell key={i} fill={entry.color} />)}
-              </Pie>
-              <Tooltip contentStyle={CustomTooltipStyle} formatter={(val) => [formatCurrency(Number(val)), "Revenue"]} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-            </PieChart>
+      {/* Revenue by Date Chart */}
+      {revenueByDate.length > 0 ? (
+        <ChartCard title="Cash Collected by Date" sub="Revenue trend from completed stops">
+          <ResponsiveContainer width="100%" height={300}>
+            <AreaChart data={revenueByDate}>
+              <defs>
+                <linearGradient id="revGrad" x1="0" y1="0" x2="0" y2="1">
+                  <stop offset="5%" stopColor="#2563EB" stopOpacity={0.2} />
+                  <stop offset="95%" stopColor="#2563EB" stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+              <XAxis dataKey="date" tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} tickFormatter={(v) => `₹${(v / 1000).toFixed(0)}k`} />
+              <Tooltip contentStyle={CustomTooltipStyle} formatter={(val) => [formatCurrency(Number(val)), "Cash"]} />
+              <Area type="monotone" dataKey="cash" stroke="#2563EB" strokeWidth={2.5} fill="url(#revGrad)" name="Cash Collected" />
+            </AreaChart>
           </ResponsiveContainer>
         </ChartCard>
+      ) : (
+        <div className="bg-card rounded-xl border border-border shadow-sm p-12 text-center">
+          <DollarSign className="w-10 h-10 text-slate-300 mx-auto mb-3" />
+          <p className="text-sm font-medium text-slate-500">No cash collection data yet</p>
+          <p className="text-xs text-slate-400 mt-1">Complete stops with cash collection to see revenue charts here.</p>
+        </div>
+      )}
 
-        {/* By Machine Type */}
-        <ChartCard title="Revenue by Machine Type" sub="Avg revenue per stop included">
+      {/* Cash by Route */}
+      {cashByRoute.length > 0 && (
+        <ChartCard title="Cash Collected by Route" sub="Top routes by cash collected">
           <div className="space-y-3 mt-2">
-            {revenueByMachineType.map((d, i) => {
-              const max = Math.max(...revenueByMachineType.map(x => x.revenue));
-              const pct = (d.revenue / max) * 100;
-              const colors = ["bg-primary-600", "bg-emerald-500", "bg-amber-500", "bg-violet-500"];
+            {cashByRoute.map((r, i) => {
+              const max = cashByRoute[0]?.cash || 1;
+              const pct = (r.cash / max) * 100;
+              const colors = ["bg-primary-600", "bg-emerald-500", "bg-amber-500", "bg-violet-500", "bg-pink-500", "bg-cyan-500"];
               return (
-                <div key={d.type}>
+                <div key={r.name}>
                   <div className="flex items-center justify-between text-xs mb-1">
-                    <span className="font-medium text-slate-700">{d.type}</span>
-                    <div className="flex items-center gap-3 text-slate-500">
-                      <span>{d.stops} stops</span>
-                      <span className="font-semibold text-slate-900">{formatCurrency(d.revenue)}</span>
-                    </div>
+                    <span className="font-medium text-slate-700">{r.name}</span>
+                    <span className="font-semibold text-slate-900">{formatCurrency(r.cash)}</span>
                   </div>
                   <div className="w-full bg-slate-100 rounded-full h-2">
                     <motion.div
                       initial={{ width: 0 }}
                       animate={{ width: `${pct}%` }}
                       transition={{ duration: 0.8, delay: i * 0.1 }}
-                      className={`h-full rounded-full ${colors[i]}`}
+                      className={`h-full rounded-full ${colors[i % colors.length]}`}
                     />
                   </div>
-                  <p className="text-xs text-slate-400 mt-0.5">Avg {formatCurrency(d.avgPerStop)} / stop</p>
                 </div>
               );
             })}
           </div>
         </ChartCard>
-      </div>
-
-      {/* Top Locations Table */}
-      <ChartCard title="Top Revenue Locations" sub="Ranked by total lifetime revenue">
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead>
-              <tr className="border-b border-border">
-                <th className="text-left text-xs font-semibold text-slate-500 pb-3 pr-4">#</th>
-                <th className="text-left text-xs font-semibold text-slate-500 pb-3 pr-4">Location</th>
-                <th className="text-left text-xs font-semibold text-slate-500 pb-3 pr-4">Machine</th>
-                <th className="text-left text-xs font-semibold text-slate-500 pb-3 pr-4">Frequency</th>
-                <th className="text-right text-xs font-semibold text-slate-500 pb-3">Revenue</th>
-              </tr>
-            </thead>
-            <tbody>
-              {locationRankings.map((loc, i) => (
-                <tr key={loc.id} className="border-b border-border/50 last:border-0 hover:bg-slate-50 transition-colors">
-                  <td className="py-3 pr-4">
-                    <span className={`text-xs font-bold ${i === 0 ? "text-amber-500" : i === 1 ? "text-slate-400" : i === 2 ? "text-amber-700" : "text-slate-400"}`}>
-                      #{i + 1}
-                    </span>
-                  </td>
-                  <td className="py-3 pr-4">
-                    <p className="font-medium text-slate-900 text-xs">{loc.customerName}</p>
-                    <p className="text-xs text-slate-400 truncate max-w-[160px]">{loc.address}</p>
-                  </td>
-                  <td className="py-3 pr-4">
-                    <span className="px-2 py-0.5 rounded-full text-xs font-medium bg-slate-100 text-slate-700">{loc.machineType}</span>
-                  </td>
-                  <td className="py-3 pr-4 text-xs text-slate-600">{loc.visitFrequency}</td>
-                  <td className="py-3 text-right font-bold text-slate-900 text-sm">{formatCurrency(loc.revenue)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </ChartCard>
+      )}
     </div>
   );
 }
+
 
 // ─── Routes Tab ────────────────────────────────────────────────────────────────
 function RoutesTab({ routes, drivers }: { routes: any[]; drivers: any[] }) {
@@ -400,62 +304,29 @@ function RoutesTab({ routes, drivers }: { routes: any[]; drivers: any[] }) {
   );
 }
 
-// ─── Stops Tab ────────────────────────────────────────────────────────────────
-function StopsTab() {
-  const totalStops = weeklyStopDetailed.reduce((s, d) => s + d.completed + d.missed + d.pending, 0);
-  const totalCompleted = weeklyStopDetailed.reduce((s, d) => s + d.completed, 0);
-  const totalMissed = weeklyStopDetailed.reduce((s, d) => s + d.missed, 0);
-  const totalOnTime = weeklyStopDetailed.reduce((s, d) => s + d.onTime, 0);
-  const completionRate = ((totalCompleted / (totalCompleted + totalMissed)) * 100).toFixed(1);
-  const onTimeRate = ((totalOnTime / totalCompleted) * 100).toFixed(1);
+// ─── Stops Tab (Real Backend Data) ───────────────────────────────────────────
+function StopsTab({ stats }: { stats: any }) {
+  const totalCompleted = stats?.stops?.completed ?? 0;
+  const totalAll = stats?.stops?.total ?? 0;
+  const totalPending = stats?.stops?.pending ?? 0;
+  const totalMissed = 0; // skipped stops - not tracked separately yet
+  const completionRate = totalAll > 0 ? ((totalCompleted / totalAll) * 100).toFixed(1) : "0";
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard label="Total Stops" value={String(totalStops)} color="bg-primary-600" icon={MapPin} delay={0} />
+        <KpiCard label="Total Stops" value={String(totalAll)} color="bg-primary-600" icon={MapPin} delay={0} />
         <KpiCard label="Completed" value={String(totalCompleted)} trend={{ pct: `${completionRate}%`, up: true }} color="bg-emerald-500" icon={CheckCircle2} delay={0.05} />
-        <KpiCard label="Missed" value={String(totalMissed)} trend={{ pct: `${((totalMissed/totalStops)*100).toFixed(1)}%`, up: false }} color="bg-red-500" icon={XCircle} delay={0.1} />
-        <KpiCard label="On-Time Rate" value={`${onTimeRate}%`} sub="of completed stops" color="bg-amber-500" icon={Clock} delay={0.15} />
+        <KpiCard label="Pending" value={String(totalPending)} color="bg-amber-500" icon={Clock} delay={0.1} />
+        <KpiCard label="Completion Rate" value={`${completionRate}%`} sub="of all stops" color="bg-violet-500" icon={Target} delay={0.15} />
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard title="Daily Stop Completion" sub="Completed, Missed, Pending by day">
-          <ResponsiveContainer width="100%" height={280}>
-            <BarChart data={weeklyStopDetailed}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-              <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={CustomTooltipStyle} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="completed" stackId="a" fill="#10B981" radius={[0, 0, 0, 0]} name="Completed" />
-              <Bar dataKey="missed" stackId="a" fill="#EF4444" name="Missed" />
-              <Bar dataKey="pending" stackId="a" fill="#F59E0B" radius={[4, 4, 0, 0]} name="Pending" />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="On-Time vs Completed" sub="On-time performance trend">
-          <ResponsiveContainer width="100%" height={280}>
-            <LineChart data={weeklyStopDetailed}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-              <XAxis dataKey="day" tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={CustomTooltipStyle} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Line type="monotone" dataKey="completed" stroke="#2563EB" strokeWidth={2.5} dot={{ r: 4 }} name="Completed" />
-              <Line type="monotone" dataKey="onTime" stroke="#10B981" strokeWidth={2.5} dot={{ r: 4 }} name="On-Time" strokeDasharray="5 5" />
-              <Line type="monotone" dataKey="missed" stroke="#EF4444" strokeWidth={2} dot={{ r: 4 }} name="Missed" />
-            </LineChart>
-          </ResponsiveContainer>
-        </ChartCard>
-      </div>
-
-      {/* Stop Status Summary Cards */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         {[
-          { label: "Completion Rate", value: `${completionRate}%`, desc: `${totalCompleted} of ${totalCompleted + totalMissed} stops`, color: "border-l-emerald-500" },
-          { label: "On-Time Delivery", value: `${onTimeRate}%`, desc: `${totalOnTime} on-time arrivals`, color: "border-l-blue-500" },
-          { label: "Miss Rate", value: `${((totalMissed / totalStops) * 100).toFixed(1)}%`, desc: `${totalMissed} stops missed this week`, color: "border-l-red-500" },
+          { label: "Completion Rate", value: `${completionRate}%`, desc: `${totalCompleted} of ${totalAll} stops`, color: "border-l-emerald-500" },
+          { label: "Total Stops Managed", value: String(totalAll), desc: `${totalPending} pending today`, color: "border-l-blue-500" },
+          { label: "Completed Stops", value: String(totalCompleted), desc: `Live from backend DB`, color: "border-l-violet-500" },
         ].map(card => (
           <div key={card.label} className={`bg-card rounded-xl border border-border border-l-4 ${card.color} p-5 shadow-sm`}>
             <p className="text-xs text-slate-500 font-medium">{card.label}</p>
@@ -468,32 +339,76 @@ function StopsTab() {
   );
 }
 
-// ─── Drivers Tab ───────────────────────────────────────────────────────────────
-function DriversTab() {
-  const [metric, setMetric] = useState<"routes" | "stops" | "revenue" | "rating">("revenue");
+
+// ─── Drivers Tab (Real API Data) ──────────────────────────────────────────────
+function DriversTab({ drivers, routes }: { drivers: any[]; routes: any[] }) {
+  const [metric, setMetric] = useState<"routes" | "stops" | "rating">("routes");
 
   const metrics = [
-    { key: "revenue" as const, label: "Revenue" },
     { key: "routes"  as const, label: "Routes" },
     { key: "stops"   as const, label: "Stops" },
     { key: "rating"  as const, label: "Rating" },
   ];
 
-  const sorted = [...driverPerformanceData].sort((a, b) => b[metric] - a[metric]);
+  const COLORS = ["#2563EB", "#10B981", "#8B5CF6", "#F59E0B", "#EC4899", "#06B6D4", "#64748B"];
+
+  // Build per-driver stats from real routes data
+  const driverStats = drivers.map((d: any, i: number) => {
+    const driverRoutes = routes.filter((r: any) => r.driverId === d.id || r.driver?.id === d.id);
+    
+    let totalStopsCount = 0;
+    let completedStopsCount = 0;
+    let skippedStopsCount = 0;
+
+    driverRoutes.forEach((r: any) => {
+      if (r.stops && Array.isArray(r.stops)) {
+        totalStopsCount += r.stops.length;
+        r.stops.forEach((s: any) => {
+          if (s.status === 'COMPLETED') completedStopsCount++;
+          if (s.status === 'SKIPPED') skippedStopsCount++;
+        });
+      }
+    });
+
+    let calcRating = 0;
+    if (totalStopsCount > 0) {
+      // Rating out of 5 based on completion rate, minus penalty for skips
+      let baseRating = (completedStopsCount / totalStopsCount) * 5.0;
+      baseRating -= (skippedStopsCount * 0.5); // Penalty of 0.5 per skipped stop
+      calcRating = Math.max(0, Math.min(5.0, baseRating));
+    }
+
+    const completedRoutes = driverRoutes.filter((r: any) => r.status === 'COMPLETED').length;
+    return {
+      id: d.id,
+      name: d.name || 'Unknown',
+      routes: driverRoutes.length,
+      completedRoutes,
+      stops: totalStopsCount,
+      rating: calcRating,
+      color: COLORS[i % COLORS.length],
+    };
+  });
 
   const formatMetric = (val: number, key: string) => {
-    if (key === "revenue") return formatCurrency(val);
     if (key === "rating") return val.toFixed(1);
     return String(val);
   };
 
+  const sorted = [...driverStats].sort((a, b) => b[metric] - a[metric]);
+  const topDriver = sorted[0];
+
+  if (drivers.length === 0) {
+    return <div className="text-center py-12 text-slate-400 text-sm">No drivers found in database.</div>;
+  }
+
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard label="Total Drivers" value={String(driverPerformanceData.length)} color="bg-primary-600" icon={Users} delay={0} />
-        <KpiCard label="Avg Rating" value={(driverPerformanceData.reduce((s, d) => s + d.rating, 0) / driverPerformanceData.length).toFixed(2)} sub="Fleet average" color="bg-amber-500" icon={Star} delay={0.05} />
-        <KpiCard label="Total Stops Done" value={driverPerformanceData.reduce((s, d) => s + d.stops, 0).toLocaleString()} color="bg-emerald-500" icon={CheckCircle2} delay={0.1} />
-        <KpiCard label="Top Earner" value="Sneha Joshi" sub={formatCurrency(112000)} color="bg-violet-500" icon={Trophy} delay={0.15} />
+        <KpiCard label="Total Drivers" value={String(drivers.length)} color="bg-primary-600" icon={Users} delay={0} />
+        <KpiCard label="Total Routes" value={String(routes.length)} sub="All routes" color="bg-emerald-500" icon={CheckCircle2} delay={0.05} />
+        <KpiCard label="Total Stops Done" value={driverStats.reduce((s, d) => s + d.stops, 0).toLocaleString()} color="bg-amber-500" icon={MapPin} delay={0.1} />
+        <KpiCard label="Top Driver" value={topDriver?.name?.split(' ')[0] || 'N/A'} sub={`${topDriver?.routes || 0} routes`} color="bg-violet-500" icon={Trophy} delay={0.15} />
       </div>
 
       {/* Leaderboard */}
@@ -511,12 +426,14 @@ function DriversTab() {
         </div>
         <div className="space-y-3">
           {sorted.map((driver, i) => {
-            const maxVal = sorted[0][metric];
+            const maxVal = sorted[0][metric] || 1;
             const pct = (driver[metric] / maxVal) * 100;
             return (
-              <div key={driver.name} className="flex items-center gap-4">
+              <div key={driver.id} className="flex items-center gap-4">
                 <span className="text-xs font-bold text-slate-400 w-4 flex-shrink-0">#{i + 1}</span>
-                <img src={`https://ui-avatars.com/api/?name=${encodeURIComponent(driver.name)}&background=${driver.color.replace("#", "")}&color=fff&size=32`} alt="" className="w-8 h-8 rounded-full flex-shrink-0" />
+                <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-bold flex-shrink-0" style={{ backgroundColor: driver.color }}>
+                  {driver.name.charAt(0).toUpperCase()}
+                </div>
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center justify-between mb-1">
                     <span className="text-xs font-semibold text-slate-800 truncate">{driver.name}</span>
@@ -540,146 +457,91 @@ function DriversTab() {
         </div>
       </ChartCard>
 
-      {/* Radar Chart */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard title="Driver Radar Comparison" sub="Top 4 drivers across key metrics">
-          <ResponsiveContainer width="100%" height={280}>
-            <RadarChart data={radarData}>
-              <PolarGrid stroke="#E2E8F0" />
-              <PolarAngleAxis dataKey="metric" tick={{ fontSize: 11, fill: "#64748B" }} />
-              <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
-              <Radar name="Arjun" dataKey="Arjun" stroke="#2563EB" fill="#2563EB" fillOpacity={0.1} />
-              <Radar name="Priya" dataKey="Priya" stroke="#10B981" fill="#10B981" fillOpacity={0.1} />
-              <Radar name="Sneha" dataKey="Sneha" stroke="#8B5CF6" fill="#8B5CF6" fillOpacity={0.1} />
-              <Radar name="Rahul" dataKey="Rahul" stroke="#F59E0B" fill="#F59E0B" fillOpacity={0.1} />
-              <Legend wrapperStyle={{ fontSize: 11 }} />
-              <Tooltip contentStyle={CustomTooltipStyle} />
-            </RadarChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        {/* Stats Table */}
-        <ChartCard title="Full Driver Statistics">
-          <div className="overflow-x-auto">
-            <table className="w-full text-xs">
-              <thead>
-                <tr className="border-b border-border">
-                  {["Driver", "Routes", "Stops", "Rating", "On-Time"].map(h => (
-                    <th key={h} className="text-left font-semibold text-slate-500 pb-2 pr-3">{h}</th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                {driverPerformanceData.map(d => (
-                  <tr key={d.name} className="border-b border-border/50 last:border-0 hover:bg-slate-50">
-                    <td className="py-2.5 pr-3">
-                      <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
-                        <span className="font-medium text-slate-800 whitespace-nowrap">{d.name.split(" ")[0]}</span>
-                      </div>
-                    </td>
-                    <td className="py-2.5 pr-3 text-slate-600">{d.routes}</td>
-                    <td className="py-2.5 pr-3 text-slate-600">{d.stops.toLocaleString()}</td>
-                    <td className="py-2.5 pr-3">
-                      <span className="font-bold text-amber-600">★ {d.rating}</span>
-                    </td>
-                    <td className="py-2.5">
-                      <span className={`font-semibold ${d.onTime >= 95 ? "text-emerald-600" : d.onTime >= 90 ? "text-blue-600" : "text-amber-600"}`}>
-                        {d.onTime}%
-                      </span>
-                    </td>
-                  </tr>
+      {/* Stats Table */}
+      <ChartCard title="Full Driver Statistics">
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs">
+            <thead>
+              <tr className="border-b border-border">
+                {["Driver", "Total Routes", "Completed", "Stops Done"].map(h => (
+                  <th key={h} className="text-left font-semibold text-slate-500 pb-2 pr-3">{h}</th>
                 ))}
-              </tbody>
-            </table>
-          </div>
-        </ChartCard>
-      </div>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map(d => (
+                <tr key={d.id} className="border-b border-border/50 last:border-0 hover:bg-slate-50">
+                  <td className="py-2.5 pr-3">
+                    <div className="flex items-center gap-2">
+                      <div className="w-2 h-2 rounded-full flex-shrink-0" style={{ backgroundColor: d.color }} />
+                      <span className="font-medium text-slate-800 whitespace-nowrap">{d.name}</span>
+                    </div>
+                  </td>
+                  <td className="py-2.5 pr-3 text-slate-600">{d.routes}</td>
+                  <td className="py-2.5 pr-3">
+                    <span className="font-semibold text-emerald-600">{d.completedRoutes}</span>
+                  </td>
+                  <td className="py-2.5">{d.stops}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </ChartCard>
     </div>
   );
 }
 
-// ─── Vehicles Tab ─────────────────────────────────────────────────────────────
-function VehiclesTab() {
-  const avgFuel = 445; // July liters
-  const totalFuelCost = fuelCostData.reduce((s, d) => s + d.cost, 0);
-  const avgMonthlyCost = Math.round(totalFuelCost / fuelCostData.length);
+// ─── Vehicles Tab (Real Backend Data) ────────────────────────────────────────
+function VehiclesTab({ vehicles }: { vehicles: any[] }) {
+  if (vehicles.length === 0) {
+    return <div className="text-center py-12 text-slate-400 text-sm">No vehicles found in database.</div>;
+  }
+
+  const inUse = vehicles.filter((v: any) => v.status === 'IN_USE').length;
+  const maintenance = vehicles.filter((v: any) => v.status === 'MAINTENANCE').length;
+  const idle = vehicles.filter((v: any) => v.status === 'IDLE').length;
 
   return (
     <div className="space-y-6">
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-        <KpiCard label="Fleet Size" value="6 vehicles" sub="4 active today" color="bg-primary-600" icon={Truck} delay={0} />
-        <KpiCard label="Total Fuel (Jul)" value={`${avgFuel}L`} trend={{ pct: "+8.5%", up: false }} color="bg-amber-500" icon={Zap} delay={0.05} />
-        <KpiCard label="Monthly Fuel Cost" value={formatCurrency(avgMonthlyCost)} sub="Rolling avg" color="bg-red-500" icon={DollarSign} delay={0.1} />
-        <KpiCard label="Maintenance Due" value="2 vehicles" sub="Within 30 days" color="bg-violet-500" icon={Activity} delay={0.15} />
-      </div>
-
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-        <ChartCard title="Monthly Fuel Consumption" sub="Liters used per month">
-          <ResponsiveContainer width="100%" height={260}>
-            <AreaChart data={fuelCostData}>
-              <defs>
-                <linearGradient id="fuelGrad" x1="0" y1="0" x2="0" y2="1">
-                  <stop offset="5%" stopColor="#F59E0B" stopOpacity={0.3} />
-                  <stop offset="95%" stopColor="#F59E0B" stopOpacity={0} />
-                </linearGradient>
-              </defs>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} unit="L" />
-              <Tooltip contentStyle={CustomTooltipStyle} />
-              <Area type="monotone" dataKey="liters" stroke="#F59E0B" strokeWidth={2.5} fill="url(#fuelGrad)" name="Liters" />
-            </AreaChart>
-          </ResponsiveContainer>
-        </ChartCard>
-
-        <ChartCard title="Monthly Fuel Cost (₹)" sub="Expenditure trend">
-          <ResponsiveContainer width="100%" height={260}>
-            <BarChart data={fuelCostData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-              <XAxis dataKey="month" tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fontSize: 12, fill: "#94A3B8" }} axisLine={false} tickLine={false} tickFormatter={v => `₹${(v / 1000).toFixed(0)}k`} />
-              <Tooltip contentStyle={CustomTooltipStyle} formatter={(v) => [formatCurrency(Number(v)), "Fuel Cost"]} />
-              <Bar dataKey="cost" fill="#2563EB" radius={[4, 4, 0, 0]} name="Fuel Cost" />
-            </BarChart>
-          </ResponsiveContainer>
-        </ChartCard>
+        <KpiCard label="Fleet Size" value={`${vehicles.length} vehicles`} sub={`${inUse} active`} color="bg-primary-600" icon={Truck} delay={0} />
+        <KpiCard label="In Use" value={String(inUse)} sub="Currently deployed" color="bg-emerald-500" icon={Activity} delay={0.05} />
+        <KpiCard label="Maintenance" value={String(maintenance)} sub="Under service" color="bg-amber-500" icon={Zap} delay={0.1} />
+        <KpiCard label="Idle" value={String(idle)} sub="Available" color="bg-violet-500" icon={CheckCircle2} delay={0.15} />
       </div>
 
       {/* Vehicle Status Table */}
       <ChartCard title="Fleet Health Overview">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {[
-            { name: "MH-01-AB-1234", type: "Tata Ace", fuel: 72, status: "Active", maint: "2026-10-01", ok: true },
-            { name: "MH-01-CD-5678", type: "Force Traveller", fuel: 45, status: "Active", maint: "2026-08-20", ok: true },
-            { name: "MH-03-GH-3456", type: "Maruti Eeco", fuel: 18, status: "Active", maint: "2026-09-15", ok: false },
-            { name: "MH-04-JK-7890", type: "Mahindra Bolero", fuel: 61, status: "Active", maint: "2026-11-05", ok: true },
-            { name: "MH-02-EF-2345", type: "Tata Ace Gold", fuel: 0, status: "In Service", maint: "2026-08-01", ok: false },
-            { name: "MH-05-LM-4567", type: "Force Traveller", fuel: 88, status: "Idle", maint: "2026-12-01", ok: true },
-          ].map(v => (
-            <div key={v.name} className={`rounded-lg border p-4 ${!v.ok ? "border-red-200 bg-red-50" : "border-border bg-card"}`}>
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-xs font-bold text-slate-800">{v.name}</p>
-                <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
-                  v.status === "Active" ? "bg-emerald-100 text-emerald-700"
-                  : v.status === "In Service" ? "bg-amber-100 text-amber-700"
-                  : "bg-slate-100 text-slate-600"
-                }`}>{v.status}</span>
+          {vehicles.map((v: any) => {
+            const fuel = v.currentFuelLevel ?? 100;
+            const needsAttention = v.status === 'MAINTENANCE' || fuel < 25;
+            return (
+              <div key={v.id} className={`rounded-lg border p-4 ${needsAttention ? "border-red-200 bg-red-50" : "border-border bg-card"}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold text-slate-800">{v.plateNumber}</p>
+                  <span className={`text-xs px-2 py-0.5 rounded-full font-medium ${
+                    v.status === 'IN_USE' ? "bg-emerald-100 text-emerald-700"
+                    : v.status === 'MAINTENANCE' ? "bg-amber-100 text-amber-700"
+                    : "bg-slate-100 text-slate-600"
+                  }`}>{v.status?.replace('_', ' ')}</span>
+                </div>
+                <p className="text-xs text-slate-500 mb-3">{v.model} · {v.type}</p>
+                <div className="flex items-center justify-between text-xs mb-1">
+                  <span className="text-slate-500">Fuel</span>
+                  <span className={`font-semibold ${fuel < 25 ? "text-red-600" : "text-slate-700"}`}>{Math.round(fuel)}%</span>
+                </div>
+                <div className="w-full bg-slate-200 rounded-full h-1.5 mb-3">
+                  <div
+                    className={`h-full rounded-full transition-all ${fuel > 50 ? "bg-emerald-500" : fuel > 20 ? "bg-amber-500" : "bg-red-500"}`}
+                    style={{ width: `${Math.min(fuel, 100)}%` }}
+                  />
+                </div>
+                <p className="text-xs text-slate-400">Next Maintenance: {v.nextMaintenance || 'Not scheduled'}</p>
               </div>
-              <p className="text-xs text-slate-500 mb-3">{v.type}</p>
-              <div className="flex items-center justify-between text-xs mb-1">
-                <span className="text-slate-500">Fuel</span>
-                <span className={`font-semibold ${v.fuel < 25 ? "text-red-600" : "text-slate-700"}`}>{v.fuel}%</span>
-              </div>
-              <div className="w-full bg-slate-200 rounded-full h-1.5 mb-3">
-                <div
-                  className={`h-full rounded-full transition-all ${v.fuel > 50 ? "bg-emerald-500" : v.fuel > 20 ? "bg-amber-500" : "bg-red-500"}`}
-                  style={{ width: `${v.fuel}%` }}
-                />
-              </div>
-              <p className="text-xs text-slate-400">Maintenance: {v.maint}</p>
-            </div>
-          ))}
+            );
+          })}
         </div>
       </ChartCard>
     </div>
@@ -688,20 +550,105 @@ function VehiclesTab() {
 
 // ─── Main Component ────────────────────────────────────────────────────────────
 export default function ReportsPage() {
-  const [activeTab, setActiveTab] = useState("revenue");
+  const [activeTab, setActiveTab] = useState("routes");
   const [dateRange, setDateRange] = useState("This Month");
 
   // Real API data
   const [routes, setRoutes] = useState<any[]>([]);
   const [drivers, setDrivers] = useState<any[]>([]);
+  const [vehicles, setVehicles] = useState<any[]>([]);
+  const [stops, setStops] = useState<any[]>([]);
+  const [dashboardStats, setDashboardStats] = useState<any>(null);
 
   useEffect(() => {
     routesApi.getAll().then(res => { if (res.success) setRoutes(res.data); }).catch(() => {});
-    usersApi.getAll("driver").then(res => { if (res.success) setDrivers(res.data); }).catch(() => {});
+    usersApi.getAll("DRIVER").then(res => { if (res.success) setDrivers(res.data); }).catch(() => {});
+    reportsApi.getDashboard().then(res => { if (res.success) setDashboardStats(res.data); }).catch(() => {});
+    stopsApi.getAll().then(res => { if (res.success) setStops(res.data); }).catch(() => {});
+    vehiclesApi.getAll().then(res => { if (res.success) setVehicles(res.data); }).catch(() => {});
   }, []);
 
   const handleExport = () => {
-    alert("Exporting report as PDF… (demo)");
+    let rows: string[][] = [];
+    let filename = "report.csv";
+
+    if (activeTab === "revenue") {
+      filename = "revenue_report.csv";
+      rows = [["Route Name", "Driver", "Status", "Date", "Cash Collected"]];
+      stops.forEach((s: any) => {
+        rows.push([
+          s.route?.name || s.routeId || "",
+          s.route?.driver?.name || "",
+          s.status || "",
+          s.route?.date ? new Date(s.route.date).toLocaleDateString() : "",
+          String(s.cashCollected || 0),
+        ]);
+      });
+    } else if (activeTab === "routes") {
+      filename = "routes_report.csv";
+      rows = [["Route Name", "Driver", "Status", "Total Stops", "Date"]];
+      routes.forEach((r: any) => {
+        rows.push([
+          r.name || "",
+          r.driver?.name || "",
+          r.status || "",
+          String(r.stops?.length || 0),
+          r.date ? new Date(r.date).toLocaleDateString() : "",
+        ]);
+      });
+    } else if (activeTab === "stops") {
+      filename = "stops_report.csv";
+      rows = [["Location", "Status", "Cash Collected", "Checked In At"]];
+      stops.forEach((s: any) => {
+        rows.push([
+          s.location?.name || s.locationId || "",
+          s.status || "",
+          String(s.cashCollected || 0),
+          s.checkedInAt ? new Date(s.checkedInAt).toLocaleString() : "",
+        ]);
+      });
+    } else if (activeTab === "drivers") {
+      filename = "drivers_report.csv";
+      rows = [["Driver Name", "Email", "Phone", "Total Routes", "Completed Routes"]];
+      drivers.forEach((d: any) => {
+        const driverRoutes = routes.filter((r: any) => r.driverId === d.id || r.driver?.id === d.id);
+        const completed = driverRoutes.filter((r: any) => r.status === "COMPLETED").length;
+        rows.push([
+          d.name || "",
+          d.email || "",
+          d.phone || "",
+          String(driverRoutes.length),
+          String(completed),
+        ]);
+      });
+    } else if (activeTab === "vehicles") {
+      filename = "vehicles_report.csv";
+      rows = [["Vehicle Number", "Type", "Status", "Driver"]];
+      vehicles.forEach((v: any) => {
+        rows.push([
+          v.vehicleNumber || "",
+          v.type || "",
+          v.status || "",
+          v.driver?.name || "",
+        ]);
+      });
+    }
+
+    // Build CSV string
+    const csvContent = rows
+      .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+
+    // Trigger download
+    const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
   };
 
   const currentTab = TABS.find(t => t.id === activeTab);
@@ -795,11 +742,11 @@ export default function ReportsPage() {
           exit={{ opacity: 0, x: -10 }}
           transition={{ duration: 0.25 }}
         >
-          {activeTab === "revenue"  && <RevenueTab />}
+          {activeTab === "revenue"  && <RevenueTab routes={routes} stops={stops} />}
           {activeTab === "routes"   && <RoutesTab routes={routes} drivers={drivers} />}
-          {activeTab === "stops"    && <StopsTab />}
-          {activeTab === "drivers"  && <DriversTab />}
-          {activeTab === "vehicles" && <VehiclesTab />}
+          {activeTab === "stops"    && <StopsTab stats={dashboardStats} />}
+          {activeTab === "drivers"  && <DriversTab drivers={drivers} routes={routes} />}
+          {activeTab === "vehicles" && <VehiclesTab vehicles={vehicles} />}
         </motion.div>
       </AnimatePresence>
     </div>

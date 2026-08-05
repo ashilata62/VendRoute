@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { mockLocations } from "../data/mockData";
 import type { VendingLocation, LocationStatus, MachineType } from "../types";
 
 interface LocationFilters {
@@ -21,7 +20,7 @@ interface LocationState {
 }
 
 export const useLocationStore = create<LocationState>((set, get) => ({
-  locations: mockLocations,
+  locations: [],
   selectedLocation: null,
   filters: { status: "all", machineType: "all", search: "" },
   setSelectedLocation: (l) => set({ selectedLocation: l }),

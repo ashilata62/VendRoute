@@ -39,6 +39,15 @@ export class CustomerService {
   }
 
   static async delete(id: string) {
+    const locations = await prisma.location.findMany({ where: { customerId: id }, select: { id: true } });
+    const locationIds = locations.map(l => l.id);
+
+    if (locationIds.length > 0) {
+      await prisma.routeStop.deleteMany({ where: { locationId: { in: locationIds } } });
+      await prisma.machine.deleteMany({ where: { locationId: { in: locationIds } } });
+      await prisma.location.deleteMany({ where: { customerId: id } });
+    }
+
     return await prisma.customer.delete({ where: { id } });
   }
 }

@@ -1,11 +1,12 @@
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
+import { motion, AnimatePresence } from "framer-motion";
 import {
   BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer
 } from "recharts";
 import {
   ArrowLeft, Phone, Mail, MapPin, Calendar as CalendarIcon,
-  Shield, Loader2
+  Shield, Loader2, Pencil, Trash2, X, Check
 } from "lucide-react";
 
 import { usersApi, routesApi, vehiclesApi } from "../services/api";
@@ -38,6 +39,62 @@ export default function DriverProfilePage() {
   const [driverRoutes, setDriverRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<"overview" | "routes" | "attendance" | "performance">("overview");
+
+  // Edit & Delete Modal States
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    email: "",
+    phone: "",
+    address: "",
+    licenseNumber: "",
+    emergencyContact: "",
+  });
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+
+  const handleOpenEdit = () => {
+    if (!driver) return;
+    setEditForm({
+      name: driver.name || "",
+      email: driver.email || "",
+      phone: driver.phone || "",
+      address: driver.address || "",
+      licenseNumber: driver.licenseNumber || "",
+      emergencyContact: driver.emergencyContact || "",
+    });
+    setEditError("");
+    setIsEditModalOpen(true);
+  };
+
+  const handleSaveEdit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setEditLoading(true);
+    setEditError("");
+    try {
+      const res = await usersApi.update(id!, editForm);
+      if (res.success) {
+        setDriver(res.data);
+        setIsEditModalOpen(false);
+      }
+    } catch (err: any) {
+      setEditError(err.message || "Failed to update driver details");
+    } finally {
+      setEditLoading(false);
+    }
+  };
+
+  const handleDeleteDriver = async () => {
+    if (!window.confirm(`Are you sure you want to delete ${driver.name}? This will also delete their assigned route records.`)) return;
+    try {
+      const res = await usersApi.delete(id!);
+      if (res.success) {
+        navigate("/drivers");
+      }
+    } catch (err: any) {
+      alert(err.message || "Failed to delete driver");
+    }
+  };
 
   useEffect(() => {
     if (!id) return;
@@ -124,10 +181,22 @@ export default function DriverProfilePage() {
             </div>
           </div>
 
-          <div className="flex gap-2">
+          <div className="flex items-center gap-2">
+            <button
+              onClick={handleOpenEdit}
+              className="bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Pencil className="w-3.5 h-3.5" /> Edit Profile
+            </button>
+            <button
+              onClick={handleDeleteDriver}
+              className="bg-red-600 hover:bg-red-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg shadow-sm transition-colors flex items-center gap-1.5 cursor-pointer"
+            >
+              <Trash2 className="w-3.5 h-3.5" /> Delete Driver
+            </button>
             <button
               onClick={() => navigate("/tracking")}
-              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-sm transition-colors"
+              className="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-semibold px-3.5 py-2 rounded-lg shadow-sm transition-colors cursor-pointer"
             >
               Track Driver Live
             </button>
@@ -314,6 +383,126 @@ export default function DriverProfilePage() {
           </div>
         </div>
       )}
+
+      {/* ── EDIT DRIVER PROFILE MODAL ── */}
+      <AnimatePresence>
+        {isEditModalOpen && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl border border-border shadow-2xl w-full max-w-lg overflow-hidden flex flex-col"
+            >
+              <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-slate-50">
+                <div className="flex items-center gap-2">
+                  <Pencil className="w-4 h-4 text-blue-600" />
+                  <h3 className="font-bold text-slate-900 text-base">Edit Driver Profile</h3>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsEditModalOpen(false)}
+                  className="text-slate-400 hover:text-slate-600 p-1 rounded-lg hover:bg-slate-100 transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <form onSubmit={handleSaveEdit} className="p-6 space-y-4 text-xs">
+                {editError && (
+                  <div className="p-3 bg-red-50 border border-red-200 text-red-700 rounded-xl font-medium">
+                    {editError}
+                  </div>
+                )}
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Driver Full Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={editForm.name}
+                    onChange={(e) => setEditForm({ ...editForm, name: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Email Address *</label>
+                  <input
+                    type="email"
+                    required
+                    value={editForm.email}
+                    onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-3">
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Phone Number</label>
+                    <input
+                      type="text"
+                      value={editForm.phone}
+                      onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                      placeholder="e.g. 7458962037"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    />
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">License Number</label>
+                    <input
+                      type="text"
+                      value={editForm.licenseNumber}
+                      onChange={(e) => setEditForm({ ...editForm, licenseNumber: e.target.value })}
+                      placeholder="e.g. MH01 MG-5632"
+                      className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                    />
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Emergency Contact Info</label>
+                  <input
+                    type="text"
+                    value={editForm.emergencyContact}
+                    onChange={(e) => setEditForm({ ...editForm, emergencyContact: e.target.value })}
+                    placeholder="e.g. Sunil (Father) - 9820011223"
+                    className="w-full px-3 py-2 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                  />
+                </div>
+
+                <div>
+                  <label className="block font-semibold text-slate-700 mb-1">Residential Address</label>
+                  <textarea
+                    rows={2}
+                    value={editForm.address}
+                    onChange={(e) => setEditForm({ ...editForm, address: e.target.value })}
+                    placeholder="e.g. Sector 62, Noida, UP"
+                    className="w-full p-3 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 resize-none"
+                  />
+                </div>
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="submit"
+                    disabled={editLoading}
+                    className="flex-1 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-blue-600/20 cursor-pointer"
+                  >
+                    {editLoading ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : <>Save Changes <Check className="w-4 h-4" /></>}
+                  </button>
+                </div>
+              </form>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

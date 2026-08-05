@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users, UserCheck, Award, Star,
-  Plus, Search, Navigation, MessageSquare, X, ArrowUpRight, Loader2
+  Plus, Search, Navigation, MessageSquare, X, ArrowUpRight, Loader2, Pencil
 } from "lucide-react";
 
 import { usersApi, vehiclesApi } from "../services/api";
@@ -184,7 +184,16 @@ export default function DriversPage() {
                       </div>
                     </div>
                   </div>
-                  <StatusBadge status="active" />
+                  <div className="flex items-center gap-2">
+                    <StatusBadge status="active" />
+                    <button
+                      onClick={() => navigate(`/drivers/${driver.id}`)}
+                      className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
+                      title="Edit Driver Profile"
+                    >
+                      <Pencil className="w-3.5 h-3.5" />
+                    </button>
+                  </div>
                 </div>
 
                 {/* Score & Assigned Vehicle */}
@@ -229,12 +238,6 @@ export default function DriversPage() {
                   className="px-2 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
                 >
                   <Navigation className="w-3 h-3" /> Track
-                </button>
-                <button
-                  onClick={() => setMessageDriver(driver)}
-                  className="px-2 py-1.5 bg-blue-50 hover:bg-blue-100 text-blue-700 text-xs font-semibold rounded-lg transition-colors flex items-center justify-center gap-1"
-                >
-                  <MessageSquare className="w-3 h-3" /> Message
                 </button>
               </div>
             </motion.div>

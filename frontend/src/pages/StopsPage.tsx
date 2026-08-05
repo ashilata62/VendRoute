@@ -208,16 +208,8 @@ export default function StopsPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {photosArray.length > 0 ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setGalleryModalPhotos(photosArray); }}
-                        className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-0.5 rounded-md font-medium"
-                      >
-                        <Camera className="w-3.5 h-3.5" /> {photosArray.length} photos
-                      </button>
-                    ) : (
-                      <span className="text-xs text-slate-300">0</span>
-                    )}
+                    {/* Placeholder for actual photos array if ever implemented */}
+                    <span className="text-xs text-slate-300">0</span>
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-medium">
@@ -238,7 +230,12 @@ export default function StopsPage() {
                   </td>
                   <td className="px-4 py-3">
                     {stop.signatureUrl ? (
-                      <Check className="w-4 h-4 text-emerald-600" />
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setGalleryModalPhotos([stop.signatureUrl]); }}
+                        className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md font-medium"
+                      >
+                        <Camera className="w-4 h-4 text-emerald-600" /> View Photo
+                      </button>
                     ) : (
                       <span className="text-xs text-slate-300">—</span>
                     )}
@@ -359,14 +356,14 @@ export default function StopsPage() {
                   </div>
 
                   <div className="bg-slate-50 p-4 rounded-xl border border-border space-y-2">
-                    <p className="text-xs text-slate-400 uppercase font-semibold">Signature Captured</p>
+                    <p className="text-xs text-slate-400 uppercase font-semibold">Photo Proof</p>
                     {selectedStop.signatureUrl ? (
-                      <div className="h-20 bg-white rounded-lg border border-slate-200 flex items-center justify-center">
-                        <img src={selectedStop.signatureUrl} alt="Signature" className="h-full object-contain mix-blend-multiply" />
+                      <div className="h-28 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden cursor-pointer" onClick={() => setGalleryModalPhotos([selectedStop.signatureUrl])}>
+                        <img src={selectedStop.signatureUrl} alt="Photo Proof" className="h-full w-full object-cover" />
                       </div>
                     ) : (
-                      <div className="h-20 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 text-xs italic font-serif">
-                        [ No Signature ]
+                      <div className="h-28 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 text-xs italic font-serif">
+                        [ No Photo ]
                       </div>
                     )}
                   </div>

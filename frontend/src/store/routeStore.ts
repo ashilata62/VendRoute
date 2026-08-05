@@ -8,7 +8,7 @@ interface RouteState {
   selectedRoute: Route | null;
   setSelectedRoute: (r: Route | null) => void;
   createRoute: (r: Omit<Route, "id">) => Promise<boolean>;
-  updateRoute: (id: string, updates: Partial<Route>) => void;
+  updateRoute: (id: string, updates: Partial<Route>) => Promise<boolean>;
   deleteRoute: (id: string) => void;
   filterByStatus: (status: RouteStatus | "all") => Route[];
   fetchRoutes: () => Promise<void>;
@@ -46,10 +46,21 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       return false;
     }
   },
-  updateRoute: (id, updates) =>
-    set((s) => ({
-      routes: s.routes.map((r) => (r.id === id ? { ...r, ...updates } : r)),
-    })),
+  updateRoute: async (id, updates) => {
+    try {
+      const res = await routesApi.update(id, updates);
+      if (res.success) {
+        set((s) => ({
+          routes: s.routes.map((r) => (r.id === id ? { ...r, ...res.data } : r)),
+        }));
+        return true;
+      }
+      return false;
+    } catch (error) {
+      console.error("Failed to update route", error);
+      return false;
+    }
+  },
   deleteRoute: async (id) => {
     try {
       const res = await routesApi.delete(id);

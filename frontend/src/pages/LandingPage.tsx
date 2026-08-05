@@ -1,14 +1,27 @@
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { 
   ShieldCheck, MapPin, BarChart3, Smartphone, 
-  ArrowRight, CheckCircle2, Star, Zap, Cpu
+  ArrowRight, CheckCircle2, Star, Zap, Cpu, Phone, Mail, X
 } from 'lucide-react';
 import logoImg from '../assets/maryland-logo.png';
 
 export default function LandingPage() {
   const navigate = useNavigate();
+  const [showContact, setShowContact] = useState(false);
+  const contactRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown when clicking outside
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (contactRef.current && !contactRef.current.contains(e.target as Node)) {
+        setShowContact(false);
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   return (
     <div className="min-h-screen bg-[#0B0F19] font-sans selection:bg-red-500/30 text-slate-200">
@@ -24,23 +37,87 @@ export default function LandingPage() {
                 Maryland Vending
               </span>
             </div>
-            <div className="hidden md:flex space-x-10">
-              <a href="#features" className="text-sm font-semibold text-slate-300 hover:text-white transition-colors">Core Capabilities</a>
-              <a href="#solutions" className="text-sm font-semibold text-slate-300 hover:text-white transition-colors">Interactive Tour</a>
-              <a href="#pricing" className="text-sm font-semibold text-slate-300 hover:text-white transition-colors">Pricing & Plans</a>
+            <div className="hidden md:flex items-center gap-1">
+              <a
+                href="#features"
+                className="text-sm font-semibold text-slate-300 hover:text-white hover:bg-white/5 px-4 py-2 rounded-lg transition-all"
+              >
+                Features
+              </a>
+              <a
+                href="#features"
+                className="text-sm font-semibold text-slate-300 hover:text-white hover:bg-white/5 px-4 py-2 rounded-lg transition-all"
+              >
+                Driver App
+              </a>
+              {/* Contact Support Dropdown */}
+              <div className="relative" ref={contactRef}>
+                <button
+                  onClick={() => setShowContact(!showContact)}
+                  className="text-sm font-semibold text-slate-300 hover:text-white hover:bg-white/5 px-4 py-2 rounded-lg transition-all flex items-center gap-1.5"
+                >
+                  Contact Support
+                </button>
+
+                <AnimatePresence>
+                  {showContact && (
+                    <motion.div
+                      initial={{ opacity: 0, y: 8, scale: 0.96 }}
+                      animate={{ opacity: 1, y: 0, scale: 1 }}
+                      exit={{ opacity: 0, y: 8, scale: 0.96 }}
+                      transition={{ duration: 0.15 }}
+                      className="absolute right-0 top-full mt-2 w-64 bg-[#121827] border border-white/10 rounded-2xl shadow-2xl shadow-black/40 overflow-hidden z-50"
+                    >
+                      <div className="p-4 border-b border-white/5">
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Get in Touch</p>
+                      </div>
+                      <div className="p-3 space-y-1">
+                        {/* Phone */}
+                        <a
+                          href="tel:+14437648363"
+                          className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-colors group"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                            <Phone className="w-4 h-4 text-red-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-400">Call us</p>
+                            <p className="text-sm font-bold text-white">443-764-8363</p>
+                          </div>
+                        </a>
+                        {/* Email — add here when ready */}
+                        {/* 
+                        <a
+                          href="mailto:your@email.com"
+                          className="flex items-center gap-3 px-3 py-3 rounded-xl hover:bg-white/5 transition-colors group"
+                        >
+                          <div className="w-8 h-8 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                            <Mail className="w-4 h-4 text-amber-400" />
+                          </div>
+                          <div>
+                            <p className="text-xs text-slate-400">Email us</p>
+                            <p className="text-sm font-bold text-white">your@email.com</p>
+                          </div>
+                        </a>
+                        */}
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </div>
             </div>
-            <div className="flex items-center gap-6">
-              <button 
+            <div className="flex items-center gap-3">
+              <button
                 onClick={() => navigate('/login')}
-                className="hidden md:block text-sm font-bold text-slate-300 hover:text-white transition-colors"
+                className="hidden md:block text-sm font-bold text-slate-300 hover:text-white border border-white/10 hover:border-white/20 px-4 py-2 rounded-lg transition-all"
               >
                 Sign In
               </button>
-              <button 
+              <button
                 onClick={() => navigate('/login')}
-                className="bg-gradient-to-r from-red-600 to-amber-500 text-white px-6 py-2.5 rounded-full text-sm font-bold shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:shadow-[0_0_30px_rgba(245,158,11,0.6)] transition-all hover:-translate-y-0.5"
+                className="bg-gradient-to-r from-red-600 to-amber-500 text-white px-5 py-2.5 rounded-full text-sm font-bold shadow-[0_0_20px_rgba(220,38,38,0.4)] hover:shadow-[0_0_30px_rgba(245,158,11,0.6)] transition-all hover:-translate-y-0.5 flex items-center gap-1.5"
               >
-                Launch Live App <ArrowRight className="w-4 h-4 inline ml-1" />
+                Launch Live App <ArrowRight className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -216,9 +293,8 @@ export default function LandingPage() {
             <div>
               <h4 className="font-bold text-white text-lg mb-6">Platform</h4>
               <ul className="space-y-4 text-slate-400">
-                <li><a href="#" className="hover:text-red-400 transition-colors">Core Features</a></li>
-                <li><a href="#" className="hover:text-red-400 transition-colors">Pricing & Plans</a></li>
-                <li><a href="#" className="hover:text-red-400 transition-colors">Driver App</a></li>
+                <li><a href="#features" className="hover:text-red-400 transition-colors">Core Features</a></li>
+                <li><a href="#solutions" className="hover:text-red-400 transition-colors">Driver App</a></li>
                 <li><a href="#" className="hover:text-red-400 transition-colors">Integrations</a></li>
               </ul>
             </div>
@@ -226,7 +302,7 @@ export default function LandingPage() {
               <h4 className="font-bold text-white text-lg mb-6">Company</h4>
               <ul className="space-y-4 text-slate-400">
                 <li><a href="#" className="hover:text-red-400 transition-colors">About Us</a></li>
-                <li><a href="#" className="hover:text-red-400 transition-colors">Contact Support</a></li>
+                <li><a href="tel:+14437648363" className="hover:text-red-400 transition-colors">Contact Support</a></li>
                 <li><a href="#" className="hover:text-red-400 transition-colors">Privacy Policy</a></li>
                 <li><a href="#" className="hover:text-red-400 transition-colors">Terms of Service</a></li>
               </ul>

@@ -1,14 +1,11 @@
 // Central API service - handles all backend communication
-const BASE_URL = import.meta.env.VITE_API_BASE_URL || "http://localhost:5000/api/v1";
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || "https://marylandvendngbcknd-production.up.railway.app/api/v1";
 
 // ─── Token Management ──────────────────────────────────────────────────────────
 // Zustand persist stores data as: { state: { user, token, ... }, version: 0 }
 export const getToken = (): string | null => {
   try {
-    const stored = localStorage.getItem("vendroute-auth");
-    if (!stored) return null;
-    const parsed = JSON.parse(stored);
-    return parsed?.state?.token ?? null;
+    return localStorage.getItem("vendroute_token") || null;
   } catch {
     return null;
   }
@@ -16,17 +13,15 @@ export const getToken = (): string | null => {
 
 export const setToken = (token: string): void => {
   try {
-    const stored = localStorage.getItem("vendroute-auth");
-    const parsed = stored ? JSON.parse(stored) : { state: {}, version: 0 };
-    parsed.state.token = token;
-    localStorage.setItem("vendroute-auth", JSON.stringify(parsed));
-  } catch {}
+    localStorage.setItem("vendroute_token", token);
+  } catch { }
 };
 
 export const clearToken = (): void => {
   try {
+    localStorage.removeItem("vendroute_token");
     localStorage.removeItem("vendroute-auth");
-  } catch {}
+  } catch { }
 };
 
 // ─── Core Fetch Wrapper ────────────────────────────────────────────────────────
@@ -73,7 +68,7 @@ export const authApi = {
     }),
 
   me: () =>
-    apiFetch<{ success: boolean; user: LoginResponse["user"] }>("/auth/me"),
+    apiFetch<{ success: boolean; data: any }>("/auth/me"),
 
   forgotPassword: (email: string) =>
     apiFetch<{ success: boolean; message: string; otp?: string }>("/auth/forgot-password", {
@@ -195,6 +190,15 @@ export const usersApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  update: (id: string, data: any) =>
+    apiFetch<{ success: boolean; data: any }>(`/users/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    apiFetch<{ success: boolean; message: string }>(`/users/${id}`, {
+      method: "DELETE",
+    }),
 };
 
 // ─── Vehicles APIs ─────────────────────────────────────────────────────────────
@@ -206,6 +210,15 @@ export const vehiclesApi = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  update: (id: string, data: any) =>
+    apiFetch<{ success: boolean; data: any }>(`/vehicles/${id}`, {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+  delete: (id: string) =>
+    apiFetch<{ success: boolean; message: string }>(`/vehicles/${id}`, {
+      method: "DELETE",
+    }),
 };
 
 // ─── Reports APIs ──────────────────────────────────────────────────────────────
@@ -213,3 +226,31 @@ export const reportsApi = {
   getDashboard: () =>
     apiFetch<{ success: boolean; data: any }>("/reports/dashboard"),
 };
+
+// ─── Notifications APIs ────────────────────────────────────────────────────────
+export const notificationsApi = {
+  getAll: () =>
+    apiFetch<{ success: boolean; data: any[] }>("/notifications"),
+  getUnreadCount: () =>
+    apiFetch<{ success: boolean; data: { count: number } }>("/notifications/unread-count"),
+  markRead: (id: string) =>
+    apiFetch<{ success: boolean; data: any }>(`/notifications/${id}/read`, {
+      method: "PATCH",
+    }),
+  markAllRead: () =>
+    apiFetch<{ success: boolean; message: string }>("/notifications/mark-all-read", {
+      method: "PATCH",
+    }),
+};
+
+// ─── Settings APIs ─────────────────────────────────────────────────────────────
+export const settingsApi = {
+  get: () =>
+    apiFetch<{ success: boolean; data: any }>("/settings"),
+  save: (data: any) =>
+    apiFetch<{ success: boolean; data: any }>("/settings", {
+      method: "PUT",
+      body: JSON.stringify(data),
+    }),
+};
+

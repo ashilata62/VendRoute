@@ -33,6 +33,7 @@ interface BackendLocation {
   createdAt: string;
   customer?: { companyName: string; contactPerson: string };
   machines?: { id: string; machineCode: string; model: string; fillLevel: number; status: string }[];
+  products?: any;
 }
 
 interface BackendCustomer {
@@ -50,7 +51,7 @@ const emptyForm = {
   longitude: 72.8777,
   customerId: "",
   productInput: "",
-  products: ["Lays", "Pepsi", "Water"] as string[],
+  products: [] as string[],
   notes: "",
   photoFiles: [] as File[],
   photoPreviews: [] as string[],
@@ -134,7 +135,7 @@ export default function LocationsPage() {
       longitude: loc.longitude,
       customerId: loc.customerId,
       productInput: "",
-      products: ["Lays", "Pepsi"],
+      products: Array.isArray(loc.products) ? loc.products : [],
       notes: "",
       photoFiles: [],
       photoPreviews: loc.imageUrl ? [loc.imageUrl] : [],
@@ -158,6 +159,7 @@ export default function LocationsPage() {
         city: form.city,
         latitude: form.latitude,
         longitude: form.longitude,
+        products: form.products,
       };
 
       if (form.photoPreviews.length > 0) {

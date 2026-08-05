@@ -120,6 +120,11 @@ export interface Route {
   actualTime: number | null; // minutes
   startTime: string | null;
   endTime: string | null;
+  createdAt?: string;
+  updatedAt?: string;
+  driverName?: string;
+  driver?: { id: string; name: string; email?: string; phone?: string };
+  vehicle?: { id: string; vehicleNumber?: string; plateNumber?: string; type?: string };
 }
 
 // ─── Customer ─────────────────────────────────────────────────────────────────

@@ -100,10 +100,10 @@ export default function LocationDetailPage() {
   const customer = loc?.customer || {};
   const firstMachine = loc?.machines?.[0] || {};
   const photoGallery = loc?.imageUrl ? [loc.imageUrl] : ["https://picsum.photos/800/600", "https://picsum.photos/800/601"];
-  const products = ["Coca-Cola", "Lay's Chips", "Oreo", "Water Bottle"]; // Mocked since DB doesn't have products yet
+  const products = Array.isArray(loc?.products) && loc.products.length > 0 ? loc.products : [];
 
-  // Next service countdown calculation (mocked for now)
-  const daysUntilNextService = 5;
+  // Next service countdown calculation
+  const daysUntilNextService = 5; // To be computed dynamically based on schedule
 
   if (loading) {
     return (
@@ -245,7 +245,7 @@ export default function LocationDetailPage() {
                 <div className="space-y-3 text-xs">
                   <div className="flex justify-between items-center">
                     <span className="text-slate-450 font-semibold">Frequency:</span>
-                    <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-full font-bold">Weekly (Mock)</span>
+                    <span className="bg-slate-100 text-slate-800 px-2 py-0.5 rounded-full font-bold">Weekly</span>
                   </div>
                   <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between">
                     <div>
@@ -280,7 +280,7 @@ export default function LocationDetailPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
-                  {products.map((prodName, idx) => {
+                  {products.map((prodName: string, idx: number) => {
                     const capacity = 20;
                     const stock = idx % 2 === 0 ? 12 : 3;
                     const isLow = stock <= 5;

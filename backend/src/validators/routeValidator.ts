@@ -2,9 +2,12 @@ import { z } from 'zod';
 
 export const createRouteSchema = z.object({
   driverId: z.string().uuid('Invalid driver ID'),
-  title: z.string().min(3, 'Route title is required'),
-  scheduledDate: z.string().or(z.date()),
-  locationIds: z.array(z.string().uuid()).min(1, 'At least one location stop is required'),
+  name: z.string().min(3, 'Route name is required'),
+  date: z.string(),
+  vehicleId: z.string().optional(),
+  totalDistance: z.number().optional(),
+  estimatedTime: z.number().optional(),
+  stops: z.array(z.string().uuid()).min(1, 'At least one location stop is required'),
 });
 
 export const updateStopStatusSchema = z.object({

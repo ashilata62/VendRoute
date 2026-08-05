@@ -46,6 +46,23 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
   const isSupervisor = user?.role === "supervisor";
 
   const allowedNavItems = navItems.filter((item) => {
+    // Read dynamic permission matrix from localStorage
+    const savedPermsStr = localStorage.getItem("role-permissions");
+    let permissions: any = null;
+    if (savedPermsStr) {
+      try { permissions = JSON.parse(savedPermsStr); } catch {}
+    }
+
+    const roleKey = isSupervisor ? "supervisor" : isSuperAdmin ? "superadmin" : "driver";
+    const rolePerms = permissions?.[roleKey];
+
+    if (rolePerms) {
+      if (item.path === "/routes" && rolePerms.routes === false) return false;
+      if (item.path === "/users" && rolePerms.users === false) return false;
+      if (item.path === "/reports" && rolePerms.reports === false) return false;
+      if (item.path === "/customers" && rolePerms.regions === false) return false;
+    }
+
     if (isSupervisor) {
       return !["/customers", "/users", "/settings"].includes(item.path);
     }
@@ -79,12 +96,23 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
         <div className="flex items-center justify-between h-16 px-4 border-b border-slate-800/80 flex-shrink-0 bg-[#070E28]">
           <div className="flex items-center gap-3">
             <div className="w-10 h-10 rounded-full bg-white shadow-lg shadow-red-600/30 flex items-center justify-center overflow-hidden border border-white/20 flex-shrink-0">
-              <img src={brandLogo} alt="Maryland Vending Logo" className="w-full h-full object-cover" />
+              <img
+                src={localStorage.getItem("company-logo") || brandLogo}
+                alt="Company Logo"
+                className="w-full h-full object-cover"
+                onError={(e) => { (e.target as HTMLImageElement).src = brandLogo; }}
+              />
             </div>
             {(!collapsed || mobileOpen) && (
               <div className="truncate">
                 <p className="font-bold text-white text-[13px] leading-tight tracking-tight flex items-center gap-0.5">
-                  Maryland Vending
+                  {(() => {
+                    const savedComp = localStorage.getItem("company-settings");
+                    if (savedComp) {
+                      try { return JSON.parse(savedComp).orgName || "Maryland Vending"; } catch { }
+                    }
+                    return "Maryland Vending";
+                  })()}
                 </p>
                 <p className="text-[10px] text-slate-400 font-medium tracking-wide">
                   {isSuperAdmin ? "Super Admin Portal" : isSupervisor ? "Supervisor Portal" : "Field Operations"}
@@ -146,12 +174,12 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
           {/* Profile & Logout Section at the bottom of standard list */}
           {[
             {
-              path: "/settings?profile=true",
+              path: "/profile",
               icon: User,
               label: "Profile",
               onClick: () => {
                 onCloseMobile();
-                navigate("/settings?profile=true");
+                navigate("/profile");
               },
             },
             {
@@ -161,9 +189,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
               onClick: handleLogout,
             },
           ].map((item) => {
-            const isActive = item.label === "Profile"
-              ? (location.pathname === "/settings" && location.search.includes("profile=true"))
-              : (location.pathname === item.path);
+            const isActive = location.pathname === item.path;
             const isCollapsedDesktop = collapsed && !mobileOpen;
 
             return (

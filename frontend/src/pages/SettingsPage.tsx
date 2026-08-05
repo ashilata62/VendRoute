@@ -1,8 +1,9 @@
 import { useState, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-import { Save, Globe, CheckCircle2, Sliders, Clock, Camera, Key } from "lucide-react";
+import { Save, Globe, CheckCircle2, Sliders, Clock, Camera, Key, Loader2 } from "lucide-react";
 import PageHeader from "../components/shared/PageHeader";
 import { useAuthStore } from "../store/authStore";
+import { settingsApi } from "../services/api";
 
 const tabs = [
   { id: "company", label: "General & Company", icon: Globe },
@@ -33,10 +34,7 @@ export default function SettingsPage() {
     }
   };
 
-  // 1. Company & General Settings
   const [companyForm, setCompanyForm] = useState({
-    name: user?.name || "Admin User",
-    email: user?.email || "admin@marylandvending.com",
     orgName: "Maryland Vending Service",
     timezone: "Asia/Kolkata (IST, UTC+5:30)",
     currency: "INR (₹)",
@@ -47,12 +45,48 @@ export default function SettingsPage() {
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  const [routeHoursForm, setRouteHoursForm] = useState({
+    autoOptimize: true, maxStops: 15, startTime: "08:00", endTime: "18:00",
+    priority: "Medium", distanceLimit: 120, shiftType: "Day Shift (08:00 - 17:00)",
+    breakTime: 60, weekendSat: true, weekendSun: true, holidays: "New Year, Independence Day, Diwali",
+  });
+
+  const [gpsPhotoForm, setGpsPhotoForm] = useState({
+    gpsAccuracy: "High (GPS + Network)", gpsInterval: 10, geofenceRadius: 50,
+    backgroundTracking: true, mandatoryCheckin: true, maxPhotos: 4, maxImageSize: 5,
+    compression: "80% (Optimized)", allowedJPG: true, allowedPNG: true,
+    allowedWEBP: true, cloudProvider: "Firebase Storage",
+  });
+
+  const [settingsLoading, setSettingsLoading] = useState(true);
+
+  // Load settings from backend on mount
+  useEffect(() => {
+    settingsApi.get().then((res) => {
+      if (res.success && res.data) {
+        const d = res.data;
+        if (d.company) setCompanyForm((prev) => ({ ...prev, ...d.company, theme: d.company.theme || prev.theme, logo: d.company.logo || localStorage.getItem("company-logo") || "" }));
+        if (d.routing) setRouteHoursForm((prev) => ({ ...prev, ...d.routing }));
+        if (d.gps) setGpsPhotoForm((prev) => ({ ...prev, ...d.gps }));
+        if (d.permissions) setPermissions((prev: any) => ({ ...prev, ...d.permissions }));
+        if (d.machineTypes) setMachineTypes(d.machineTypes);
+        if (d.productCategories) setProductCategories(d.productCategories);
+        if (d.inventoryRules) setInventoryRules((prev) => ({ ...prev, ...d.inventoryRules }));
+        if (d.attendanceRules) setAttendanceRules((prev) => ({ ...prev, ...d.attendanceRules }));
+        if (d.apiForm) setApiForm((prev) => ({ ...prev, ...d.apiForm }));
+      }
+    }).catch(() => {}).finally(() => setSettingsLoading(false));
+  }, []);
+
   const handleLogoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        setCompanyForm((prev) => ({ ...prev, logo: reader.result as string }));
+        const base64 = reader.result as string;
+        setCompanyForm((prev: any) => ({ ...prev, logo: base64 }));
+        localStorage.setItem("company-logo", base64);
+        window.dispatchEvent(new Event("storage"));
       };
       reader.readAsDataURL(file);
     }
@@ -62,41 +96,46 @@ export default function SettingsPage() {
     fileInputRef.current?.click();
   };
 
-  // 2. Route & Shift Preferences
-  const [routeHoursForm, setRouteHoursForm] = useState({
-    autoOptimize: true,
-    maxStops: 15,
-    startTime: "08:00",
-    endTime: "18:00",
-    priority: "Medium",
-    distanceLimit: 120,
-    shiftType: "Day Shift (08:00 - 17:00)",
-    breakTime: 60,
-    weekendSat: true,
-    weekendSun: true,
-    holidays: "New Year, Independence Day, Diwali",
-  });
+  const handleSave = async () => {
+    // Apply theme locally (browser-side)
+    localStorage.setItem("app-theme", companyForm.theme);
+    localStorage.setItem("company-logo", companyForm.logo);
+    const root = document.documentElement;
+    if (companyForm.theme === "Dark") {
+      root.classList.add("dark");
+    } else if (companyForm.theme === "Light") {
+      root.classList.remove("dark");
+    } else {
+      const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+      if (systemPrefersDark) root.classList.add("dark");
+      else root.classList.remove("dark");
+    }
+    window.dispatchEvent(new Event("storage"));
 
-  // 3. GPS & Photo Settings
-  const [gpsPhotoForm, setGpsPhotoForm] = useState({
-    gpsAccuracy: "High (GPS + Network)",
-    gpsInterval: 10,
-    geofenceRadius: 50,
-    backgroundTracking: true,
-    mandatoryCheckin: true,
-    maxPhotos: 4,
-    maxImageSize: 5,
-    compression: "80% (Optimized)",
-    allowedJPG: true,
-    allowedPNG: true,
-    allowedWEBP: true,
-    cloudProvider: "Firebase Storage",
-  });
+    // Save everything to backend DB
+    try {
+      await settingsApi.save({
+        company: companyForm,
+        routing: routeHoursForm,
+        gps: gpsPhotoForm,
+        permissions,
+        machineTypes,
+        productCategories,
+        inventoryRules,
+        attendanceRules,
+        apiForm,
+      });
+    } catch (err) {
+      console.error("Failed to save settings to backend", err);
+    }
 
-  // 4. Inventory, Machine & Attendance Rules
-  const [machineTypes, setMachineTypes] = useState(["Combo Snack & Soda", "Cold Drinks Only", "Hot Coffee/Tea", "Healthy Snacks Only"]);
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2000);
+  };
+
+  const [machineTypes, setMachineTypes] = useState<string[]>([]);
+  const [productCategories, setProductCategories] = useState<string[]>([]);
   const [newMachineType, setNewMachineType] = useState("");
-  const [productCategories, setProductCategories] = useState(["Carbonated Drinks", "Chips & Pretzels", "Chocolate Bars", "Energy Drinks", "Nut Snacks"]);
   const [newProductCategory, setNewProductCategory] = useState("");
   const [inventoryRules, setInventoryRules] = useState({
     minStock: 20,
@@ -120,48 +159,36 @@ export default function SettingsPage() {
     recipients: "ops-alerts@vendroute.in, supervisor@vendroute.in",
   });
 
+  type PermissionsType = {
+    superadmin: Record<string, boolean>;
+    supervisor: Record<string, boolean>;
+    driver: Record<string, boolean>;
+  };
+
   // User Roles Permission Matrix state
-  const [permissions, setPermissions] = useState({
-    superadmin: { regions: true, users: true, routes: true, reports: true },
-    supervisor: { regions: true, users: false, routes: true, reports: true },
-    driver: { regions: false, users: false, routes: false, reports: false },
+  const [permissions, setPermissions] = useState<PermissionsType>(() => {
+    const savedPerms = localStorage.getItem("role-permissions");
+    if (savedPerms) {
+      try { return JSON.parse(savedPerms) as PermissionsType; } catch {}
+    }
+    return {
+      superadmin: { regions: true, users: true, routes: true, reports: true },
+      supervisor: { regions: true, users: false, routes: true, reports: true },
+      driver: { regions: false, users: false, routes: false, reports: false },
+    };
   });
 
   const togglePermission = (role: "superadmin" | "supervisor" | "driver", module: string) => {
-    setPermissions((prev) => ({
+    setPermissions((prev: PermissionsType) => ({
       ...prev,
       [role]: {
         ...prev[role],
-        [module]: !prev[role][module as keyof typeof prev[typeof role]],
+        [module]: !prev[role][module],
       },
     }));
   };
 
-  const handleSave = () => {
-    localStorage.setItem("app-theme", companyForm.theme);
-    localStorage.setItem("company-logo", companyForm.logo);
 
-    // Apply theme changes dynamically
-    const root = document.documentElement;
-    if (companyForm.theme === "Dark") {
-      root.classList.add("dark");
-    } else if (companyForm.theme === "Light") {
-      root.classList.remove("dark");
-    } else {
-      const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      if (systemPrefersDark) {
-        root.classList.add("dark");
-      } else {
-        root.classList.remove("dark");
-      }
-    }
-
-    // Trigger local storage storage event for other components
-    window.dispatchEvent(new Event("storage"));
-
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
-  };
 
   return (
     <div className="space-y-6 pb-12">
@@ -191,28 +218,10 @@ export default function SettingsPage() {
           {/* TAB 1: COMPANY & GENERAL */}
           {activeTab === "company" && (
             <div className="space-y-5">
-              <h3 className="font-extrabold text-slate-900 text-sm border-b border-slate-100 pb-3">Company & Profile Settings</h3>
+              <h3 className="font-extrabold text-slate-900 text-sm border-b border-slate-100 pb-3">Company & Business Settings</h3>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">User Profile Name</label>
-                  <input
-                    type="text"
-                    value={companyForm.name}
-                    onChange={(e) => setCompanyForm({ ...companyForm, name: e.target.value })}
-                    className="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-slate-50 font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Profile Email</label>
-                  <input
-                    type="email"
-                    value={companyForm.email}
-                    onChange={(e) => setCompanyForm({ ...companyForm, email: e.target.value })}
-                    className="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 bg-slate-50 font-medium"
-                  />
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Company Profile Name</label>
+                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Organization / Company Name</label>
                   <input
                     type="text"
                     value={companyForm.orgName}
@@ -816,7 +825,7 @@ export default function SettingsPage() {
                     </tr>
                   </thead>
                   <tbody>
-                    {(Object.keys(permissions) as Array<keyof typeof permissions>).map((role) => (
+                    {(Object.keys(permissions) as Array<"superadmin" | "supervisor" | "driver">).map((role) => (
                       <tr key={role} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
                         <td className="py-3 font-extrabold capitalize text-slate-700">{role}</td>
                         {["regions", "users", "routes", "reports"].map((module) => {

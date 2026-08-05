@@ -31,3 +31,38 @@ export const getProfileController = async (req: AuthRequest, res: Response, next
     return res.status(400).json({ success: false, message: error.message });
   }
 };
+
+export const forgotPasswordController = async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    if (!email) return res.status(400).json({ success: false, message: 'Email address is required' });
+    const result = await AuthService.forgotPassword(email);
+    return res.status(200).json({ success: true, ...result });
+  } catch (error: any) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const verifyOtpController = async (req: Request, res: Response) => {
+  try {
+    const { email, otp } = req.body;
+    if (!email || !otp) return res.status(400).json({ success: false, message: 'Email and OTP are required' });
+    const result = await AuthService.verifyOtp(email, otp);
+    return res.status(200).json(result);
+  } catch (error: any) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};
+
+export const resetPasswordController = async (req: Request, res: Response) => {
+  try {
+    const { email, otp, newPassword } = req.body;
+    if (!email || !otp || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Email, OTP, and new password are required' });
+    }
+    const result = await AuthService.resetPassword(email, otp, newPassword);
+    return res.status(200).json(result);
+  } catch (error: any) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};

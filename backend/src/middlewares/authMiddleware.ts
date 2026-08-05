@@ -8,6 +8,7 @@ export interface AuthRequest extends Request {
   };
 }
 
+// Strict auth — requires valid JWT token
 export const authenticateJWT = (req: AuthRequest, res: Response, next: NextFunction) => {
   const authHeader = req.headers.authorization;
 
@@ -24,6 +25,17 @@ export const authenticateJWT = (req: AuthRequest, res: Response, next: NextFunct
   } catch (error) {
     return res.status(403).json({ success: false, message: 'Invalid or expired token' });
   }
+};
+
+// Optional auth — token ho to verify karo, na ho to bhi allow karo (testing ke liye GET routes)
+export const optionalAuth = (req: AuthRequest, _res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (authHeader && authHeader.startsWith('Bearer ')) {
+    try {
+      req.user = verifyToken(authHeader.split(' ')[1]);
+    } catch {}
+  }
+  next();
 };
 
 export const authorizeRoles = (...roles: string[]) => {

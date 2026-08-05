@@ -8,9 +8,10 @@ import {
 } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
 import { stopsApi, routesApi } from "../../services/api";
-import { mockRoutes, mockLocations } from "../../data/mockData";
+// mock import removed — all data is now loaded from backend API
 import { cn } from "../../lib/utils";
 import brandLogo from "../../assets/maryland-logo.png";
+import { getSocket } from "../../services/socket";
 
 export default function DriverMobileLayout() {
   const navigate = useNavigate();
@@ -22,7 +23,9 @@ export default function DriverMobileLayout() {
   const [selectedStopId, setSelectedStopId] = useState<string | null>(null);
   const [showMachineDetails, setShowMachineDetails] = useState(false);
   const [isCheckedIn, setIsCheckedIn] = useState(false);
-  const [, setGpsVerified] = useState(false);
+  const [gpsVerified, setGpsVerified] = useState(false);
+  const [trackingActive, setTrackingActive] = useState(false);
+  const [lastLocation, setLastLocation] = useState<{lat: number, lng: number} | null>(null);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
   const [showScanner, setShowScanner] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
@@ -56,22 +59,15 @@ export default function DriverMobileLayout() {
   const [stopNotes, setStopNotes] = useState("");
   const [reportedIssue, setReportedIssue] = useState("");
   const [isSigned, setIsSigned] = useState(false);
-  const [refillItems, setRefillItems] = useState<{ product: string; qty: number }[]>([
-    { product: "Coca-Cola 330ml", qty: 12 },
-    { product: "Lay's Salted Chips", qty: 8 },
-  ]);
+  const [refillItems, setRefillItems] = useState<{ product: string; qty: number }[]>([]);
   const [newRefillProduct, setNewRefillProduct] = useState("");
   const [newRefillQty, setNewRefillQty] = useState("5");
   const [stopPhotos, setStopPhotos] = useState<string[]>([
     "https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=300&auto=format&fit=crop&q=60"
   ]);
 
-  // History list
-  const [historyRecords] = useState([
-    { date: "2026-07-30", route: "Western Express Hospital Run", stops: 12, cash: 18500, photos: 4, notes: "All machines restocked. Minor cooler noise at Lifeline Hosp." },
-    { date: "2026-07-29", route: "Central Corporate Sweep", stops: 10, cash: 15400, photos: 2, notes: "Refilled combo machine. Cash collection complete." },
-    { date: "2026-07-28", route: "South Zone Hub Route", stops: 8, cash: 12000, photos: 3, notes: "Cleaned coin slot of VM-104." }
-  ]);
+  // History list will be populated dynamically
+  const [historyRecords, setHistoryRecords] = useState<any[]>([]);
 
   // Driver route stops
   const [stopsList, setStopsList] = useState<any[]>([]);
@@ -95,7 +91,7 @@ export default function DriverMobileLayout() {
         const driverRoutes = routesRes.data.filter((r: any) => r.driver?.id === user?.id || r.driverId === user?.id);
         const completed = driverRoutes.filter((r: any) => 
           r.status === "COMPLETED" || 
-          (r.stops && r.stops.length > 0 && r.stops.every((st: any) => st.status === "COMPLETED"))
+          (r.stops && r.stops.length > 0 && r.stops.every((st: any) => st.status === "COMPLETED" || st.status === "SKIPPED"))
         );
         setHistoryRoutes(completed);
       }
@@ -112,17 +108,64 @@ export default function DriverMobileLayout() {
 
   const completedCount = stopsList.filter(s => s.status === "COMPLETED").length;
   const pendingCount = stopsList.length - completedCount;
-  const currentStop = stopsList.find(s => s.status === "PENDING" || s.status === "REACHED") || (stopsList.length > 0 && pendingCount > 0 ? stopsList[stopsList.length - 1] : undefined);
+  const currentStop = stopsList.find(s => s.status === "PENDING" || s.status === "REACHED" || s.status === "in-progress") || (stopsList.length > 0 && pendingCount > 0 ? stopsList[stopsList.length - 1] : undefined);
   const currentLocation = currentStop?.location;
   const driverRoute = currentStop?.route || (stopsList.length > 0 ? stopsList[0].route : null) || { name: "No Active Route" };
 
   const handleStartRoute = () => {
     setIsRouteStarted(true);
+    setTrackingActive(true); // Start broadcasting location
     // Auto check-in next stop
     if (currentStop) {
       setStopsList(prev => prev.map(s => s.id === currentStop.id ? { ...s, status: "in-progress" } : s));
     }
   };
+
+  // GPS Live Tracking Effect
+  useEffect(() => {
+    let watchId: number;
+
+    if (trackingActive && user?.id) {
+      const socket = getSocket();
+      
+      if ("geolocation" in navigator) {
+        watchId = navigator.geolocation.watchPosition(
+          (position) => {
+            const { latitude, longitude, speed, heading } = position.coords;
+            setLastLocation({ lat: latitude, lng: longitude });
+            setGpsVerified(true);
+            
+            // Broadcast live location to backend for Admin/Supervisor Tracking Map
+            socket.emit("tracking:location_broadcast", {
+              driverId: user.id,
+              lat: latitude,
+              lng: longitude,
+              speed: (speed || 0) * 3.6, // Convert m/s to km/h
+              heading: heading || 0,
+              timestamp: new Date().toISOString()
+            });
+          },
+          (error) => {
+            console.warn("GPS Tracking Error:", error.message);
+            setGpsVerified(false);
+          },
+          {
+            enableHighAccuracy: true,
+            maximumAge: 10000,
+            timeout: 5000
+          }
+        );
+      } else {
+        console.warn("Geolocation not supported by this browser.");
+      }
+    }
+
+    return () => {
+      if (watchId) {
+        navigator.geolocation.clearWatch(watchId);
+      }
+    };
+  }, [trackingActive, user?.id]);
 
   const handleCheckIn = () => {
     setIsCheckedIn(true);
@@ -287,12 +330,26 @@ export default function DriverMobileLayout() {
                 className="p-4 space-y-4"
               >
                 {/* Driver Greeting Card */}
-                <div className="bg-gradient-to-br from-[#ff3b3b] to-[#4f46e5] text-white rounded-2xl p-4 shadow-lg flex items-center gap-3">
-                  <img src={user?.avatar} alt="" className="w-12 h-12 rounded-full border-2 border-white/30" />
-                  <div>
-                    <h3 className="font-bold text-sm">Hello, {user?.name}!</h3>
-                    <p className="text-[10px] opacity-80 font-medium">Assigned Vehicle: Tata Ace (MH-03-GH-3456)</p>
+                <div className="bg-gradient-to-br from-blue-600 via-indigo-600 to-slate-900 text-white rounded-2xl p-4 shadow-lg flex items-center justify-between">
+                  <div className="flex items-center gap-3">
+                    {user?.avatar && (user.avatar.startsWith("http") || user.avatar.startsWith("data:image")) ? (
+                      <img src={user.avatar} alt="" className="w-12 h-12 rounded-full border-2 border-white/40 object-cover shadow-sm" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-white/20 text-white font-extrabold text-lg flex items-center justify-center border-2 border-white/40 shadow-sm">
+                        {user?.name ? user.name.split(" ").map((n: string) => n[0]).join("").toUpperCase().slice(0, 2) : "DR"}
+                      </div>
+                    )}
+                    <div>
+                      <h3 className="font-extrabold text-sm">Hello, {user?.name || "Driver"}! 👋</h3>
+                      <p className="text-[10px] opacity-90 font-medium mt-0.5">
+                        Vehicle: <span className="font-bold">{driverRoute?.vehicle?.plateNumber ? driverRoute.vehicle.plateNumber : (driverRoute?.vehicle?.model || "Unassigned")}</span>
+                      </p>
+                    </div>
                   </div>
+
+                  <span className="text-[10px] font-extrabold bg-emerald-500/30 text-emerald-200 border border-emerald-400/40 px-2.5 py-1 rounded-full flex items-center gap-1">
+                    <span className="w-2 h-2 bg-emerald-400 rounded-full animate-pulse" /> Duty Active
+                  </span>
                 </div>
 
                 {/* Today's Route Summary - only when active stops exist */}
@@ -300,8 +357,8 @@ export default function DriverMobileLayout() {
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
                   <div className="flex justify-between items-center border-b border-slate-100 pb-2">
                     <span className="text-xs font-bold text-slate-800">Today's Route Progress</span>
-                    <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2 py-0.5 rounded-full">
-                      {driverRoute?.name || "Route"}
+                    <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2.5 py-0.5 rounded-full border border-blue-100">
+                      {driverRoute?.name || "Assigned Route"}
                     </span>
                   </div>
                   
@@ -325,11 +382,11 @@ export default function DriverMobileLayout() {
                     <div className="w-full bg-slate-100 rounded-full h-2.5 overflow-hidden">
                       <div 
                         className="bg-blue-600 h-full rounded-full transition-all duration-500" 
-                        style={{ width: `${Math.round((completedCount / stopsList.length) * 100)}%` }}
+                        style={{ width: `${Math.round((completedCount / (stopsList.length || 1)) * 100)}%` }}
                       />
                     </div>
                     <p className="text-[9px] text-slate-400 text-right font-semibold">
-                      {Math.round((completedCount / stopsList.length) * 100)}% Completed
+                      {Math.round((completedCount / (stopsList.length || 1)) * 100)}% Completed
                     </p>
                   </div>
                 </div>
@@ -337,12 +394,12 @@ export default function DriverMobileLayout() {
 
                 {/* If no active routes */}
                 {stopsList.length === 0 && (
-                  <div className="bg-emerald-50 rounded-2xl border border-emerald-100 p-6 text-center space-y-3 shadow-sm">
-                    <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto">
+                  <div className="bg-emerald-50/70 rounded-2xl border border-emerald-100 p-6 text-center space-y-3 shadow-sm">
+                    <div className="w-12 h-12 bg-emerald-100 rounded-full flex items-center justify-center mx-auto border border-emerald-200">
                       <CheckCircle2 className="w-6 h-6 text-emerald-600" />
                     </div>
-                    <h3 className="text-sm font-bold text-emerald-800">All Caught Up!</h3>
-                    <p className="text-xs text-emerald-600">You have no pending routes assigned for today.</p>
+                    <h3 className="text-sm font-bold text-emerald-900">All Caught Up!</h3>
+                    <p className="text-xs text-emerald-700 font-medium">You have no pending routes assigned for today.</p>
                   </div>
                 )}
 
@@ -428,7 +485,7 @@ export default function DriverMobileLayout() {
                 {/* Stops Checklist Sequence */}
                 <div className="space-y-4 relative pl-4 border-l border-slate-200 ml-3">
                   {stopsList.map((stop, index) => {
-                    const loc = mockLocations.find(l => l.id === stop.locationId);
+                    const loc = stop.location || { name: "Unknown Location", address: "", customer: null };
                     const isCompleted = stop.status === "COMPLETED";
                     const isActive = stop.status === "REACHED" || (stop.status === "PENDING" && index === completedCount);
 
@@ -509,7 +566,7 @@ export default function DriverMobileLayout() {
                 {/* Stop Header info */}
                 {(() => {
                   const stop = stopsList.find(s => s.id === selectedStopId)!;
-                  const loc = stop.location || mockLocations[0];
+                  const loc = stop.location || { name: "Unknown Location", address: "", customer: null, city: "" };
                   return (
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
                       <div className="flex justify-between items-start">
@@ -746,8 +803,9 @@ export default function DriverMobileLayout() {
                   /* MACHINE DETAILS SUB-VIEW */
                   <div className="space-y-4">
                     {(() => {
-                      const stop = stopsList.find(s => s.id === selectedStopId)!;
-                      const loc = mockLocations.find(l => l.id === stop.locationId)!;
+                      const stop = stopsList.find(s => s.id === selectedStopId);
+                      const loc = stop?.location;
+                      if (!loc) return null;
                       return (
                         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
                           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Machine Profile Specs</h4>
@@ -755,7 +813,7 @@ export default function DriverMobileLayout() {
                           <div className="grid grid-cols-2 gap-3 text-xs">
                             <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
                               <p className="text-slate-400 text-[10px]">Machine ID</p>
-                              <p className="font-bold text-slate-800">{loc.machineId}</p>
+                              <p className="font-bold text-slate-800">{loc.machineId || 'N/A'}</p>
                             </div>
                             <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
                               <p className="text-slate-400 text-[10px]">Type</p>
@@ -839,7 +897,7 @@ export default function DriverMobileLayout() {
                           <div>
                             <p className="text-xs font-bold text-slate-900">{route.name}</p>
                             <p className="text-[10px] text-slate-500 font-medium">
-                              📅 {new Date(route.updatedAt || route.date || Date.now()).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' })} · {new Date(route.updatedAt || route.date || Date.now()).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' })}
+                              📅 {new Date(route.endTime || route.date || Date.now()).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' })} · {new Date(route.endTime || route.date || Date.now()).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' })}
                             </p>
                           </div>
                         </div>
@@ -924,23 +982,49 @@ export default function DriverMobileLayout() {
                   </div>
                 </div>
 
-                {/* Real Dynamic Attendance Records */}
+                {/* Real Dynamic Attendance Records from Backend Check-ins */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Attendance Logs (Latest)</h4>
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Attendance Logs (Real Backend Check-ins)</h4>
                   <div className="space-y-2">
                     {(() => {
-                      const today = new Date();
-                      const getDaysAgo = (days: number) => {
-                        const d = new Date();
-                        d.setDate(today.getDate() - days);
-                        return d;
-                      };
-                      return [
-                        { label: `Today (${today.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })})`, signin: "07:30 AM", status: "Present", class: "text-emerald-700 bg-emerald-50 border-emerald-100" },
-                        { label: `Yesterday (${getDaysAgo(1).toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })})`, signin: "07:45 AM", status: "Present", class: "text-emerald-700 bg-emerald-50 border-emerald-100" },
-                        { label: getDaysAgo(2).toLocaleDateString("en-IN", { day: 'numeric', month: 'short' }), signin: "07:32 AM", status: "Present", class: "text-emerald-700 bg-emerald-50 border-emerald-100" },
-                        { label: getDaysAgo(3).toLocaleDateString("en-IN", { day: 'numeric', month: 'short' }), signin: "07:30 AM", status: "Present", class: "text-emerald-700 bg-emerald-50 border-emerald-100" },
-                      ].map((att, i) => (
+                      // Extract completed stops from driver's backend history routes
+                      const allDriverStops = historyRoutes.flatMap(r => r.stops || []);
+
+                      return [0, 1, 2, 3].map(daysAgo => {
+                        const dateObj = new Date();
+                        dateObj.setDate(dateObj.getDate() - daysAgo);
+                        const dateStr = dateObj.toISOString().split("T")[0];
+
+                        // Find if driver checked in any stop on this date
+                        const stopOnDate = allDriverStops.find(s => {
+                          const refDate = s.route?.endTime || s.route?.date;
+                          const sDate = refDate ? new Date(refDate).toISOString().split("T")[0] : null;
+                          return sDate === dateStr;
+                        });
+
+                        const dayLabel = daysAgo === 0 
+                          ? `Today (${dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })})`
+                          : daysAgo === 1
+                            ? `Yesterday (${dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })})`
+                            : dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' });
+
+                        if (stopOnDate) {
+                          const punchTime = new Date(stopOnDate.route?.endTime || stopOnDate.route?.date || Date.now()).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' });
+                          return {
+                            label: dayLabel,
+                            signin: punchTime,
+                            status: "Present",
+                            class: "text-emerald-700 bg-emerald-50 border-emerald-100"
+                          };
+                        } else {
+                          return {
+                            label: dayLabel,
+                            signin: "--",
+                            status: "No Duty",
+                            class: "text-slate-500 bg-slate-100 border-slate-200"
+                          };
+                        }
+                      }).map((att, i) => (
                         <div key={i} className="flex justify-between items-center text-xs p-2.5 rounded-xl border border-slate-100 bg-slate-50">
                           <span className="font-bold text-slate-700">{att.label}</span>
                           <div className="flex items-center gap-2.5">

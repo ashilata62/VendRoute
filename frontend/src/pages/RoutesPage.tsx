@@ -7,7 +7,7 @@ import "leaflet/dist/leaflet.css";
 import {
   Plus, Search, Eye, Trash2, MapPin,
   ChevronLeft, ChevronRight, Navigation, Play, X,
-  Check
+  Check, Edit3
 } from "lucide-react";
 
 import { useRouteStore } from "../store/routeStore";
@@ -71,12 +71,18 @@ export default function RoutesPage() {
   // Modal / Detail States
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [detailRoute, setDetailRoute] = useState<Route | null>(null);
+  const [routeToDelete, setRouteToDelete] = useState<Route | null>(null);
+  const [routeToEdit, setRouteToEdit] = useState<Route | null>(null);
+  const [editForm, setEditForm] = useState({
+    driverId: "",
+    vehicleId: "",
+  });
   const [isReplaying, setIsReplaying] = useState(false);
   const [replayStep, setReplayStep] = useState(0);
 
-  // Calendar State
-  const [currentMonthDate, setCurrentMonthDate] = useState(new Date(2026, 6, 1)); // July 2026
-  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>("2026-07-31");
+  // Calendar State (Initializes dynamically to Real Current Month & Date)
+  const [currentMonthDate, setCurrentMonthDate] = useState(new Date());
+  const [selectedCalendarDate, setSelectedCalendarDate] = useState<string | null>(new Date().toISOString().split("T")[0]);
 
   // Create Form State
   const [createForm, setCreateForm] = useState({
@@ -189,7 +195,10 @@ export default function RoutesPage() {
     }
     for (let d = 1; d <= daysInMonth; d++) {
       const dateStr = `${year}-${String(month + 1).padStart(2, "0")}-${String(d).padStart(2, "0")}`;
-      const dayRoutes = routes.filter((r) => r.date === dateStr);
+      const dayRoutes = routes.filter((r) => {
+        const rDate = r.date ? new Date(r.date).toISOString().split("T")[0] : (r.createdAt ? new Date(r.createdAt).toISOString().split("T")[0] : "");
+        return rDate === dateStr;
+      });
       days.push({ dateStr, day: d, dayRoutes });
     }
     return days;
@@ -289,18 +298,18 @@ export default function RoutesPage() {
 
           {/* DataTable */}
           <div className="bg-card rounded-lg border border-border shadow-sm overflow-x-auto">
-            <table className="w-full text-sm text-left min-w-[720px]">
+            <table className="w-full text-sm text-left min-w-[960px]">
               <thead className="bg-slate-50 border-b border-border text-xs text-slate-500 uppercase font-semibold">
                 <tr>
-                  <th className="px-4 py-3">Route ID</th>
-                  <th className="px-4 py-3">Name</th>
-                  <th className="px-4 py-3">Driver</th>
-                  <th className="px-4 py-3">Vehicle</th>
-                  <th className="px-4 py-3">Stops</th>
-                  <th className="px-4 py-3">Progress</th>
-                  <th className="px-4 py-3">Status</th>
-                  <th className="px-4 py-3">ETA</th>
-                  <th className="px-4 py-3 text-right">Actions</th>
+                  <th className="px-4 py-3 w-24">Route ID</th>
+                  <th className="px-4 py-3 w-40">Name</th>
+                  <th className="px-4 py-3 w-36">Driver</th>
+                  <th className="px-4 py-3 w-32">Vehicle</th>
+                  <th className="px-4 py-3 w-16">Stops</th>
+                  <th className="px-4 py-3 w-32">Progress</th>
+                  <th className="px-4 py-3 w-28">Status</th>
+                  <th className="px-4 py-3 w-20">ETA</th>
+                  <th className="px-4 py-3 w-32 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-border">
@@ -312,46 +321,46 @@ export default function RoutesPage() {
 
                   return (
                     <tr key={route.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-600">
+                      <td className="px-4 py-3 w-24 font-mono text-xs font-semibold text-slate-600 whitespace-nowrap">
                         {route.id.slice(0, 8).toUpperCase()}
                       </td>
-                      <td className="px-4 py-3">
-                        <p className="font-semibold text-slate-900">{route.name}</p>
+                      <td className="px-4 py-3 w-40">
+                        <p className="font-semibold text-slate-900 truncate max-w-[140px]">{route.name}</p>
                         <p className="text-xs text-slate-400">{formatDate(route.date)}</p>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 w-36">
                         {(route as any).driver ? (
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-[10px] font-bold">
+                            <div className="w-6 h-6 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
                               {(route as any).driver.name?.charAt(0)}
                             </div>
-                            <span className="text-xs font-medium text-slate-700">{(route as any).driver.name}</span>
+                            <span className="text-xs font-medium text-slate-700 truncate">{(route as any).driver.name}</span>
                           </div>
                         ) : (
                           <span className="text-xs text-slate-400">Unassigned</span>
                         )}
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-600">
+                      <td className="px-4 py-3 w-32 text-xs text-slate-600 whitespace-nowrap">
                         {vehicles.find((v) => v.id === route.vehicleId)?.plateNumber || "—"}
                       </td>
-                      <td className="px-4 py-3 text-xs font-medium text-slate-700">
+                      <td className="px-4 py-3 w-16 text-xs font-medium text-slate-700 whitespace-nowrap">
                         {completedStops}/{totalStops}
                       </td>
                       <td className="px-4 py-3 w-32">
                         <div className="flex items-center gap-2">
-                          <div className="w-full bg-slate-100 rounded-full h-1.5 overflow-hidden">
+                          <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                             <div
                               className="bg-primary-600 h-full rounded-full transition-all"
                               style={{ width: `${pct}%` }}
                             />
                           </div>
-                          <span className="text-[10px] font-semibold text-slate-500">{pct}%</span>
+                          <span className="text-[10px] font-semibold text-slate-500 w-6 flex-shrink-0">{pct}%</span>
                         </div>
                       </td>
-                      <td className="px-4 py-3">
+                      <td className="px-4 py-3 w-28">
                         <StatusBadge status={route.status} withDot />
                       </td>
-                      <td className="px-4 py-3 text-xs text-slate-600">
+                      <td className="px-4 py-3 w-20 text-xs text-slate-600 whitespace-nowrap">
                         {route.estimatedTime} mins
                       </td>
                       <td className="px-4 py-3 text-right">
@@ -371,9 +380,22 @@ export default function RoutesPage() {
                             <Navigation className="w-4 h-4" />
                           </button>
                           <button
-                            onClick={() => deleteRoute(route.id)}
-                            className="p-1.5 text-slate-400 hover:text-danger hover:bg-red-50 rounded-md transition-colors"
-                            title="Delete"
+                            onClick={() => {
+                              setRouteToEdit(route);
+                              setEditForm({
+                                driverId: route.driverId || "",
+                                vehicleId: route.vehicleId || "",
+                              });
+                            }}
+                            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors cursor-pointer"
+                            title="Edit Route Assignment"
+                          >
+                            <Edit3 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => setRouteToDelete(route)}
+                            className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-md transition-colors cursor-pointer"
+                            title="Delete Route"
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -410,14 +432,14 @@ export default function RoutesPage() {
                 <ChevronLeft className="w-4 h-4" />
               </button>
               <button
-                onClick={() => setCurrentMonthDate(new Date(2026, 6, 1))}
-                className="px-3 py-1 text-xs border border-border rounded-lg text-slate-600 hover:bg-slate-50 font-medium"
+                onClick={() => setCurrentMonthDate(new Date())}
+                className="px-3 py-1 text-xs border border-border rounded-lg text-slate-600 hover:bg-slate-50 font-medium cursor-pointer"
               >
                 Today
               </button>
               <button
                 onClick={() => setCurrentMonthDate(new Date(currentMonthDate.getFullYear(), currentMonthDate.getMonth() + 1, 1))}
-                className="p-1.5 border border-border rounded-lg text-slate-600 hover:bg-slate-50"
+                className="p-1.5 border border-border rounded-lg text-slate-600 hover:bg-slate-50 cursor-pointer"
               >
                 <ChevronRight className="w-4 h-4" />
               </button>
@@ -430,34 +452,51 @@ export default function RoutesPage() {
           </div>
 
           {/* Calendar Grid Cells */}
-          <div className="grid grid-cols-7 gap-1">
+          <div className="grid grid-cols-7 gap-1.5">
             {calendarDays.map((item, idx) => {
-              if (!item) return <div key={idx} className="h-24 bg-slate-50/50 rounded-lg" />;
+              if (!item) return <div key={idx} className="h-28 bg-slate-50/40 rounded-xl" />;
               const isSelected = selectedCalendarDate === item.dateStr;
+              const isToday = item.dateStr === new Date().toISOString().split("T")[0];
 
               return (
                 <div
                   key={item.dateStr}
                   onClick={() => setSelectedCalendarDate(item.dateStr)}
-                  className={`h-24 p-1.5 rounded-lg border cursor-pointer transition-all flex flex-col justify-between ${
-                    isSelected ? "border-primary-600 bg-primary-50/30" : "border-border hover:border-slate-300 bg-white"
+                  className={`min-h-[110px] p-2 rounded-xl border cursor-pointer transition-all flex flex-col justify-between ${
+                    isToday
+                      ? "border-blue-600 bg-blue-50/40 shadow-sm"
+                      : isSelected
+                      ? "border-blue-400 bg-slate-50"
+                      : "border-slate-200 hover:border-slate-300 bg-white"
                   }`}
                 >
-                  <span className={`text-xs font-semibold ${isSelected ? "text-primary-600" : "text-slate-700"}`}>
-                    {item.day}
-                  </span>
+                  <div className="flex justify-between items-center mb-1">
+                    <span className={`text-xs font-bold ${isToday ? "text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded-md" : "text-slate-700"}`}>
+                      {item.day}
+                    </span>
+                    {item.dayRoutes.length > 0 && (
+                      <span className="text-[9px] font-bold text-blue-700 bg-blue-100 px-1.5 py-0.5 rounded-full">
+                        {item.dayRoutes.length} {item.dayRoutes.length === 1 ? "Route" : "Routes"}
+                      </span>
+                    )}
+                  </div>
 
-                  <div className="space-y-1 overflow-y-auto">
+                  <div className="space-y-1 overflow-y-auto max-h-20">
                     {item.dayRoutes.map((r) => (
                       <div
                         key={r.id}
                         onClick={(e) => { e.stopPropagation(); setDetailRoute(r); }}
-                        className={`px-1.5 py-0.5 rounded text-[10px] truncate font-medium ${
-                          r.status === "IN_PROGRESS" ? "bg-emerald-100 text-emerald-800" :
-                          r.status === "PENDING" ? "bg-blue-100 text-blue-800" : "bg-slate-100 text-slate-700"
+                        className={`px-2 py-1 rounded-lg text-[10px] truncate font-bold shadow-xs transition-transform hover:scale-[1.02] ${
+                          r.status === "COMPLETED"
+                            ? "bg-emerald-100 text-emerald-800 border border-emerald-200"
+                            : r.status === "IN_PROGRESS"
+                            ? "bg-amber-100 text-amber-900 border border-amber-200"
+                            : "bg-blue-100 text-blue-900 border border-blue-200"
                         }`}
+                        title={`${r.name} - Driver: ${r.driverName || "Assigned Driver"}`}
                       >
-                        {r.name}
+                        <p className="truncate">{r.name}</p>
+                        {r.driverName && <p className="text-[9px] font-normal opacity-85 truncate">👤 {r.driverName}</p>}
                       </div>
                     ))}
                   </div>
@@ -759,6 +798,142 @@ export default function RoutesPage() {
                     })}
                   </div>
                 </div>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── DELETE ROUTE CONFIRMATION MODAL ── */}
+      <AnimatePresence>
+        {routeToDelete && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden p-6 space-y-4 text-center"
+            >
+              <div className="w-14 h-14 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto border-4 border-red-100 shadow-sm">
+                <Trash2 className="w-7 h-7" />
+              </div>
+
+              <div>
+                <h3 className="font-bold text-slate-900 text-lg">Delete Route Confirmation</h3>
+                <p className="text-xs text-slate-500 mt-1">
+                  Are you sure you want to delete <strong className="text-slate-900">"{routeToDelete.name}"</strong>?
+                  This action cannot be undone and will unassign linked stops.
+                </p>
+              </div>
+
+              <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs text-left space-y-1 text-slate-600">
+                <p><strong>Route ID:</strong> <span className="font-mono text-slate-900">{routeToDelete.id.slice(0, 8)}</span></p>
+                <p><strong>Driver:</strong> {routeToDelete.driverName || "Assigned Driver"}</p>
+                <p><strong>Total Stops:</strong> {routeToDelete.stops?.length || 0}</p>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setRouteToDelete(null)}
+                  className="flex-1 py-2.5 border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition-colors text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await deleteRoute(routeToDelete.id);
+                    setRouteToDelete(null);
+                  }}
+                  className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors text-xs flex items-center justify-center gap-1.5 shadow-md shadow-red-600/20 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" /> Yes, Delete Route
+                </button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      {/* ── EDIT ROUTE CONFIRMATION MODAL ── */}
+      <AnimatePresence>
+        {routeToEdit && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden p-6 space-y-4"
+            >
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <h3 className="font-bold text-slate-900 text-base">Edit Route Assignment</h3>
+                <button onClick={() => setRouteToEdit(null)} className="text-slate-400 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="space-y-4">
+                <div>
+                  <p className="text-xs text-slate-500 mb-1">Route Name: <strong className="text-slate-700">{routeToEdit.name}</strong></p>
+                  <p className="text-xs text-slate-500">Scheduled Date: <strong className="text-slate-700">{formatDate(routeToEdit.date)}</strong></p>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Reassign Driver *</label>
+                  <select
+                    value={editForm.driverId}
+                    onChange={(e) => setEditForm({ ...editForm, driverId: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-600/20"
+                  >
+                    <option value="">Select driver...</option>
+                    {drivers.map((d: any) => (
+                      <option key={d.id} value={d.id}>{d.name}</option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Reassign Vehicle</label>
+                  <select
+                    value={editForm.vehicleId}
+                    onChange={(e) => setEditForm({ ...editForm, vehicleId: e.target.value })}
+                    className="w-full px-3 py-2 text-sm border border-slate-200 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-600/20"
+                  >
+                    <option value="">Select vehicle...</option>
+                    {vehicles.map((v: any) => (
+                      <option key={v.id} value={v.id}>{v.model} ({v.plateNumber})</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-3 border-t border-slate-100">
+                <button
+                  type="button"
+                  onClick={() => setRouteToEdit(null)}
+                  className="flex-1 py-2 text-slate-700 border border-slate-200 rounded-lg font-semibold hover:bg-slate-50 transition-colors text-xs cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    const success = await useRouteStore.getState().updateRoute(routeToEdit.id, {
+                      driverId: editForm.driverId,
+                      vehicleId: editForm.vehicleId || undefined,
+                    });
+                    if (success) {
+                      setRouteToEdit(null);
+                      fetchRoutes();
+                    } else {
+                      alert("Failed to update route assignment");
+                    }
+                  }}
+                  className="flex-1 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg font-semibold transition-colors text-xs cursor-pointer shadow-md shadow-primary-600/10"
+                >
+                  Save Changes
+                </button>
               </div>
             </motion.div>
           </div>

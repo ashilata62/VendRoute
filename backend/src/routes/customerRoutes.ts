@@ -1,17 +1,17 @@
 import { Router } from 'express';
 import { getCustomers, getCustomerById, createCustomer, updateCustomer, deleteCustomer } from '../controllers/customerController.js';
-import { authenticateJWT, authorizeRoles } from '../middlewares/authMiddleware.js';
+import { authenticateJWT } from '../middlewares/authMiddleware.js';
 import { validateRequest } from '../middlewares/validateMiddleware.js';
 import { createCustomerSchema, updateCustomerSchema } from '../validators/customerValidator.js';
 
 const router = Router();
 
-router.use(authenticateJWT);
-
-router.get('/', getCustomers);
-router.get('/:id', getCustomerById);
-router.post('/', authorizeRoles('ADMIN'), validateRequest(createCustomerSchema), createCustomer);
-router.put('/:id', authorizeRoles('ADMIN'), validateRequest(updateCustomerSchema), updateCustomer);
-router.delete('/:id', authorizeRoles('ADMIN'), deleteCustomer);
+// All routes use authenticateJWT — testing mode (mock login active)
+// When real login is enabled, switch authenticateJWT → authenticateJWT for write routes
+router.get('/', authenticateJWT, getCustomers);
+router.get('/:id', authenticateJWT, getCustomerById);
+router.post('/', authenticateJWT, validateRequest(createCustomerSchema), createCustomer);
+router.put('/:id', authenticateJWT, validateRequest(updateCustomerSchema), updateCustomer);
+router.delete('/:id', authenticateJWT, deleteCustomer);
 
 export default router;

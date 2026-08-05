@@ -11,13 +11,14 @@ import {
 import {
   Route as RouteIcon, Users, CheckCircle2, XCircle, TrendingUp, AlertTriangle,
   AlertOctagon, MapPin, Plus, UserPlus, FileText, RefreshCw, Layers,
-  BellCheck, X, ArrowUpRight
+  BellCheck, X, ArrowUpRight, Info
 } from "lucide-react";
 
 import { useRouteStore } from "../store/routeStore";
 import { useTrackingStore } from "../store/trackingStore";
 import { useLocationStore } from "../store/locationStore";
 import { useAuthStore } from "../store/authStore";
+import { useNotificationStore } from "../store/notificationStore";
 import PageHeader from "../components/shared/PageHeader";
 import { formatCurrency } from "../lib/utils";
 import { reportsApi } from "../services/api";
@@ -55,27 +56,27 @@ function MapController({ center }: { center: [number, number] }) {
   return null;
 }
 
-// Initial Live Alerts Data
-const initialAlerts = [
-  { id: "a1", type: "emergency", title: "Machine Offline", msg: "Machine M-007 at RCF Colony has lost power connection.", time: "2 mins ago", severity: "Critical", read: false },
-  { id: "a2", type: "machine", title: "Cooler Fan Noise", msg: "Cooler fan malfunction at Nesco IT Park (M-003).", time: "14 mins ago", severity: "Warning", read: false },
-  { id: "a3", type: "missed", title: "Missed Stop Alert", msg: "Driver Arjun Sharma missed scheduled stop at Powai Tech Hub.", time: "28 mins ago", severity: "Critical", read: false },
-  { id: "a4", type: "route", title: "Route Delay", msg: "Traffic delay of 20 mins reported on Central Zone Sweep.", time: "45 mins ago", severity: "Info", read: false },
-  { id: "a5", type: "machine", title: "Stock Low Warning", msg: "Snack machine M-013 inventory below 15%.", time: "1 hour ago", severity: "Warning", read: true },
-  { id: "a6", type: "route", title: "Route Started", msg: "Priya Patel started Eastern Route - Hospitals.", time: "2 hours ago", severity: "Info", read: true },
-  { id: "a7", type: "emergency", title: "Cash Box Tamper", msg: "Security alert triggered at Chhatrapati Terminal T2 (M-010).", time: "3 hours ago", severity: "Critical", read: true },
-  { id: "a8", type: "machine", title: "Maintenance Completed", msg: "Technician resolved coin acceptor issue at Oberoi Mall.", time: "4 hours ago", severity: "Info", read: true },
-];
+// Helper: format relative time from ISO timestamp
+function timeAgo(ts: string): string {
+  if (!ts) return "";
+  const diff = Date.now() - new Date(ts).getTime();
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(diff / 3600000);
+  if (hours > 24) return `${Math.floor(hours / 24)}d ago`;
+  if (hours > 0) return `${hours}h ago`;
+  if (mins > 0) return `${mins} mins ago`;
+  return "Just now";
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const isSupervisor = user?.role === "supervisor";
   const { routes } = useRouteStore();
-  const { drivers, liveLocations } = useTrackingStore();
+  const { drivers, liveLocations, seedLocationsFromDrivers } = useTrackingStore();
   const { locations } = useLocationStore();
+  const { notifications, unreadCount, fetchNotifications, markAsRead, markAllRead } = useNotificationStore();
 
-  const [alerts, setAlerts] = useState(initialAlerts);
   const [mapCenter, setMapCenter] = useState<[number, number]>([19.0760, 72.8777]);
   const [movingLocations, setMovingLocations] = useState(liveLocations);
   const [mapTile, setMapTile] = useState<"standard" | "satellite">("standard");
@@ -85,8 +86,15 @@ export default function DashboardPage() {
 
   useEffect(() => {
     reportsApi.getDashboard().then((res) => {
-      if (res.success) setDbStats(res.data);
+      if (res.success) {
+        setDbStats(res.data);
+        // Seed map pins with real driver UUIDs if available
+        if (res.data?.driverIds?.length > 0) {
+          seedLocationsFromDrivers(res.data.driverIds);
+        }
+      }
     }).catch(() => {});
+    fetchNotifications();
   }, []);
 
   // Metrics — real DB values with fallback
@@ -97,7 +105,7 @@ export default function DashboardPage() {
   const totalStopsCount = dbStats?.stops?.total ?? 0;
   const missedStopsCount = 0;
   const machineAlertsCount = dbStats?.machines?.alerts ?? 0;
-  const todayRevenue = 0; // Will be real from future cash-collection API
+  const todayRevenue = 0;
 
   // Donut chart machine status
   const machineStatusCounts = useMemo(() => {
@@ -111,18 +119,31 @@ export default function DashboardPage() {
     ];
   }, [locations]);
 
-  // Live Auto-Refresh is now handled by the centralized trackingStore via WebSockets.
-  // We can just use liveLocations from trackingStore directly.
   useEffect(() => {
     setMovingLocations(liveLocations);
   }, [liveLocations]);
 
+  // Map backend notification type → dashboard icon type
+  const notifTypeToAlertType = (type: string) => {
+    if (type === "error") return "emergency";
+    if (type === "warning") return "machine";
+    if (type === "success") return "route";
+    return "route"; // info
+  };
+
+  // Map backend notification type → severity label
+  const notifTypeToSeverity = (type: string) => {
+    if (type === "error") return "Critical";
+    if (type === "warning") return "Warning";
+    return "Info";
+  };
+
   const handleMarkAllRead = () => {
-    setAlerts((prev) => prev.map((a) => ({ ...a, read: true })));
+    markAllRead();
   };
 
   const handleDismissAlert = (id: string) => {
-    setAlerts((prev) => prev.filter((a) => a.id !== id));
+    markAsRead(id);
   };
 
   // Active Route Progress calculation
@@ -396,9 +417,9 @@ export default function DashboardPage() {
           <div className="p-4 border-b border-border flex items-center justify-between">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-slate-900 text-sm">Live Alerts Feed</h3>
-              {alerts.filter((a) => !a.read).length > 0 && (
+              {unreadCount > 0 && (
                 <span className="bg-danger text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full">
-                  {alerts.filter((a) => !a.read).length} new
+                  {unreadCount} new
                 </span>
               )}
             </div>
@@ -412,7 +433,9 @@ export default function DashboardPage() {
 
           <div className="flex-1 overflow-y-auto p-3 space-y-2">
             <AnimatePresence>
-              {alerts.map((alert) => {
+              {notifications.map((notif) => {
+                const alertType = notifTypeToAlertType(notif.type);
+                const severity = notifTypeToSeverity(notif.type);
                 const severityStyles: Record<string, string> = {
                   Critical: "bg-red-50 text-red-700 border-red-200",
                   Warning: "bg-amber-50 text-amber-700 border-amber-200",
@@ -420,59 +443,60 @@ export default function DashboardPage() {
                 };
 
                 const renderIcon = () => {
-                  switch (alert.type) {
+                  switch (alertType) {
                     case "emergency":
                       return <AlertOctagon className="w-4 h-4 text-red-600" />;
-                    case "missed":
-                      return <XCircle className="w-4 h-4 text-red-500" />;
                     case "machine":
                       return <AlertTriangle className="w-4 h-4 text-amber-600" />;
                     case "route":
+                      return <CheckCircle2 className="w-4 h-4 text-emerald-600" />;
                     default:
-                      return <MapPin className="w-4 h-4 text-blue-600" />;
+                      return <Info className="w-4 h-4 text-blue-600" />;
                   }
                 };
 
                 return (
                   <motion.div
-                    key={alert.id}
+                    key={notif.id}
                     layout
                     initial={{ opacity: 0, x: 20 }}
                     animate={{ opacity: 1, x: 0 }}
                     exit={{ opacity: 0, x: -20 }}
                     className={`p-3 rounded-lg border text-xs relative group transition-colors ${
-                      alert.read ? "bg-slate-50 border-border" : "bg-white border-blue-200 shadow-sm"
+                      notif.read ? "bg-slate-50 border-border" : "bg-white border-blue-200 shadow-sm"
                     }`}
                   >
                     <div className="flex items-start gap-2.5">
                       <div className="mt-0.5 flex-shrink-0">{renderIcon()}</div>
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center justify-between gap-1">
-                          <p className="font-semibold text-slate-900 truncate">{alert.title}</p>
-                          <span className="text-[10px] text-slate-400 flex-shrink-0">{alert.time}</span>
+                          <p className="font-semibold text-slate-900 truncate">{notif.title}</p>
+                          <span className="text-[10px] text-slate-400 flex-shrink-0">{timeAgo(notif.timestamp)}</span>
                         </div>
-                        <p className="text-slate-600 mt-1 line-clamp-2">{alert.msg}</p>
+                        <p className="text-slate-600 mt-1 line-clamp-2">{notif.message}</p>
                         <div className="mt-2 flex items-center justify-between">
-                          <span className={`px-2 py-0.5 rounded-full border text-[10px] font-medium ${severityStyles[alert.severity]}`}>
-                            {alert.severity}
+                          <span className={`px-2 py-0.5 rounded-full border text-[10px] font-medium ${severityStyles[severity]}`}>
+                            {severity}
                           </span>
-                          {!alert.read && <span className="w-2 h-2 rounded-full bg-blue-600" />}
+                          {!notif.read && <span className="w-2 h-2 rounded-full bg-blue-600" />}
                         </div>
                       </div>
-                      <button
-                        onClick={() => handleDismissAlert(alert.id)}
-                        className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-600 transition-opacity"
-                        title="Dismiss"
-                      >
-                        <X className="w-3.5 h-3.5" />
-                      </button>
+                      {!notif.read && (
+                        <button
+                          onClick={() => handleDismissAlert(notif.id)}
+                          className="opacity-0 group-hover:opacity-100 p-1 text-slate-400 hover:text-slate-600 transition-opacity"
+                          title="Mark as read"
+                        >
+                          <X className="w-3.5 h-3.5" />
+                        </button>
+                      )}
                     </div>
                   </motion.div>
                 );
               })}
             </AnimatePresence>
 
-            {alerts.length === 0 && (
+            {notifications.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-slate-400 py-12">
                 <BellCheck className="w-8 h-8 opacity-30 mb-2" />
                 <p className="text-xs font-medium">No active alerts</p>

@@ -65,25 +65,27 @@ export const useAuthStore = create<AuthState>()(
       },
 
       fetchMe: async () => {
-        const { isAuthenticated } = get();
-        if (!isAuthenticated) return;
+        const { getToken } = await import("../services/api");
+        const token = getToken();
+        if (!token) return;
         try {
           const res = await authApi.me();
-          if (res.success && res.user) {
+          if (res.success && res.data) {
+            const userData = res.data;
             const user: AuthUser = {
-              id: res.user.id,
-              name: res.user.name,
-              email: res.user.email,
-              role: mapRole(res.user.role),
+              id: userData.id,
+              name: userData.name,
+              email: userData.email,
+              role: mapRole(userData.role),
               avatar:
-                res.user.avatar ||
-                `https://ui-avatars.com/api/?name=${encodeURIComponent(res.user.name)}&background=2563EB&color=fff`,
-              phone: (res.user as any).phone || undefined,
-              address: (res.user as any).address || undefined,
-              licenseNumber: (res.user as any).licenseNumber || undefined,
-              emergencyContact: (res.user as any).emergencyContact || undefined,
+                userData.avatar ||
+                `https://ui-avatars.com/api/?name=${encodeURIComponent(userData.name)}&background=2563EB&color=fff`,
+              phone: userData.phone || undefined,
+              address: userData.address || undefined,
+              licenseNumber: userData.licenseNumber || undefined,
+              emergencyContact: userData.emergencyContact || undefined,
             };
-            set({ user });
+            set({ user, isAuthenticated: true });
           }
         } catch {
           // Token expired ya invalid — logout kar do

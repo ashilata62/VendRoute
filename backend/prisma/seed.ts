@@ -9,33 +9,47 @@ async function main() {
   // Hash passwords
   const hashedPassword = await bcrypt.hash('password123', 10);
 
-  // 1. Create Admin User
+  // Clear existing data (to prevent unique constraint errors on re-run)
+  console.log('🧹 Clearing old data...');
+  await prisma.routeStop.deleteMany();
+  await prisma.route.deleteMany();
+  await prisma.machine.deleteMany();
+  await prisma.location.deleteMany();
+  await prisma.customer.deleteMany();
+  await prisma.vehicle.deleteMany();
+
+  // 1. Create all Demo Users (upsert = create if not exists, skip if exists)
   const admin = await prisma.user.upsert({
     where: { email: 'admin@vendroute.com' },
     update: {},
-    create: {
-      name: 'Admin User',
-      email: 'admin@vendroute.com',
-      password: hashedPassword,
-      role: 'ADMIN',
-      phone: '+919876543210',
-    },
+    create: { name: 'Admin User', email: 'admin@vendroute.com', password: hashedPassword, role: 'ADMIN', phone: '+919876543210' },
   });
-  console.log('✅ Created Admin:', admin.email);
 
-  // 2. Create Driver User
+  const adminIn = await prisma.user.upsert({
+    where: { email: 'admin@vendroute.in' },
+    update: {},
+    create: { name: 'Rohit Kapoor', email: 'admin@vendroute.in', password: hashedPassword, role: 'ADMIN', phone: '+919876500001' },
+  });
+
+  const managerIn = await prisma.user.upsert({
+    where: { email: 'manager@vendroute.in' },
+    update: {},
+    create: { name: 'Sunita Agarwal', email: 'manager@vendroute.in', password: hashedPassword, role: 'SUPERVISOR', phone: '+919876500002' },
+  });
+
+  const driverIn = await prisma.user.upsert({
+    where: { email: 'driver@vendroute.in' },
+    update: {},
+    create: { name: 'Arjun Sharma', email: 'driver@vendroute.in', password: hashedPassword, role: 'DRIVER', phone: '+919876500003' },
+  });
+
   const driver = await prisma.user.upsert({
     where: { email: 'driver@vendroute.com' },
     update: {},
-    create: {
-      name: 'Rahul Sharma',
-      email: 'driver@vendroute.com',
-      password: hashedPassword,
-      role: 'DRIVER',
-      phone: '+919812345678',
-    },
+    create: { name: 'Rahul Sharma', email: 'driver@vendroute.com', password: hashedPassword, role: 'DRIVER', phone: '+919812345678' },
   });
-  console.log('✅ Created Driver:', driver.email);
+
+  console.log('✅ Created Users:', [admin, adminIn, managerIn, driverIn, driver].map(u => u.email).join(', '));
 
   // 3. Create Customers
   const customer1 = await prisma.customer.create({
@@ -114,19 +128,42 @@ async function main() {
 
   console.log('✅ Created 3 Vending Machines');
 
+  // 5.5 Create Vehicles
+  const vehicle1 = await prisma.vehicle.create({
+    data: {
+      model: 'Tata Ace Gold',
+      plateNumber: 'MH-01-AB-1234',
+      type: 'van',
+      fuelType: 'diesel',
+      assignedDriverId: driverIn.id,
+    },
+  });
+
+  const vehicle2 = await prisma.vehicle.create({
+    data: {
+      model: 'Mahindra Bolero',
+      plateNumber: 'MH-01-CD-5678',
+      type: 'truck',
+      fuelType: 'diesel',
+      assignedDriverId: driver.id,
+    },
+  });
+  console.log('✅ Created 2 Vehicles');
+
   // 6. Create Route & Stops for Driver
   const route = await prisma.route.create({
     data: {
-      driverId: driver.id,
-      title: 'Morning Refill Route - Sector 62',
-      scheduledDate: new Date(),
+      driverId: driverIn.id,
+      vehicleId: vehicle1.id,
+      name: 'North Mumbai Morning Run',
+      date: new Date().toISOString().split("T")[0],
       status: 'IN_PROGRESS',
       stops: {
         create: [
           {
             locationId: location1.id,
             stopOrder: 1,
-            status: 'COMPLETED',
+            status: 'PENDING',
           },
           {
             locationId: location2.id,
@@ -138,7 +175,7 @@ async function main() {
     },
   });
 
-  console.log('✅ Created Driver Route:', route.title);
+  console.log('✅ Created Driver Route:', route.name);
   console.log('🎉 Seeding Completed Successfully!');
 }
 

@@ -1,4 +1,5 @@
 import { Info, AlertTriangle, CheckCircle, XCircle, Check, CheckCheck } from "lucide-react";
+import { useEffect } from "react";
 import { useNotificationStore } from "../store/notificationStore";
 import PageHeader from "../components/shared/PageHeader";
 import { cn } from "../lib/utils";
@@ -21,7 +22,12 @@ function timeAgo(ts: string): string {
 }
 
 export default function NotificationsPage() {
-  const { notifications, unreadCount, markAsRead, markAllRead } = useNotificationStore();
+  const { notifications, unreadCount, markAsRead, markAllRead, fetchNotifications, isLoading } = useNotificationStore();
+
+  useEffect(() => {
+    fetchNotifications();
+  }, []);
+
   const unread = notifications.filter((n) => !n.read);
   const read = notifications.filter((n) => n.read);
 

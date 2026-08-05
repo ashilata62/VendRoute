@@ -24,14 +24,45 @@ export class LocationService {
   }
 
   static async create(data: any) {
-    return await prisma.location.create({ data });
+    const { customerId, name, address, city, latitude, longitude, imageUrl, products } = data;
+    return await prisma.location.create({
+      data: {
+        customerId,
+        name,
+        address,
+        city,
+        latitude: parseFloat(latitude) || 0,
+        longitude: parseFloat(longitude) || 0,
+        imageUrl: imageUrl || null,
+        products: products || [],
+      },
+    });
   }
 
   static async update(id: string, data: any) {
-    return await prisma.location.update({ where: { id }, data });
+    const { customerId, name, address, city, latitude, longitude, imageUrl, products } = data;
+    const updateData: any = {};
+    if (customerId) updateData.customerId = customerId;
+    if (name) updateData.name = name;
+    if (address) updateData.address = address;
+    if (city) updateData.city = city;
+    if (latitude !== undefined) updateData.latitude = parseFloat(latitude) || 0;
+    if (longitude !== undefined) updateData.longitude = parseFloat(longitude) || 0;
+    if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
+    if (products !== undefined) updateData.products = products;
+
+    return await prisma.location.update({
+      where: { id },
+      data: updateData,
+    });
   }
 
   static async delete(id: string) {
+    // 1. Delete linked route stops
+    await prisma.routeStop.deleteMany({ where: { locationId: id } });
+    // 2. Delete linked vending machines
+    await prisma.machine.deleteMany({ where: { locationId: id } });
+    // 3. Delete location record
     return await prisma.location.delete({ where: { id } });
   }
 }

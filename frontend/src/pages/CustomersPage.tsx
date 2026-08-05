@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Building2, Phone, Mail, Search, Plus,
-  Download, ExternalLink, X, Check, ArrowRight, Loader2, AlertCircle
+  Download, ExternalLink, X, Check, ArrowRight, Loader2, AlertCircle, Edit3, Trash2
 } from "lucide-react";
 
 import PageHeader from "../components/shared/PageHeader";
@@ -44,11 +44,19 @@ export default function CustomersPage() {
   const [search, setSearch] = useState("");
   const [currentPage, setCurrentPage] = useState(1);
   const [selectedCustomer, setSelectedCustomer] = useState<BackendCustomer | null>(null);
+  // ── Add Customer UI state ───────────────────────────────────────────────────
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
   const [addForm, setAddForm] = useState(emptyForm);
   const [addLoading, setAddLoading] = useState(false);
   const [addSuccess, setAddSuccess] = useState(false);
   const [addError, setAddError] = useState("");
+
+  // ── Edit & Delete UI state ───────────────────────────────────────────────────
+  const [editingCustomer, setEditingCustomer] = useState<BackendCustomer | null>(null);
+  const [editForm, setEditForm] = useState(emptyForm);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState("");
+  const [customerToDelete, setCustomerToDelete] = useState<BackendCustomer | null>(null);
 
   // ── Fetch customers from backend ────────────────────────────────────────────
   const fetchCustomers = async () => {
@@ -99,12 +107,13 @@ export default function CustomersPage() {
   const itemsPerPage = 6;
 
   const filteredCustomers = useMemo(() => {
+    const s = search.toLowerCase();
     return customers.filter((c) => {
-      return (
-        !search ||
-        c.companyName.toLowerCase().includes(search.toLowerCase()) ||
-        c.contactPerson.toLowerCase().includes(search.toLowerCase())
-      );
+      if (!s) return true;
+      const comp = (c.companyName || "").toLowerCase();
+      const cont = (c.contactPerson || "").toLowerCase();
+      const phone = (c.phone || "").toLowerCase();
+      return comp.includes(s) || cont.includes(s) || phone.includes(s);
     });
   }, [customers, search]);
 
@@ -161,7 +170,7 @@ export default function CustomersPage() {
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-400" />
           <input
             type="text"
-            placeholder="Search by company name or contact..."
+            placeholder="Search by company name, contact, or phone..."
             value={search}
             onChange={(e) => { setSearch(e.target.value); setCurrentPage(1); }}
             className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20"
@@ -253,12 +262,42 @@ export default function CustomersPage() {
                     {new Date(c.createdAt).toLocaleDateString("en-IN")}
                   </span>
                 </div>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setSelectedCustomer(c); }}
-                  className="text-xs text-primary-600 font-semibold hover:underline flex items-center gap-1"
-                >
-                  View Details <ArrowRight className="w-3.5 h-3.5" />
-                </button>
+
+                <div className="flex items-center gap-1.5">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setEditingCustomer(c);
+                      setEditForm({
+                        companyName: c.companyName,
+                        contact: c.contactPerson,
+                        email: c.email,
+                        phone: c.phone,
+                        industry: c.industry || "",
+                      });
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-colors cursor-pointer"
+                    title="Edit Customer"
+                  >
+                    <Edit3 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setCustomerToDelete(c);
+                    }}
+                    className="p-1.5 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors cursor-pointer"
+                    title="Delete Customer"
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </button>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); setSelectedCustomer(c); }}
+                    className="text-xs text-primary-600 font-semibold hover:underline flex items-center gap-1 ml-1"
+                  >
+                    View <ArrowRight className="w-3.5 h-3.5" />
+                  </button>
+                </div>
               </div>
             </motion.div>
           ))}
@@ -365,20 +404,6 @@ export default function CustomersPage() {
                     </p>
                   </div>
                 </div>
-
-                {/* Download Contract Button (UI only) */}
-                <div className="bg-slate-50 p-4 rounded-xl border border-border flex items-center justify-between">
-                  <div>
-                    <span className="text-[10px] uppercase font-bold text-slate-400">Master Service Agreement</span>
-                    <p className="text-xs text-slate-600 mt-1">Download the service agreement PDF for this customer.</p>
-                  </div>
-                  <button
-                    onClick={() => alert(`Downloading contract for ${selectedCustomer.companyName}...`)}
-                    className="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white text-xs font-semibold rounded-lg shadow-sm flex items-center gap-1.5"
-                  >
-                    <Download className="w-3.5 h-3.5" /> Download PDF
-                  </button>
-                </div>
               </div>
             </motion.div>
           </div>
@@ -453,6 +478,147 @@ export default function CustomersPage() {
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* EDIT CUSTOMER MODAL */}
+      {editingCustomer && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md p-6 space-y-4">
+            <div className="flex justify-between items-center border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <Edit3 className="w-4 h-4 text-blue-600" /> Edit Customer Profile
+              </h3>
+              <button onClick={() => setEditingCustomer(null)} className="text-slate-400 hover:text-slate-600 cursor-pointer">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            <form onSubmit={async (e) => {
+              e.preventDefault();
+              setEditLoading(true);
+              setEditError("");
+              try {
+                const res = await customersApi.update(editingCustomer.id, {
+                  companyName: editForm.companyName,
+                  contactPerson: editForm.contact,
+                  email: editForm.email,
+                  phone: editForm.phone,
+                  industry: editForm.industry || undefined,
+                });
+                if (res.success) {
+                  fetchCustomers();
+                  setEditingCustomer(null);
+                } else {
+                  setEditError("Failed to update customer details.");
+                }
+              } catch (err: any) {
+                setEditError(err.message || "Failed to update customer.");
+              } finally {
+                setEditLoading(false);
+              }
+            }} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Company Name *</label>
+                <input required value={editForm.companyName}
+                  onChange={(e) => setEditForm({ ...editForm, companyName: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20" />
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Primary Contact *</label>
+                  <input required value={editForm.contact}
+                    onChange={(e) => setEditForm({ ...editForm, contact: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20" />
+                </div>
+                <div>
+                  <label className="block text-xs font-semibold text-slate-700 mb-1">Industry</label>
+                  <input value={editForm.industry}
+                    onChange={(e) => setEditForm({ ...editForm, industry: e.target.value })}
+                    className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20" />
+                </div>
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Email Address *</label>
+                <input type="email" required value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20" />
+              </div>
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">Phone Number *</label>
+                <input required value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  className="w-full px-3 py-2 text-xs border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20" />
+              </div>
+
+              {editError && (
+                <p className="text-xs text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-xl flex items-center gap-2">
+                  <AlertCircle className="w-3.5 h-3.5" /> {editError}
+                </p>
+              )}
+
+              <div className="flex justify-end gap-2 pt-2">
+                <button type="button" onClick={() => setEditingCustomer(null)}
+                  className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl cursor-pointer">
+                  Cancel
+                </button>
+                <button type="submit" disabled={editLoading}
+                  className="px-4 py-2 text-xs font-semibold text-white bg-blue-600 hover:bg-blue-700 disabled:opacity-60 rounded-xl shadow-sm cursor-pointer flex items-center gap-1.5">
+                  {editLoading ? <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Updating...</> : "Save Changes"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* DELETE CUSTOMER CONFIRMATION MODAL */}
+      {customerToDelete && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-sm">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md p-6 space-y-4 text-center">
+            <div className="w-14 h-14 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto border-4 border-red-100 shadow-sm">
+              <Trash2 className="w-7 h-7" />
+            </div>
+
+            <div>
+              <h3 className="font-bold text-slate-900 text-lg">Delete Customer Confirmation</h3>
+              <p className="text-xs text-slate-500 mt-1">
+                Are you sure you want to delete <strong className="text-slate-900">"{customerToDelete.companyName}"</strong>?
+                This action cannot be undone and will unlink associated vending sites.
+              </p>
+            </div>
+
+            <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 text-xs text-left space-y-1 text-slate-600">
+              <p><strong>Company:</strong> {customerToDelete.companyName}</p>
+              <p><strong>Primary Contact:</strong> {customerToDelete.contactPerson}</p>
+              <p><strong>Linked Vending Sites:</strong> {customerToDelete.locations?.length || 0}</p>
+            </div>
+
+            <div className="flex gap-3 pt-2">
+              <button
+                type="button"
+                onClick={() => setCustomerToDelete(null)}
+                className="flex-1 py-2.5 border border-slate-200 text-slate-700 rounded-xl font-bold hover:bg-slate-50 transition-colors text-xs cursor-pointer"
+              >
+                Cancel
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  try {
+                    await customersApi.delete(customerToDelete.id);
+                    fetchCustomers();
+                    setCustomerToDelete(null);
+                  } catch (err: any) {
+                    alert(err.message || "Failed to delete customer.");
+                  }
+                }}
+                className="flex-1 py-2.5 bg-red-600 hover:bg-red-700 text-white rounded-xl font-bold transition-colors text-xs flex items-center justify-center gap-1.5 shadow-md shadow-red-600/20 cursor-pointer"
+              >
+                <Trash2 className="w-4 h-4" /> Yes, Delete Customer
+              </button>
+            </div>
           </div>
         </div>
       )}
