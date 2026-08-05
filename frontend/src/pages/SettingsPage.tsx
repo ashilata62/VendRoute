@@ -97,23 +97,28 @@ export default function SettingsPage() {
   };
 
   const handleSave = async () => {
-    // Apply theme locally (browser-side)
-    localStorage.setItem("app-theme", companyForm.theme);
-    localStorage.setItem("company-logo", companyForm.logo);
-    const root = document.documentElement;
-    if (companyForm.theme === "Dark") {
-      root.classList.add("dark");
-    } else if (companyForm.theme === "Light") {
-      root.classList.remove("dark");
-    } else {
-      const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
-      if (systemPrefersDark) root.classList.add("dark");
-      else root.classList.remove("dark");
-    }
-    window.dispatchEvent(new Event("storage"));
-
-    // Save everything to backend DB
     try {
+      // Apply theme locally (browser-side)
+      try {
+        localStorage.setItem("app-theme", companyForm.theme);
+        localStorage.setItem("company-logo", companyForm.logo);
+      } catch (storageErr) {
+        console.warn("Could not save to localStorage (might be too large)", storageErr);
+      }
+      
+      const root = document.documentElement;
+      if (companyForm.theme === "Dark") {
+        root.classList.add("dark");
+      } else if (companyForm.theme === "Light") {
+        root.classList.remove("dark");
+      } else {
+        const systemPrefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
+        if (systemPrefersDark) root.classList.add("dark");
+        else root.classList.remove("dark");
+      }
+      window.dispatchEvent(new Event("storage"));
+
+      // Save everything to backend DB
       await settingsApi.save({
         company: companyForm,
         routing: routeHoursForm,
@@ -125,12 +130,13 @@ export default function SettingsPage() {
         attendanceRules,
         apiForm,
       });
-    } catch (err) {
+      
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    } catch (err: any) {
       console.error("Failed to save settings to backend", err);
+      alert("Error saving settings: " + (err.message || "Unknown error"));
     }
-
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
   };
 
   const [machineTypes, setMachineTypes] = useState<string[]>([]);

@@ -626,7 +626,7 @@ export default function ReportsPage() {
       rows = [["Vehicle Number", "Type", "Status", "Driver"]];
       vehicles.forEach((v: any) => {
         rows.push([
-          v.vehicleNumber || "",
+          v.plateNumber || "",
           v.type || "",
           v.status || "",
           v.driver?.name || "",
@@ -679,7 +679,7 @@ export default function ReportsPage() {
               className="flex items-center gap-2 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 transition-colors px-4 py-2 rounded-lg"
             >
               <DownloadCloud className="w-3.5 h-3.5" />
-              Export PDF
+              Export CSV
             </button>
           </div>
         }

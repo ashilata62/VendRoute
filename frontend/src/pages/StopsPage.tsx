@@ -34,14 +34,11 @@ export default function StopsPage() {
   // Filtered Stops Logic
   const filteredStops = useMemo(() => {
     return stopsList.filter((s) => {
-      const locName = s.location?.name || s.location?.customer?.companyName || "";
+      const searchStr = `${s.location?.name || ""} ${s.location?.customer?.companyName || ""} ${s.location?.address || ""} ${s.id}`.toLowerCase();
       const matchStatus = statusFilter === "all" || s.status.toLowerCase() === statusFilter.toLowerCase();
       const matchDriver = driverFilter === "all" || s.route?.driver?.id === driverFilter;
       const matchRoute = routeFilter === "all" || s.routeId === routeFilter;
-      const matchSearch =
-        !search ||
-        locName.toLowerCase().includes(search.toLowerCase()) ||
-        s.id.toLowerCase().includes(search.toLowerCase());
+      const matchSearch = !search || searchStr.includes(search.toLowerCase());
 
       return matchStatus && matchDriver && matchRoute && matchSearch;
     });
@@ -411,8 +408,8 @@ export default function StopsPage() {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 {galleryModalPhotos.map((url, i) => (
-                  <div key={i} className="aspect-video rounded-lg overflow-hidden bg-slate-100 border border-border">
-                    <img src={url} alt={`Photo ${i + 1}`} className="w-full h-full object-cover" />
+                  <div key={i} className="aspect-video rounded-lg overflow-hidden bg-slate-100 border border-border flex items-center justify-center p-2">
+                    <img src={url} alt={`Photo ${i + 1}`} className="max-w-full max-h-full object-contain" />
                   </div>
                 ))}
               </div>

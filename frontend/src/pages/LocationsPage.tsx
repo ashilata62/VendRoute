@@ -173,12 +173,9 @@ export default function LocationsPage() {
       } else {
         await locationsApi.create(payload);
       }
-      setSaveSuccess(true);
       await fetchData();
-      setTimeout(() => {
-        setSaveSuccess(false);
-        setIsModalOpen(false);
-      }, 1200);
+      alert("Location saved successfully!");
+      setIsModalOpen(false);
     } catch (err: any) {
       setSaveError(err?.message || "Failed to save location");
     } finally {
@@ -624,11 +621,7 @@ export default function LocationsPage() {
                   )}
                 </div>
 
-                {saveSuccess && (
-                  <p className="text-xs text-emerald-700 bg-emerald-50 border border-emerald-200 px-3 py-2 rounded-xl flex items-center gap-2">
-                    <Check className="w-3.5 h-3.5" /> Location saved successfully!
-                  </p>
-                )}
+
                 {saveError && (
                   <p className="text-xs text-red-700 bg-red-50 border border-red-200 px-3 py-2 rounded-xl flex items-center gap-2">
                     <AlertCircle className="w-3.5 h-3.5" /> {saveError}
