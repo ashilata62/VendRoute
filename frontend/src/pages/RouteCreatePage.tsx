@@ -50,10 +50,7 @@ export default function RouteCreatePage() {
   }, []);
 
   const fetchOSRMRoute = async (stops: string[]) => {
-    if (stops.length < 2) {
-      setForm(f => ({ ...f, totalDistance: 0, estimatedTime: 0 }));
-      return;
-    }
+    if (stops.length < 2) return;
     setCalculatingRoute(true);
     try {
       const coords = stops.map(stopId => {

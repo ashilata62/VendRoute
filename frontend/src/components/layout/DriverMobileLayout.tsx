@@ -7,7 +7,7 @@ import {
   Navigation, ShieldCheck, QrCode
 } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
-import { stopsApi, routesApi } from "../../services/api";
+import { stopsApi, routesApi, usersApi } from "../../services/api";
 // mock import removed — all data is now loaded from backend API
 import { cn } from "../../lib/utils";
 import brandLogo from "../../assets/maryland-logo.png";
@@ -26,14 +26,23 @@ export default function DriverMobileLayout() {
   const [gpsVerified, setGpsVerified] = useState(false);
   const [trackingActive, setTrackingActive] = useState(false);
   const [lastLocation, setLastLocation] = useState<{lat: number, lng: number} | null>(null);
-  const [isOnline, setIsOnline] = useState(navigator.onLine);
+  
+  // Persist manual toggle in localStorage so it doesn't reset on reload
+  const [isOnline, setIsOnline] = useState(() => {
+    const saved = localStorage.getItem("driver_manual_status");
+    if (saved !== null) return saved === "online";
+    return navigator.onLine;
+  });
   const [showScanner, setShowScanner] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
   const [syncing, setSyncing] = useState(false);
 
   useEffect(() => {
     const handleOnline = () => {
-      setIsOnline(true);
+      // Only set to true if they haven't manually gone offline
+      if (localStorage.getItem("driver_manual_status") !== "offline") {
+        setIsOnline(true);
+      }
       const cached = localStorage.getItem("pending_stops_sync");
       if (cached) {
         setSyncing(true);
@@ -45,6 +54,7 @@ export default function DriverMobileLayout() {
       }
     };
     const handleOffline = () => {
+      // Browser lost internet
       setIsOnline(false);
     };
 
@@ -72,6 +82,7 @@ export default function DriverMobileLayout() {
   // Driver route stops
   const [stopsList, setStopsList] = useState<any[]>([]);
   const [historyRoutes, setHistoryRoutes] = useState<any[]>([]);
+  const [driverAllRoutes, setDriverAllRoutes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
   const fetchStops = async () => {
@@ -94,6 +105,7 @@ export default function DriverMobileLayout() {
           (r.stops && r.stops.length > 0 && r.stops.every((st: any) => st.status === "COMPLETED" || st.status === "SKIPPED"))
         );
         setHistoryRoutes(completed);
+        setDriverAllRoutes(driverRoutes);
       }
     } catch (e) {
       console.error(e);
@@ -246,6 +258,39 @@ export default function DriverMobileLayout() {
     setShowMachineDetails(false);
   };
 
+  const handleSkipStop = async () => {
+    if (!currentStop) return;
+    
+    if (!window.confirm("Are you sure you want to SKIP this stop? A notification will be sent to the admin.")) return;
+
+    if (!isOnline) {
+      alert("Offline Mode: Cannot skip stops while offline. Please connect to internet.");
+      return;
+    }
+
+    try {
+      setSyncing(true);
+      const res = await routesApi.updateStopStatus(currentStop.id, "SKIPPED", currentStop.route?.name, currentStop.location?.name);
+      if (res.success) {
+        await fetchStops();
+      }
+    } catch (err) {
+      alert("Failed to skip stop");
+    } finally {
+      setSyncing(false);
+    }
+    
+    // Reset inputs
+    setIsCheckedIn(false);
+    setGpsVerified(false);
+    setCashCollected("");
+    setStopNotes("");
+    setReportedIssue("");
+    setIsSigned(false);
+    setSelectedStopId(null);
+    setShowMachineDetails(false);
+  };
+
   const handleLogout = () => {
     logout();
     navigate("/login");
@@ -278,9 +323,18 @@ export default function DriverMobileLayout() {
           </div>
           <div className="flex items-center gap-2">
             <span
-              onClick={() => {
+              onClick={async () => {
                 const newOnline = !isOnline;
                 setIsOnline(newOnline);
+                localStorage.setItem("driver_manual_status", newOnline ? "online" : "offline");
+                if (user?.id) {
+                  try {
+                    await usersApi.update(user.id, { isOnline: newOnline });
+                  } catch (e) {
+                    console.error("Failed to update online status", e);
+                  }
+                }
+                
                 if (newOnline) {
                   const cached = localStorage.getItem("pending_stops_sync");
                   if (cached) {
@@ -352,11 +406,61 @@ export default function DriverMobileLayout() {
                   </span>
                 </div>
 
-                {/* Today's Route Summary - only when active stops exist */}
+                {/* Today's Shift (Routes) Summary */}
+                {(() => {
+                  const isToday = (r: any) => {
+                    const dateToUse = r.endTime || r.date || r.createdAt;
+                    if (!dateToUse) return false;
+                    
+                    const d = new Date(dateToUse);
+                    if (isNaN(d.getTime())) return false; // Invalid date
+                    
+                    const today = new Date();
+                    return d.getDate() === today.getDate() && 
+                           d.getMonth() === today.getMonth() && 
+                           d.getFullYear() === today.getFullYear();
+                  };
+                  
+                  const todaysRoutes = driverAllRoutes.filter(isToday);
+                  const todaysCompleted = todaysRoutes.filter(r => r.status === "COMPLETED").length;
+                  const todaysPending = todaysRoutes.length - todaysCompleted;
+
+                  if (todaysRoutes.length === 0) return null;
+
+                  const todayDisplay = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+                  return (
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+                      <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                        <span className="text-xs font-bold text-slate-800">Today's Shift (Routes)</span>
+                        <span className="text-[10px] bg-purple-50 text-purple-700 font-bold px-2.5 py-0.5 rounded-full border border-purple-100">
+                          {todayDisplay}
+                        </span>
+                      </div>
+                      
+                      <div className="grid grid-cols-3 gap-2 text-center">
+                        <div className="bg-slate-50 p-2.5 rounded-xl border border-slate-100">
+                          <p className="text-lg font-black text-slate-900">{todaysRoutes.length}</p>
+                          <p className="text-[9px] text-slate-400 font-bold uppercase tracking-wider">Total Routes</p>
+                        </div>
+                        <div className="bg-emerald-50 p-2.5 rounded-xl border border-emerald-100">
+                          <p className="text-lg font-black text-emerald-700">{todaysCompleted}</p>
+                          <p className="text-[9px] text-emerald-500 font-bold uppercase tracking-wider">Completed</p>
+                        </div>
+                        <div className="bg-amber-50 p-2.5 rounded-xl border border-amber-100">
+                          <p className="text-lg font-black text-amber-700">{todaysPending}</p>
+                          <p className="text-[9px] text-amber-500 font-bold uppercase tracking-wider">Pending</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+
+                {/* Current Route Stops Summary - only when active stops exist */}
                 {stopsList.length > 0 && (
-                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+                <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3 mt-4">
                   <div className="flex justify-between items-center border-b border-slate-100 pb-2">
-                    <span className="text-xs font-bold text-slate-800">Today's Route Progress</span>
+                    <span className="text-xs font-bold text-slate-800">Current Route (Stops)</span>
                     <span className="text-[10px] bg-blue-50 text-blue-700 font-bold px-2.5 py-0.5 rounded-full border border-blue-100">
                       {driverRoute?.name || "Assigned Route"}
                     </span>
@@ -786,18 +890,27 @@ export default function DriverMobileLayout() {
                       </div>
                     </div>
 
-                    {/* Action button */}
-                    <button
-                      onClick={handleCompleteStop}
-                      disabled={!isCheckedIn}
-                      className={`w-full py-3 text-white rounded-xl font-extrabold text-xs shadow-md transition-colors cursor-pointer ${
-                        isCheckedIn
-                          ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25"
-                          : "bg-slate-300 text-slate-500 shadow-none cursor-not-allowed"
-                      }`}
-                    >
-                      [ Mark Stop Complete ]
-                    </button>
+                    {/* Action buttons */}
+                    <div className="flex flex-col gap-3">
+                      <button
+                        onClick={handleCompleteStop}
+                        disabled={!isCheckedIn}
+                        className={`w-full py-3 text-white rounded-xl font-extrabold text-xs shadow-md transition-colors cursor-pointer ${
+                          isCheckedIn
+                            ? "bg-emerald-600 hover:bg-emerald-700 shadow-emerald-600/25"
+                            : "bg-slate-300 text-slate-500 shadow-none cursor-not-allowed"
+                        }`}
+                      >
+                        [ Mark Stop Complete ]
+                      </button>
+                      
+                      <button
+                        onClick={handleSkipStop}
+                        className="w-full py-2.5 bg-red-50 hover:bg-red-100 text-red-600 border border-red-200 rounded-xl font-bold text-xs shadow-sm transition-colors cursor-pointer flex items-center justify-center gap-2"
+                      >
+                        [ Skip This Stop ]
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   /* MACHINE DETAILS SUB-VIEW */

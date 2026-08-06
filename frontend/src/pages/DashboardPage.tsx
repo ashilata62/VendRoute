@@ -99,7 +99,7 @@ export default function DashboardPage() {
 
   // Metrics — real DB values with fallback
   const totalRoutesToday = dbStats?.routes?.today ?? routes.filter((r) => r.date === new Date().toISOString().split('T')[0]).length;
-  const activeDriversCount = dbStats?.drivers?.total ?? drivers.filter((d) => d.liveStatus !== "offline").length;
+  const activeDriversCount = dbStats?.drivers?.active ?? drivers.filter((d) => d.liveStatus !== "offline").length;
   const totalDriversCount = dbStats?.drivers?.total ?? drivers.length;
   const completedStopsCount = dbStats?.stops?.completed ?? 0;
   const totalStopsCount = dbStats?.stops?.total ?? 0;

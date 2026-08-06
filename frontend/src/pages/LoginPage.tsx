@@ -432,7 +432,7 @@ export default function LoginPage() {
             {/* Footer Contact Note */}
             <p className="text-center text-xs text-slate-500 pt-2 font-medium">
               New to VendRoute?{" "}
-              <button type="button" onClick={() => alert("Please contact system admin at admin@vendroute.in")} className="text-blue-600 font-bold hover:underline">
+              <button type="button" onClick={() => alert("Our company number is 443 764 8363")} className="text-red-600 font-bold hover:underline">
                 Contact Administrator
               </button>
             </p>

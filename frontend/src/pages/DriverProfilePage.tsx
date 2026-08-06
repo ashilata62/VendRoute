@@ -175,7 +175,7 @@ export default function DriverProfilePage() {
             <div className="mt-2 sm:mt-0">
               <h2 className="text-xl font-bold text-slate-900">{driver.name}</h2>
               <div className="flex items-center gap-2 mt-1 justify-center sm:justify-start">
-                <StatusBadge status={driver.status || 'active'} />
+                <StatusBadge status={driver.isOnline !== false ? 'active' : 'offline'} />
                 <span className="text-xs text-slate-500">⭐ {driver.rating?.toFixed(1) || '4.0'} Rating</span>
               </div>
             </div>
@@ -228,6 +228,7 @@ export default function DriverProfilePage() {
 
       {/* TAB 1: OVERVIEW */}
       {activeTab === "overview" && (
+        <div className="space-y-6">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Personal Details */}
           <div className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-4">
@@ -289,7 +290,50 @@ export default function DriverProfilePage() {
                 <p className="text-[10px] text-emerald-500 uppercase font-semibold">Stops Visited</p>
               </div>
             </div>
+            </div>
           </div>
+        
+        {/* Today's Shift */}
+        {(() => {
+            const isToday = (r: any) => {
+              const dateToUse = r.endTime || r.date || r.createdAt;
+              if (!dateToUse) return false;
+              const d = new Date(dateToUse);
+              if (isNaN(d.getTime())) return false;
+              const today = new Date();
+              return d.getDate() === today.getDate() && 
+                     d.getMonth() === today.getMonth() && 
+                     d.getFullYear() === today.getFullYear();
+            };
+            const todaysRoutes = driverRoutes.filter(isToday);
+            const todaysCompleted = todaysRoutes.filter((r: any) => r.status === "COMPLETED").length;
+            const todaysPending = todaysRoutes.length - todaysCompleted;
+            
+            return (
+              <div className="bg-card rounded-xl border border-border shadow-sm p-6">
+                <div className="flex items-center justify-between border-b border-border pb-3 mb-4">
+                  <h3 className="font-bold text-slate-900 text-sm">Today's Shift (Routes)</h3>
+                  <span className="text-[10px] bg-purple-50 text-purple-700 px-2 py-0.5 rounded-full font-bold border border-purple-100">
+                    {new Date().toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' })}
+                  </span>
+                </div>
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-border text-center">
+                    <p className="text-2xl font-black text-slate-900">{todaysRoutes.length}</p>
+                    <p className="text-[10px] text-slate-400 font-bold uppercase mt-1">Total Routes</p>
+                  </div>
+                  <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100 text-center">
+                    <p className="text-2xl font-black text-emerald-600">{todaysCompleted}</p>
+                    <p className="text-[10px] text-emerald-600 font-bold uppercase mt-1">Completed</p>
+                  </div>
+                  <div className="bg-amber-50 p-4 rounded-xl border border-amber-100 text-center">
+                    <p className="text-2xl font-black text-amber-600">{todaysPending}</p>
+                    <p className="text-[10px] text-amber-600 font-bold uppercase mt-1">Pending</p>
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
         </div>
       )}
 

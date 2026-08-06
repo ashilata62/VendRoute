@@ -148,7 +148,7 @@ export default function DriversPage() {
       {!loading && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {paginatedDrivers.map((driver: any) => {
-          const vehicle = allVehicles.find((v: any) => v.id === driver.assignedVehicleId || v.driverId === driver.id);
+          const vehicle = allVehicles.find((v: any) => v.id === driver.assignedVehicleId || v.assignedDriverId === driver.id);
           const score = driver.rating ? Math.round(driver.rating * 20) : 80;
           const avatarUrl = driver.photo || driver.avatar ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(driver.name)}&background=3B82F6&color=fff&size=80`;
@@ -170,7 +170,7 @@ export default function DriversPage() {
                         className="w-20 h-20 rounded-full object-cover ring-2 ring-slate-100 shadow-inner bg-slate-200"
                         onError={(e) => { (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(driver.name)}&background=3B82F6&color=fff&size=80`; }}
                       />
-                      <span className="absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white bg-emerald-500" />
+                      <span className={`absolute bottom-0 right-0 w-3.5 h-3.5 rounded-full border-2 border-white ${driver.isOnline !== false ? "bg-emerald-500" : "bg-red-500"}`} title={driver.isOnline !== false ? "Online" : "Offline"} />
                     </div>
                     <div>
                       <h3 className="font-bold text-slate-900 text-base group-hover:text-primary-600 transition-colors">
@@ -185,7 +185,7 @@ export default function DriversPage() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    <StatusBadge status="active" />
+                    <StatusBadge status={driver.isOnline !== false ? "active" : "offline"} />
                     <button
                       onClick={() => navigate(`/drivers/${driver.id}`)}
                       className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"

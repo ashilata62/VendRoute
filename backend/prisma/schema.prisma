@@ -7,182 +7,192 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum Role {
-  ADMIN
-  SUPERVISOR
-  DRIVER
-  CUSTOMER
+model Settings {
+  id        String   @id @default("global")
+  data      String   @db.LongText
+  updatedAt DateTime @updatedAt
+
+  @@map("settings")
 }
 
-enum MachineStatus {
-  ACTIVE
-  INACTIVE
-  NEEDS_MAINTENANCE
-  OUT_OF_STOCK
+model customer {
+  id            String     @id
+  companyName   String
+  contactPerson String
+  email         String
+  phone         String
+  industry      String?
+  createdAt     DateTime   @default(now())
+  location      location[]
 }
 
-enum VehicleStatus {
-  IN_USE
-  MAINTENANCE
+model livetracking {
+  id        String   @id
+  driverId  String
+  latitude  Float
+  longitude Float
+  timestamp DateTime @default(now())
+  user      user     @relation(fields: [driverId], references: [id], map: "LiveTracking_driverId_fkey")
+
+  @@index([driverId], map: "LiveTracking_driverId_fkey")
 }
 
-enum RouteStatus {
-  PENDING
-  IN_PROGRESS
-  COMPLETED
-  CANCELLED
+model location {
+  id         String      @id
+  customerId String
+  name       String
+  address    String
+  city       String
+  latitude   Float
+  longitude  Float
+  imageUrl   String?     @db.LongText
+  createdAt  DateTime    @default(now())
+  products   String?     @db.LongText
+  customer   customer    @relation(fields: [customerId], references: [id], onDelete: Cascade, map: "Location_customerId_fkey")
+  machine    machine[]
+  routestop  routestop[]
+
+  @@index([customerId], map: "Location_customerId_fkey")
 }
 
-enum StopStatus {
-  PENDING
-  REACHED
-  COMPLETED
-  SKIPPED
+model machine {
+  id          String         @id
+  locationId  String
+  machineCode String         @unique(map: "Machine_machineCode_key")
+  model       String
+  fillLevel   Float          @default(100)
+  status      machine_status @default(ACTIVE)
+  lastRefill  DateTime       @default(now())
+  location    location       @relation(fields: [locationId], references: [id], onDelete: Cascade, map: "Machine_locationId_fkey")
+
+  @@index([locationId], map: "Machine_locationId_fkey")
 }
 
-enum NotificationType {
-  info
-  warning
-  success
-  error
+model notification {
+  id        String            @id @default(uuid())
+  title     String
+  message   String            @db.Text
+  type      notification_type @default(info)
+  read      Boolean           @default(false)
+  createdAt DateTime          @default(now())
 }
 
-model User {
-  id               String    @id @default(uuid())
+model route {
+  id            String       @id
+  driverId      String
+  name          String
+  date          String
+  vehicleId     String?
+  totalDistance Float        @default(0)
+  estimatedTime Int          @default(0)
+  actualTime    Int?
+  startTime     DateTime?
+  endTime       DateTime?
+  status        route_status @default(PENDING)
+  createdAt     DateTime     @default(now())
+  user          user         @relation(fields: [driverId], references: [id], map: "Route_driverId_fkey")
+  vehicle       vehicle?     @relation(fields: [vehicleId], references: [id], map: "Route_vehicleId_fkey")
+  routestop     routestop[]
+
+  @@index([driverId], map: "Route_driverId_fkey")
+  @@index([vehicleId], map: "Route_vehicleId_fkey")
+}
+
+model routestop {
+  id               String           @id
+  routeId          String
+  locationId       String
+  stopOrder        Int
+  status           routestop_status @default(PENDING)
+  gpsVerified      Boolean          @default(false)
+  cashCollected    Float            @default(0)
+  productsRefilled String?          @db.LongText
+  signatureUrl     String?          @db.LongText
+  notes            String?
+  location         location         @relation(fields: [locationId], references: [id], map: "RouteStop_locationId_fkey")
+  route            route            @relation(fields: [routeId], references: [id], onDelete: Cascade, map: "RouteStop_routeId_fkey")
+
+  @@index([locationId], map: "RouteStop_locationId_fkey")
+  @@index([routeId], map: "RouteStop_routeId_fkey")
+}
+
+model user {
+  id               String         @id
   name             String
-  email            String    @unique
+  email            String         @unique(map: "User_email_key")
   password         String
-  role             Role      @default(DRIVER)
+  role             user_role      @default(DRIVER)
   phone            String?
   address          String?
   licenseNumber    String?
   emergencyContact String?
   resetOtp         String?
   resetOtpExpires  DateTime?
-  avatar           String?
-  createdAt        DateTime  @default(now())
-  updatedAt        DateTime  @updatedAt
-
-  assignedRoutes Route[]
-  trackingLogs   LiveTracking[]
-  assignedVehicles Vehicle[]
+  isOnline         Boolean        @default(true)
+  avatar           String?        @db.LongText
+  createdAt        DateTime       @default(now())
+  updatedAt        DateTime
+  livetracking     livetracking[]
+  route            route[]
+  vehicle          vehicle[]
 }
 
-model Customer {
-  id            String   @id @default(uuid())
-  companyName   String
-  contactPerson String
-  email         String
-  phone         String
-  industry      String?
-  createdAt     DateTime @default(now())
-
-  locations     Location[]
-}
-
-model Location {
-  id          String    @id @default(uuid())
-  customerId  String
-  customer    Customer  @relation(fields: [customerId], references: [id], onDelete: Cascade)
-  name        String
-  address     String
-  city        String
-  latitude    Float
-  longitude   Float
-  imageUrl    String?   @db.LongText
-  products    Json?
-  createdAt   DateTime  @default(now())
-
-  machines    Machine[]
-  routeStops  RouteStop[]
-}
-
-model Machine {
-  id          String        @id @default(uuid())
-  locationId  String
-  location    Location      @relation(fields: [locationId], references: [id], onDelete: Cascade)
-  machineCode String        @unique
-  model       String
-  fillLevel   Float         @default(100)
-  status      MachineStatus @default(ACTIVE)
-  lastRefill  DateTime      @default(now())
-}
-
-model Route {
-  id            String      @id @default(uuid())
-  driverId      String
-  driver        User        @relation(fields: [driverId], references: [id])
-  name          String
-  date          String
-  vehicleId     String?
-  vehicle       Vehicle?    @relation(fields: [vehicleId], references: [id])
-  totalDistance Float       @default(0)
-  estimatedTime Int         @default(0)
-  actualTime    Int?
-  startTime     DateTime?
-  endTime       DateTime?
-  status        RouteStatus @default(PENDING)
-  createdAt     DateTime    @default(now())
-
-  stops         RouteStop[]
-}
-
-model Vehicle {
-  id               String        @id @default(uuid())
+model vehicle {
+  id               String         @id
   model            String
-  plateNumber      String        @unique
+  plateNumber      String         @unique(map: "Vehicle_plateNumber_key")
   type             String
   fuelType         String
   lastMaintenance  String?
   nextMaintenance  String?
   gpsDeviceId      String?
-  currentFuelLevel Float         @default(100)
-  odometer         Float         @default(0)
+  currentFuelLevel Float          @default(100)
+  odometer         Float          @default(0)
   assignedDriverId String?
-  driver           User?         @relation(fields: [assignedDriverId], references: [id])
-  status           VehicleStatus @default(IN_USE)
-  createdAt        DateTime      @default(now())
+  status           vehicle_status @default(IN_USE)
+  createdAt        DateTime       @default(now())
+  route            route[]
+  user             user?          @relation(fields: [assignedDriverId], references: [id], map: "Vehicle_assignedDriverId_fkey")
 
-  routes           Route[]
+  @@index([assignedDriverId], map: "Vehicle_assignedDriverId_fkey")
 }
 
-model RouteStop {
-  id          String     @id @default(uuid())
-  routeId     String
-  route       Route      @relation(fields: [routeId], references: [id], onDelete: Cascade)
-  locationId  String
-  location    Location   @relation(fields: [locationId], references: [id])
-  stopOrder   Int
-  status           StopStatus @default(PENDING)
-  gpsVerified      Boolean    @default(false)
-  cashCollected    Float      @default(0)
-  productsRefilled Json?
-  signatureUrl     String?    @db.LongText
-  notes            String?
+enum notification_type {
+  info
+  warning
+  success
+  error
 }
 
-model LiveTracking {
-  id        String   @id @default(uuid())
-  driverId  String
-  driver    User     @relation(fields: [driverId], references: [id])
-  latitude  Float
-  longitude Float
-  timestamp DateTime @default(now())
+enum routestop_status {
+  PENDING
+  REACHED
+  COMPLETED
+  SKIPPED
 }
 
-model Notification {
-  id        String           @id @default(uuid())
-  title     String
-  message   String           @db.Text
-  type      NotificationType @default(info)
-  read      Boolean          @default(false)
-  createdAt DateTime         @default(now())
+enum user_role {
+  ADMIN
+  SUPERVISOR
+  DRIVER
+  CUSTOMER
 }
 
-model Settings {
-  id        String   @id @default("global")
-  data      Json
-  updatedAt DateTime @updatedAt
+enum machine_status {
+  ACTIVE
+  INACTIVE
+  NEEDS_MAINTENANCE
+  OUT_OF_STOCK
+}
 
-  @@map("settings")
+enum route_status {
+  PENDING
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
+enum vehicle_status {
+  IN_USE
+  MAINTENANCE
 }

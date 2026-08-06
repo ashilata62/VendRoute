@@ -46,8 +46,13 @@ const DEFAULT_SETTINGS = {
 export class SettingsService {
   static async get() {
     const row = await (prisma as any).settings.findUnique({ where: { id: 'global' } });
-    if (!row) return DEFAULT_SETTINGS;
-    return row.data as typeof DEFAULT_SETTINGS;
+    if (!row || !row.data) return DEFAULT_SETTINGS;
+    
+    let parsedData = row.data;
+    if (typeof row.data === 'string') {
+      try { parsedData = JSON.parse(row.data); } catch (e) { parsedData = DEFAULT_SETTINGS; }
+    }
+    return parsedData as typeof DEFAULT_SETTINGS;
   }
 
   static async upsert(data: any) {
@@ -60,10 +65,14 @@ export class SettingsService {
       gps: { ...current.gps, ...(data.gps || {}) },
       permissions: { ...current.permissions, ...(data.permissions || {}) },
     };
-    return await (prisma as any).settings.upsert({
+    // Prisma might expect a JSON string if the column is LongText
+    const dataToSave = JSON.stringify(merged);
+    
+    await (prisma as any).settings.upsert({
       where: { id: 'global' },
-      update: { data: merged },
-      create: { id: 'global', data: merged },
+      update: { data: dataToSave },
+      create: { id: 'global', data: dataToSave },
     });
+    return { id: 'global', data: merged };
   }
 }

@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/db.js';
 import bcrypt from 'bcrypt';
+import crypto from 'crypto';
 
 // GET /users — list all users, optionally filtered by role
 export const getUsers = async (req: Request, res: Response) => {
@@ -18,6 +19,7 @@ export const getUsers = async (req: Request, res: Response) => {
         emergencyContact: true,
         role: true,
         avatar: true,
+        isOnline: true,
       },
       orderBy: { name: 'asc' },
     });
@@ -42,6 +44,7 @@ export const getUserById = async (req: Request, res: Response) => {
         emergencyContact: true,
         role: true,
         avatar: true,
+        isOnline: true,
         createdAt: true,
       },
     });
@@ -74,6 +77,8 @@ export const createUser = async (req: Request, res: Response) => {
         password: hashedPassword,
         role: role ? role.toUpperCase() : 'DRIVER',
         avatar,
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
       },
       select: {
         id: true,
@@ -85,6 +90,7 @@ export const createUser = async (req: Request, res: Response) => {
         emergencyContact: true,
         role: true,
         avatar: true,
+        isOnline: true,
         createdAt: true,
       }
     });
@@ -106,7 +112,7 @@ export const deleteUser = async (req: Request, res: Response) => {
     const routeIds = driverRoutes.map(r => r.id);
 
     if (routeIds.length > 0) {
-      await prisma.routeStop.deleteMany({ where: { routeId: { in: routeIds } } });
+      await prisma.routestop.deleteMany({ where: { routeId: { in: routeIds } } });
       await prisma.route.deleteMany({ where: { driverId: id } });
     }
 
@@ -120,7 +126,7 @@ export const deleteUser = async (req: Request, res: Response) => {
 export const updateUser = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { name, email, phone, address, licenseNumber, emergencyContact, role, avatar } = req.body;
+    const { name, email, phone, address, licenseNumber, emergencyContact, role, avatar, isOnline, password } = req.body;
 
     const updateData: any = {};
     if (name) updateData.name = name;
@@ -131,6 +137,12 @@ export const updateUser = async (req: Request, res: Response) => {
     if (emergencyContact !== undefined) updateData.emergencyContact = emergencyContact;
     if (role) updateData.role = role;
     if (avatar !== undefined) updateData.avatar = avatar;
+    if (isOnline !== undefined) updateData.isOnline = isOnline;
+
+    if (password) {
+      const salt = await bcrypt.genSalt(10);
+      updateData.password = await bcrypt.hash(password, salt);
+    }
 
     const user = await (prisma.user as any).update({
       where: { id },
@@ -145,6 +157,7 @@ export const updateUser = async (req: Request, res: Response) => {
         emergencyContact: true,
         role: true,
         avatar: true,
+        isOnline: true,
         createdAt: true,
       },
     });

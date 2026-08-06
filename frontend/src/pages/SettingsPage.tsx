@@ -101,6 +101,7 @@ export default function SettingsPage() {
       // Apply theme locally (browser-side)
       try {
         localStorage.setItem("app-theme", companyForm.theme);
+        localStorage.setItem("app-currency", companyForm.currency);
         localStorage.setItem("company-logo", companyForm.logo);
       } catch (storageErr) {
         console.warn("Could not save to localStorage (might be too large)", storageErr);
@@ -305,18 +306,7 @@ export default function SettingsPage() {
                     <option>AED (د.إ)</option>
                   </select>
                 </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Default Language</label>
-                  <select
-                    value={companyForm.language}
-                    onChange={(e) => setCompanyForm({ ...companyForm, language: e.target.value })}
-                    className="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600 font-medium"
-                  >
-                    <option>English</option>
-                    <option>Hindi (हिंदी)</option>
-                    <option>Spanish (Español)</option>
-                  </select>
-                </div>
+
                 <div>
                   <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Theme Mode</label>
                   <div className="grid grid-cols-2 gap-2">

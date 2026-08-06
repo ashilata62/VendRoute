@@ -176,6 +176,11 @@ export const routesApi = {
     apiFetch<{ success: boolean; message: string }>(`/routes/${id}`, {
       method: "DELETE",
     }),
+  updateStopStatus: (stopId: string, status: string, routeName?: string, locationName?: string) =>
+    apiFetch<{ success: boolean; data: any }>(`/routes/stops/${stopId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ status, routeName, locationName }),
+    }),
 };
 
 // ─── Users APIs ────────────────────────────────────────────────────────────────

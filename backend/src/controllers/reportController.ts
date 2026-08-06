@@ -18,6 +18,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       totalStops,
       completedStops,
       allDrivers,
+      activeDriversCountDB,
     ] = await Promise.all([
       prisma.route.count(),
       prisma.route.count({ where: { date: today } }),
@@ -30,6 +31,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       prisma.routeStop.count(),
       prisma.routeStop.count({ where: { status: 'COMPLETED' } }),
       prisma.user.findMany({ where: { role: 'DRIVER' }, select: { id: true } }),
+      (prisma.user as any).count({ where: { role: 'DRIVER', isOnline: true } }),
     ]);
 
     return res.status(200).json({
@@ -44,6 +46,7 @@ export const getDashboardStats = async (req: Request, res: Response) => {
         },
         drivers: {
           total: allDrivers.length,
+          active: activeDriversCountDB,
         },
         // Real driver UUIDs for seeding map GPS pins on frontend
         driverIds: allDrivers.map((d) => d.id),

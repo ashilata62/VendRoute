@@ -21,6 +21,7 @@ export default function UsersPage() {
   const [form, setForm] = useState({
     name: "",
     email: "",
+    password: "",
     phone: "",
     address: "",
     role: "SUPERVISOR" as UserRole,
@@ -49,7 +50,7 @@ export default function UsersPage() {
   const closeInviteModal = () => {
     setIsInviteModalOpen(false);
     setEditingUserId(null);
-    setForm({ name: "", email: "", phone: "", address: "", role: "SUPERVISOR" as UserRole });
+    setForm({ name: "", email: "", password: "", phone: "", address: "", role: "SUPERVISOR" as UserRole });
     setErrorMsg("");
   };
 
@@ -80,6 +81,7 @@ export default function UsersPage() {
     setForm({ 
       name: user.name || "", 
       email: user.email || "", 
+      password: "", // Leave blank on edit, unless they want to change it
       phone: user.phone || "", 
       address: user.address || "", 
       role: user.role 
@@ -109,7 +111,7 @@ export default function UsersPage() {
           <button
             onClick={() => {
               setEditingUserId(null);
-              setForm({ name: "", email: "", phone: "", address: "", role: "SUPERVISOR" as UserRole });
+              setForm({ name: "", email: "", password: "", phone: "", address: "", role: "SUPERVISOR" as UserRole });
               setIsInviteModalOpen(true);
             }}
             className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white text-xs sm:text-sm font-semibold px-4 py-2.5 rounded-xl transition-all shadow-md shadow-blue-600/20 cursor-pointer"
@@ -233,6 +235,20 @@ export default function UsersPage() {
                   placeholder="e.g. ananya@vendroute.in"
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">
+                  Password {editingUserId && <span className="text-slate-400 font-normal">(Leave blank to keep unchanged)</span>}
+                </label>
+                <input
+                  type="password"
+                  required={!editingUserId}
+                  placeholder={editingUserId ? "Leave blank to keep current password" : "Enter a secure password"}
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
                   className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-600/20 focus:border-blue-600"
                 />
               </div>

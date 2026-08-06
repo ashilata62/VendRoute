@@ -2,6 +2,7 @@ import { prisma } from '../config/db.js';
 import { hashPassword, comparePassword } from '../utils/password.js';
 import { generateToken } from '../utils/token.js';
 import { sendOtpEmail } from '../utils/email.js';
+import crypto from 'crypto';
 
 export class AuthService {
   static async login(email: string, pass: string) {
@@ -53,6 +54,8 @@ export class AuthService {
         password: hashedPassword,
         role: data.role || 'DRIVER',
         phone: data.phone,
+        id: crypto.randomUUID(),
+        updatedAt: new Date(),
       },
     });
 

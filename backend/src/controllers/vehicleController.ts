@@ -6,6 +6,7 @@ import { io } from '../server.js';
 export const getVehicles = async (req: Request, res: Response) => {
   try {
     const vehicles = await prisma.vehicle.findMany({
+      include: { user: { select: { id: true, name: true } } },
       orderBy: { model: 'asc' },
     });
     return res.status(200).json({ success: true, data: vehicles });
@@ -18,6 +19,7 @@ export const getVehicleById = async (req: Request, res: Response) => {
   try {
     const vehicle = await prisma.vehicle.findUnique({
       where: { id: req.params.id as string },
+      include: { user: { select: { id: true, name: true } } },
     });
     if (!vehicle) throw new Error('Vehicle not found');
     return res.status(200).json({ success: true, data: vehicle });
