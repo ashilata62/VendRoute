@@ -14,6 +14,8 @@ import {
 import PageHeader from "../components/shared/PageHeader";
 import { routesApi, usersApi, reportsApi, stopsApi, vehiclesApi } from "../services/api";
 import { formatCurrency } from "../lib/utils";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
 
 // ─── Tab Definitions ──────────────────────────────────────────────────────────
 const TABS = [
@@ -639,7 +641,7 @@ export default function ReportsPage() {
       .map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(","))
       .join("\n");
 
-    // Trigger download
+    // Trigger CSV download
     const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a");
@@ -649,6 +651,79 @@ export default function ReportsPage() {
     link.click();
     document.body.removeChild(link);
     URL.revokeObjectURL(url);
+  };
+
+  const handleExportPDF = () => {
+    let head: string[][] = [];
+    let body: any[][] = [];
+    let title = "Report";
+
+    if (activeTab === "revenue") {
+      title = "Revenue Report";
+      head = [["Route Name", "Driver", "Status", "Date", "Cash Collected"]];
+      stops.forEach((s: any) => {
+        body.push([
+          s.route?.name || s.routeId || "",
+          s.route?.driver?.name || "",
+          s.status || "",
+          s.route?.date ? new Date(s.route.date).toLocaleDateString() : "",
+          String(s.cashCollected || 0),
+        ]);
+      });
+    } else if (activeTab === "routes") {
+      title = "Routes Report";
+      head = [["Route Name", "Driver", "Status", "Total Stops", "Date"]];
+      routes.forEach((r: any) => {
+        body.push([
+          r.name || "",
+          r.driver?.name || "",
+          r.status || "",
+          String(r.stops?.length || 0),
+          r.date ? new Date(r.date).toLocaleDateString() : "",
+        ]);
+      });
+    } else if (activeTab === "stops") {
+      title = "Stops Report";
+      head = [["Location", "Status", "Cash Collected", "Checked In At"]];
+      stops.forEach((s: any) => {
+        body.push([
+          s.location?.name || s.locationId || "",
+          s.status || "",
+          String(s.cashCollected || 0),
+          s.checkedInAt ? new Date(s.checkedInAt).toLocaleString() : "",
+        ]);
+      });
+    } else if (activeTab === "drivers") {
+      title = "Drivers Report";
+      head = [["Driver Name", "Email", "Phone", "Total Routes", "Completed Routes"]];
+      drivers.forEach((d: any) => {
+        const driverRoutes = routes.filter((r: any) => r.driverId === d.id || r.driver?.id === d.id);
+        const completed = driverRoutes.filter((r: any) => r.status === "COMPLETED").length;
+        body.push([
+          d.name || "",
+          d.email || "",
+          d.phone || "",
+          String(driverRoutes.length),
+          String(completed),
+        ]);
+      });
+    } else if (activeTab === "vehicles") {
+      title = "Vehicles Report";
+      head = [["Vehicle Number", "Type", "Status", "Driver"]];
+      vehicles.forEach((v: any) => {
+        body.push([
+          v.plateNumber || "",
+          v.type || "",
+          v.status || "",
+          v.driver?.name || "",
+        ]);
+      });
+    }
+
+    const doc = new jsPDF();
+    doc.text(title, 14, 15);
+    autoTable(doc, { head, body, startY: 20 });
+    doc.save(`${title.toLowerCase().replace(/ /g, "_")}.pdf`);
   };
 
   const currentTab = TABS.find(t => t.id === activeTab);
@@ -676,10 +751,17 @@ export default function ReportsPage() {
             {/* Export */}
             <button
               onClick={handleExport}
+              className="flex items-center gap-2 text-xs font-medium text-slate-700 bg-white border border-border hover:bg-slate-50 transition-colors px-4 py-2 rounded-lg"
+            >
+              <DownloadCloud className="w-3.5 h-3.5" />
+              CSV
+            </button>
+            <button
+              onClick={handleExportPDF}
               className="flex items-center gap-2 text-xs font-medium text-white bg-primary-600 hover:bg-primary-700 transition-colors px-4 py-2 rounded-lg"
             >
               <DownloadCloud className="w-3.5 h-3.5" />
-              Export CSV
+              PDF
             </button>
           </div>
         }

@@ -42,7 +42,7 @@ export const useRouteStore = create<RouteState>((set, get) => ({
       return false;
     } catch (error: any) {
       console.error("Failed to create route", error);
-      alert(error.response?.data?.message || "Error creating route. Please ensure all fields and at least one stop are selected.");
+      alert(error.message || "Error creating route. Please ensure all fields and at least one stop are selected.");
       return false;
     }
   },

@@ -19,7 +19,7 @@ export class MachineService {
   static async updateStock(id: string, fillLevel: number, status?: any) {
     return await prisma.machine.update({
       where: { id },
-      data: {
+      data: { 
         fillLevel,
         status: status || (fillLevel < 20 ? 'OUT_OF_STOCK' : 'ACTIVE'),
         lastRefill: new Date(),

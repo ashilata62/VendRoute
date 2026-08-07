@@ -6,6 +6,7 @@ import LoginPage from "./pages/LoginPage";
 import DashboardPage from "./pages/DashboardPage";
 import RoutesPage from "./pages/RoutesPage";
 import RouteCreatePage from "./pages/RouteCreatePage";
+import RouteReplayPage from "./pages/RouteReplayPage";
 import TrackingPage from "./pages/TrackingPage";
 import LocationsPage from "./pages/LocationsPage";
 import LocationDetailPage from "./pages/LocationDetailPage";
@@ -110,8 +111,9 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route element={<MainLayout />}>
             <Route path="/dashboard" element={<DashboardPage />} />
-            <Route path="/routes" element={<RoutesPage />} />
-            <Route path="/routes/create" element={<RouteCreatePage />} />
+            <Route path="routes" element={<RoutesPage />} />
+            <Route path="routes/create" element={<RouteCreatePage />} />
+            <Route path="routes/:routeId/replay" element={<RouteReplayPage />} />
             <Route path="/tracking" element={<TrackingPage />} />
             <Route path="/locations" element={<LocationsPage />} />
             <Route path="/locations/:id" element={<LocationDetailPage />} />

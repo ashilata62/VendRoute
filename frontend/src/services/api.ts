@@ -259,3 +259,9 @@ export const settingsApi = {
     }),
 };
 
+// ─── Analytics APIs ────────────────────────────────────────────────────────────
+export const analyticsApi = {
+  getDriverAnalytics: (driverId: string) =>
+    apiFetch<{ success: boolean; data: any }>(`/analytics/driver/${driverId}`),
+};
+

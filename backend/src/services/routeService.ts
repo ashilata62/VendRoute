@@ -1,16 +1,17 @@
 import { prisma } from '../config/db.js';
+import { v4 as uuidv4 } from 'uuid';
 
 export class RouteService {
   static async getAll(driverId?: string) {
     return await prisma.route.findMany({
       where: driverId ? { driverId } : undefined,
       include: {
-        driver: { select: { id: true, name: true, email: true, phone: true } },
+        user: { select: { id: true, name: true, email: true, phone: true } },
         vehicle: true,
-        stops: {
+        routestop: {
           include: {
             location: {
-              include: { machines: true },
+              include: { machine: true },
             },
           },
           orderBy: { stopOrder: 'asc' },
@@ -24,12 +25,12 @@ export class RouteService {
     const route = await prisma.route.findUnique({
       where: { id },
       include: {
-        driver: { select: { id: true, name: true, email: true, phone: true } },
+        user: { select: { id: true, name: true, email: true, phone: true } },
         vehicle: true,
-        stops: {
+        routestop: {
           include: {
             location: {
-              include: { machines: true },
+              include: { machine: true },
             },
           },
           orderBy: { stopOrder: 'asc' },
@@ -43,28 +44,30 @@ export class RouteService {
   static async create(payload: { driverId: string; name: string; date: string; vehicleId?: string; totalDistance?: number; estimatedTime?: number; stops: string[] }) {
     const { driverId, name, date, vehicleId, totalDistance, estimatedTime, stops } = payload;
     return await prisma.route.create({
-      data: {
+      data: { 
+        id: uuidv4(),
         driverId,
         name,
         date,
         vehicleId: vehicleId || undefined,
         totalDistance: totalDistance || 0,
         estimatedTime: estimatedTime || 0,
-        stops: {
+        routestop: {
           create: stops.map((locationId: string, index: number) => ({
+            id: uuidv4(),
             locationId,
             stopOrder: index + 1,
           })),
         },
       },
-      include: { stops: true },
+      include: { routestop: true },
     });
   }
 
   static async updateStopStatus(stopId: string, status: any) {
-    return await prisma.routeStop.update({
+    return await prisma.routestop.update({
       where: { id: stopId },
-      data: { status },
+      data: {  status },
     });
   }
 
@@ -80,12 +83,12 @@ export class RouteService {
       where: { id },
       data: updateData,
       include: {
-        driver: { select: { id: true, name: true, email: true, phone: true } },
+        user: { select: { id: true, name: true, email: true, phone: true } },
         vehicle: true,
-        stops: {
+        routestop: {
           include: {
             location: {
-              include: { machines: true },
+              include: { machine: true },
             },
           },
           orderBy: { stopOrder: 'asc' },
@@ -96,7 +99,7 @@ export class RouteService {
 
   static async delete(id: string) {
     // Delete stops first because of foreign key constraint
-    await prisma.routeStop.deleteMany({
+    await prisma.routestop.deleteMany({
       where: { routeId: id },
     });
     return await prisma.route.delete({

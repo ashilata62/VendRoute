@@ -60,6 +60,31 @@ export const createUser = async (req: Request, res: Response) => {
   try {
     const { name, email, role, phone, address, licenseNumber, emergencyContact, password } = req.body;
     
+    if (role === 'DRIVER') {
+      return res.status(403).json({ success: false, message: "Driver accounts can only be created from the Drivers module." });
+    }
+
+    if (email) {
+      const existingEmail = await (prisma.user as any).findUnique({ where: { email } });
+      if (existingEmail) {
+        return res.status(400).json({ success: false, message: 'Email already exists' });
+      }
+    }
+
+    if (phone) {
+      const existingPhone = await (prisma.user as any).findFirst({ where: { phone } });
+      if (existingPhone) {
+        return res.status(400).json({ success: false, message: 'Phone number already exists' });
+      }
+    }
+
+    if (licenseNumber) {
+      const existingLicense = await (prisma.user as any).findFirst({ where: { licenseNumber } });
+      if (existingLicense) {
+        return res.status(400).json({ success: false, message: 'Employee ID / License Number already exists' });
+      }
+    }
+
     // Hash default password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(password || 'password123', salt);
@@ -67,7 +92,7 @@ export const createUser = async (req: Request, res: Response) => {
     const avatar = `https://ui-avatars.com/api/?name=${encodeURIComponent(name)}&background=2563EB&color=fff`;
 
     const user = await (prisma.user as any).create({
-      data: {
+      data: { 
         name,
         email,
         phone: phone || null,
@@ -135,7 +160,14 @@ export const updateUser = async (req: Request, res: Response) => {
     if (address !== undefined) updateData.address = address;
     if (licenseNumber !== undefined) updateData.licenseNumber = licenseNumber;
     if (emergencyContact !== undefined) updateData.emergencyContact = emergencyContact;
-    if (role) updateData.role = role;
+    
+    if (role) {
+      if (role === 'DRIVER') {
+        return res.status(403).json({ success: false, message: "Driver accounts can only be created from the Drivers module." });
+      }
+      updateData.role = role;
+    }
+    
     if (avatar !== undefined) updateData.avatar = avatar;
     if (isOnline !== undefined) updateData.isOnline = isOnline;
 

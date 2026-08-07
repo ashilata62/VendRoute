@@ -39,7 +39,7 @@ const DEFAULT_SETTINGS = {
   permissions: {
     superadmin: { regions: true, users: true, routes: true, reports: true },
     supervisor: { regions: true, users: false, routes: true, reports: true },
-    driver: { regions: false, users: false, routes: false, reports: false },
+    user: { regions: false, users: false, routes: false, reports: false },
   },
 };
 

@@ -3,44 +3,32 @@ import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
 import { stopsApi } from '../services/api';
-import { MapPin, CheckCircle, Navigation, Clock } from 'lucide-react-native';
-import { LinearGradient } from 'expo-linear-gradient';
+import { useQuery } from '@tanstack/react-query';
+import { CheckCircle, Navigation, Clock } from 'lucide-react-native';
 
 export default function RouteScreen() {
   const { user } = useAuthStore();
   const navigation = useNavigation<any>();
-  const [stops, setStops] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: routesResponse, isLoading: loading } = useQuery({
+    queryKey: ['routes', user?.id],
+    queryFn: () => stopsApi.getDriverRoutes(user?.id!),
+    enabled: !!user?.id,
+    refetchInterval: 30000 // auto refresh every 30 seconds
+  });
+  
   const [isRouteStarted, setIsRouteStarted] = useState(false);
 
-  const fetchStops = async () => {
-    try {
-      setLoading(true);
-      const response = await stopsApi.getDriverStops();
-      if (response.data.success) {
-        setStops(response.data.data);
-      }
-    } catch (error) {
-      console.log('Fetch stops error', error);
-      Alert.alert('Network Error', 'Unable to fetch stops. Please check your connection.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const stops = useMemo(() => {
+    if (!routesResponse?.data?.data) return [];
+    // Flatten stops from all routes today
+    return routesResponse.data.data.flatMap((r: any) => r.routestop || []);
+  }, [routesResponse]);
 
-  useEffect(() => {
-    fetchStops();
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchStops();
-    });
-    return unsubscribe;
-  }, [navigation]);
-
-  const pendingStops = useMemo(() => stops.filter(s => s.status !== 'COMPLETED'), [stops]);
+  const pendingStops = useMemo(() => stops.filter((s: any) => s.status !== 'COMPLETED'), [stops]);
 
   const startRoute = () => {
     setIsRouteStarted(true);
-    Alert.alert('Route Started', 'Live tracking is now active. Please proceed to your first stop.');
+    Alert.alert('Route Started! 🚀', 'Live tracking is now active. Tap "Check-In Now" on your first stop.');
   };
 
   const handleCheckIn = (stopId: string, stopDetails: any) => {
@@ -64,22 +52,28 @@ export default function RouteScreen() {
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {!isRouteStarted && pendingStops.length > 0 ? (
-          <TouchableOpacity style={styles.actionBanner} onPress={startRoute}>
-            <LinearGradient colors={['#4f46e5', '#3730a3']} style={styles.actionGradient} start={{ x: 0, y: 0 }} end={{ x: 1, y: 1 }}>
-              <Navigation size={24} color="#fff" />
-              <View style={styles.actionTextContainer}>
-                <Text style={styles.actionTitle}>Start Today's Route</Text>
-                <Text style={styles.actionSubtitle}>Begin tracking & navigation</Text>
-              </View>
-            </LinearGradient>
+
+        {/* START ROUTE BUTTON — no LinearGradient to avoid Android touch block */}
+        {!isRouteStarted && pendingStops.length > 0 && (
+          <TouchableOpacity
+            style={styles.startBtn}
+            onPress={startRoute}
+            activeOpacity={0.7}
+          >
+            <Navigation size={22} color="#fff" />
+            <View style={{ marginLeft: 12 }}>
+              <Text style={styles.startBtnTitle}>Start Today's Route</Text>
+              <Text style={styles.startBtnSub}>Begin tracking & navigation</Text>
+            </View>
           </TouchableOpacity>
-        ) : isRouteStarted && pendingStops.length > 0 ? (
+        )}
+
+        {isRouteStarted && pendingStops.length > 0 && (
           <View style={styles.activeRouteBanner}>
             <View style={styles.pulsingDot} />
             <Text style={styles.activeRouteText}>Live Tracking Active</Text>
           </View>
-        ) : null}
+        )}
 
         <View style={styles.listHeader}>
           <Text style={styles.sectionTitle}>Up Next</Text>
@@ -115,7 +109,11 @@ export default function RouteScreen() {
 
                 <View style={styles.stopCardFooter}>
                   {isRouteStarted && stop.status === 'PENDING' ? (
-                    <TouchableOpacity style={styles.checkInBtn} onPress={() => handleCheckIn(stop.id, stop)}>
+                    <TouchableOpacity
+                      style={styles.checkInBtn}
+                      onPress={() => handleCheckIn(stop.id, stop)}
+                      activeOpacity={0.75}
+                    >
                       <Text style={styles.checkInText}>Check-In Now</Text>
                     </TouchableOpacity>
                   ) : stop.status === 'REACHED' ? (
@@ -140,20 +138,31 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#f1f5f9' },
   loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#f1f5f9' },
   loadingText: { marginTop: 12, fontSize: 16, color: '#475569', fontWeight: '500' },
-  
+
   header: { padding: 20, paddingTop: 60, backgroundColor: '#fff', borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
   headerTitle: { fontSize: 24, fontWeight: 'bold', color: '#0f172a' },
   headerSubtitle: { fontSize: 14, color: '#64748b', marginTop: 4 },
 
   content: { flex: 1, padding: 20 },
-  
-  actionBanner: { marginBottom: 24, borderRadius: 20, overflow: 'hidden', shadowColor: '#4f46e5', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.3, shadowRadius: 16, elevation: 8 },
-  actionGradient: { flexDirection: 'row', alignItems: 'center', padding: 20 },
-  actionTextContainer: { marginLeft: 16 },
-  actionTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
-  actionSubtitle: { fontSize: 13, color: '#e0e7ff', marginTop: 2 },
-  
-  activeRouteBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#dcfce7', padding: 12, borderRadius: 12, marginBottom: 24, borderWidth: 1, borderColor: '#bbf7d0' },
+
+  // Simple solid button — no LinearGradient (avoids Android touch blocking)
+  startBtn: {
+    backgroundColor: '#4f46e5',
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: 20,
+    borderRadius: 16,
+    marginBottom: 20,
+    shadowColor: '#4f46e5',
+    shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  startBtnTitle: { fontSize: 18, fontWeight: 'bold', color: '#fff' },
+  startBtnSub: { fontSize: 13, color: '#c7d2fe', marginTop: 2 },
+
+  activeRouteBanner: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#dcfce7', padding: 12, borderRadius: 12, marginBottom: 20, borderWidth: 1, borderColor: '#bbf7d0' },
   pulsingDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: '#16a34a', marginRight: 8 },
   activeRouteText: { color: '#166534', fontWeight: '700', fontSize: 14 },
 
@@ -174,7 +183,7 @@ const styles = StyleSheet.create({
   stopAddress: { fontSize: 12, color: '#64748b', marginTop: 2 },
   timeInfo: { alignItems: 'flex-end' },
   timeText: { fontSize: 11, fontWeight: '600', color: '#64748b', marginTop: 2 },
-  
+
   stopCardFooter: { marginTop: 16, paddingTop: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9' },
   checkInBtn: { backgroundColor: '#4f46e5', paddingVertical: 12, borderRadius: 10, alignItems: 'center' },
   checkInText: { color: '#fff', fontSize: 14, fontWeight: '700' },

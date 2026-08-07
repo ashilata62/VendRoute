@@ -1,5 +1,6 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/db.js';
+import { v4 as uuidv4 } from 'uuid';
 import { createNotification } from '../services/notificationService.js';
 import { io } from '../server.js';
 
@@ -32,7 +33,8 @@ export const createVehicle = async (req: Request, res: Response) => {
   try {
     const data = req.body;
     const vehicle = await prisma.vehicle.create({
-      data: {
+      data: { 
+        id: uuidv4(),
         model: data.model,
         plateNumber: data.plateNumber,
         type: data.type,

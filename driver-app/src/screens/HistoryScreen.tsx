@@ -15,7 +15,8 @@ export default function HistoryScreen() {
       if (!user?.id) return;
       const res = await stopsApi.getDriverRoutes(user.id);
       if (res.data.success) {
-        setRoutes(res.data.data);
+        const completedRoutes = res.data.data.filter((r: any) => r.status === 'COMPLETED');
+        setRoutes(completedRoutes);
       }
     } catch (error) {
       console.log('Error fetching history:', error);

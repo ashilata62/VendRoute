@@ -4,6 +4,7 @@ import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { StatusBar } from 'expo-status-bar';
 import { useAuthStore } from './src/store/authStore';
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Home, Map, MapPin, History, User } from 'lucide-react-native';
 
 // Screens
@@ -62,19 +63,23 @@ function TabNavigator() {
   );
 }
 
+const queryClient = new QueryClient();
+
 export default function App() {
   const isAuthenticated = useAuthStore((state) => !!state.token);
 
   return (
-    <NavigationContainer>
-      <StatusBar style="auto" />
-      <Stack.Navigator screenOptions={{ headerShown: false }}>
-        {!isAuthenticated ? (
-          <Stack.Screen name="Login" component={LoginScreen} />
-        ) : (
-          <Stack.Screen name="Main" component={TabNavigator} />
-        )}
-      </Stack.Navigator>
-    </NavigationContainer>
+    <QueryClientProvider client={queryClient}>
+      <NavigationContainer>
+        <StatusBar style="auto" />
+        <Stack.Navigator screenOptions={{ headerShown: false }}>
+          {!isAuthenticated ? (
+            <Stack.Screen name="Login" component={LoginScreen} />
+          ) : (
+            <Stack.Screen name="Main" component={TabNavigator} />
+          )}
+        </Stack.Navigator>
+      </NavigationContainer>
+    </QueryClientProvider>
   );
 }

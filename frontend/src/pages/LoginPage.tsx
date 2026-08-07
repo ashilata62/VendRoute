@@ -19,7 +19,7 @@ const DEMO_PASSWORD = "password123";
 const demoCredentials: { role: UserRole; label: string; email: string; color: string; bg: string; border: string }[] = [
   { role: "superadmin", label: "Super Admin", email: "admin@vendroute.in", color: "text-blue-600", bg: "bg-blue-50/80", border: "border-blue-200/60" },
   { role: "supervisor", label: "Supervisor", email: "manager@vendroute.in", color: "text-emerald-600", bg: "bg-emerald-50/80", border: "border-emerald-200/60" },
-  { role: "driver", label: "Driver", email: "driver@vendroute.in", color: "text-purple-600", bg: "bg-purple-50/80", border: "border-purple-200/60" },
+  { role: "driver", label: "Driver", email: "driver@vendroute.com", color: "text-purple-600", bg: "bg-purple-50/80", border: "border-purple-200/60" },
 ];
 
 // Role redirects after login
@@ -143,13 +143,13 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4 lg:p-8 font-sans">
+    <div className="h-screen bg-slate-900 flex items-start justify-center overflow-y-auto p-4 lg:p-6 font-sans">
       {/* Outer Card Container */}
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.4 }}
-        className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 min-h-[700px]"
+        className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 my-auto"
       >
         {/* ── LEFT PANEL (Dark Blue Landing Banner) ───────────────────────── */}
         <div className="lg:col-span-6 bg-[#0B1536] p-8 lg:p-12 text-white flex flex-col justify-between relative overflow-hidden">

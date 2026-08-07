@@ -1,6 +1,7 @@
 import { Request, Response } from 'express';
 import { RouteService } from '../services/routeService.js';
 import { createNotification } from '../services/notificationService.js';
+import { optimizeRoute as osrmOptimize } from '../services/optimizationService.js';
 import { io } from '../server.js';
 
 export const getRoutes = async (req: Request, res: Response) => {
@@ -82,3 +83,15 @@ export const updateRoute = async (req: Request, res: Response) => {
   }
 };
 
+export const optimizeRoute = async (req: Request, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const result = await osrmOptimize(id);
+    if (result) {
+      return res.status(200).json({ success: true, message: 'Route optimized successfully' });
+    }
+    return res.status(400).json({ success: false, message: 'Failed to optimize route' });
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
+};

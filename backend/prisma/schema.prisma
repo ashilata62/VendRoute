@@ -31,6 +31,9 @@ model livetracking {
   driverId  String
   latitude  Float
   longitude Float
+  speed     Float?
+  heading   Float?
+  accuracy  Float?
   timestamp DateTime @default(now())
   user      user     @relation(fields: [driverId], references: [id], map: "LiveTracking_driverId_fkey")
 
@@ -70,11 +73,15 @@ model machine {
 
 model notification {
   id        String            @id @default(uuid())
+  userId    String
   title     String
   message   String            @db.Text
   type      notification_type @default(info)
   read      Boolean           @default(false)
   createdAt DateTime          @default(now())
+  user      user              @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@index([userId])
 }
 
 model route {
@@ -83,9 +90,13 @@ model route {
   name          String
   date          String
   vehicleId     String?
-  totalDistance Float        @default(0)
-  estimatedTime Int          @default(0)
-  actualTime    Int?
+  totalDistance   Float        @default(0)
+  plannedDistance Float        @default(0)
+  actualDistance  Float        @default(0)
+  estimatedTime   Int          @default(0)
+  plannedDuration Int          @default(0)
+  actualDuration  Int          @default(0)
+  actualTime      Int?
   startTime     DateTime?
   endTime       DateTime?
   status        route_status @default(PENDING)
@@ -111,6 +122,7 @@ model routestop {
   notes            String?
   location         location         @relation(fields: [locationId], references: [id], map: "RouteStop_locationId_fkey")
   route            route            @relation(fields: [routeId], references: [id], onDelete: Cascade, map: "RouteStop_routeId_fkey")
+  inventorylog     inventorylog[]
 
   @@index([locationId], map: "RouteStop_locationId_fkey")
   @@index([routeId], map: "RouteStop_routeId_fkey")
@@ -135,6 +147,10 @@ model user {
   livetracking     livetracking[]
   route            route[]
   vehicle          vehicle[]
+  attendance        attendance[]
+  inventorylog      inventorylog[]
+  notification      notification[]
+  notificationtoken notificationtoken[]
 }
 
 model vehicle {
@@ -155,6 +171,53 @@ model vehicle {
   user             user?          @relation(fields: [assignedDriverId], references: [id], map: "Vehicle_assignedDriverId_fkey")
 
   @@index([assignedDriverId], map: "Vehicle_assignedDriverId_fkey")
+}
+
+model attendance {
+  id           String    @id @default(uuid())
+  driverId     String
+  date         String    // YYYY-MM-DD format
+  punchIn      DateTime
+  punchOut     DateTime?
+  breakStart   DateTime?
+  breakEnd     DateTime?
+  workingHours Float     @default(0)
+  status       String    @default("PRESENT")
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  user         user      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId])
+}
+
+model inventorylog {
+  id              String    @id @default(uuid())
+  routeStopId     String
+  driverId        String
+  productId       String
+  quantityAdded   Int       @default(0)
+  quantityRemoved Int       @default(0)
+  remarks         String?
+  createdAt       DateTime  @default(now())
+
+  user            user      @relation(fields: [driverId], references: [id], onDelete: Cascade)
+  routestop       routestop @relation(fields: [routeStopId], references: [id], onDelete: Cascade)
+
+  @@index([driverId])
+  @@index([routeStopId])
+}
+
+model notificationtoken {
+  id          String   @id @default(uuid())
+  driverId    String
+  deviceToken String   @unique
+  platform    String?  // ios, android, web
+  createdAt   DateTime @default(now())
+
+  user        user     @relation(fields: [driverId], references: [id], onDelete: Cascade)
+
+  @@index([driverId])
 }
 
 enum notification_type {

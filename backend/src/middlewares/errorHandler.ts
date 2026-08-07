@@ -1,14 +1,18 @@
 import { Request, Response, NextFunction } from 'express';
 
-export const errorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
-  console.error('❌ Global Error:', err);
+export const globalErrorHandler = (err: any, req: Request, res: Response, next: NextFunction) => {
+  console.error(`[Error] ${req.method} ${req.url} - ${err.message}`);
+  
+  if (err.name === 'ValidationError') {
+    return res.status(400).json({ success: false, message: err.message, errors: err.errors });
+  }
+  
+  if (err.name === 'UnauthorizedError') {
+    return res.status(401).json({ success: false, message: 'Invalid token' });
+  }
 
-  const statusCode = err.statusCode || 500;
-  const message = err.message || 'Internal Server Error';
-
-  return res.status(statusCode).json({
+  res.status(err.status || 500).json({
     success: false,
-    message,
-    stack: process.env.NODE_ENV === 'development' ? err.stack : undefined,
+    message: err.message || 'Internal Server Error'
   });
 };

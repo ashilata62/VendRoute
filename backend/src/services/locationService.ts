@@ -1,11 +1,12 @@
 import { prisma } from '../config/db.js';
+import { v4 as uuidv4 } from 'uuid';
 
 export class LocationService {
   static async getAll() {
     return await prisma.location.findMany({
       include: {
         customer: { select: { companyName: true, contactPerson: true } },
-        machines: true,
+        machine: true,
       },
       orderBy: { createdAt: 'desc' },
     });
@@ -16,7 +17,7 @@ export class LocationService {
       where: { id },
       include: {
         customer: true,
-        machines: true,
+        machine: true,
       },
     });
     if (!location) throw new Error('Location not found');
@@ -26,15 +27,18 @@ export class LocationService {
   static async create(data: any) {
     const { customerId, name, address, city, latitude, longitude, imageUrl, products } = data;
     return await prisma.location.create({
-      data: {
+      data: { 
+        id: uuidv4(),
         customerId,
         name,
         address,
         city,
         latitude: parseFloat(latitude) || 0,
         longitude: parseFloat(longitude) || 0,
-        imageUrl: imageUrl || null,
-        products: products || [],
+        imageUrl: imageUrl && !imageUrl.startsWith('data:') ? imageUrl : null,
+        products: products
+          ? (typeof products === 'string' ? products : JSON.stringify(products))
+          : null,
       },
     });
   }
@@ -59,7 +63,7 @@ export class LocationService {
 
   static async delete(id: string) {
     // 1. Delete linked route stops
-    await prisma.routeStop.deleteMany({ where: { locationId: id } });
+    await prisma.routestop.deleteMany({ where: { locationId: id } });
     // 2. Delete linked vending machines
     await prisma.machine.deleteMany({ where: { locationId: id } });
     // 3. Delete location record

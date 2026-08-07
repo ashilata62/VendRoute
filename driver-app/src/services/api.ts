@@ -1,11 +1,12 @@
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
-// Production backend URL
+// Production backend URL (Railway deployed) — works on real devices & emulators
 const API_URL = 'https://marylandvendngbcknd-production.up.railway.app/api/v1';
 
 const api = axios.create({
   baseURL: API_URL,
+  timeout: 15000,
 });
 
 // Automatically attach JWT token to every request
@@ -20,8 +21,21 @@ api.interceptors.request.use((config) => {
 export const stopsApi = {
   getDriverStops: () => api.get('/stops'),
   getDriverRoutes: (driverId: string) => api.get(`/routes?driverId=${driverId}`),
-  checkIn: (stopId: string, location: any) => api.post(`/stops/${stopId}/check-in`, location), // Deprecated?
-  completeService: (stopId: string, data: any) => api.put(`/stops/${stopId}/checkin`, data),
+  checkIn: (stopId: string, location: any) => api.post(`/stops/${stopId}/check-in`, location),
+  completeService: async (stopId: string, data: any) => {
+    const isOnline = useAuthStore.getState().isOnline;
+    if (!isOnline) {
+      const { addToSyncQueue } = await import('./syncManager');
+      await addToSyncQueue({ type: 'route_stop_complete', data: { routeStopId: stopId, ...data } });
+      return { data: { success: true, message: 'Saved offline' } };
+    }
+    return api.put(`/stops/${stopId}/checkin`, data);
+  },
+};
+
+export const authApi = {
+  punchIn: () => api.post('/attendance/punch-in'),
+  punchOut: () => api.post('/attendance/punch-out'),
 };
 
 export default api;

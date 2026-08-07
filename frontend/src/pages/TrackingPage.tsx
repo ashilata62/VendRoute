@@ -1,5 +1,6 @@
 import { useState, useEffect, useMemo } from "react";
-import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap, Circle } from "react-leaflet";
+import MarkerClusterGroup from 'react-leaflet-cluster';
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
@@ -185,30 +186,53 @@ export default function TrackingPage() {
             );
           })}
 
-          {/* Draw Stop Markers */}
+          {/* Draw Stop Markers with Clustering */}
+          <MarkerClusterGroup
+            chunkedLoading
+            maxClusterRadius={40}
+            disableClusteringAtZoom={15}
+          >
+            {currentSelectedRouteInfo?.stops.map((stopLoc, idx) => {
+              const lat = Number(stopLoc.lat || (stopLoc as any).latitude);
+              const lng = Number(stopLoc.lng || (stopLoc as any).longitude);
+              if (isNaN(lat) || isNaN(lng)) return null;
+              const status: "completed" | "current" | "pending" | "missed" = idx === 0 ? "completed" : idx === 1 ? "current" : "pending";
+              return (
+                <Marker
+                  key={stopLoc.id}
+                  position={[lat, lng]}
+                  icon={createStopIcon(status as any)}
+                >
+                  <Popup>
+                    <div className="p-1 text-xs">
+                      <p className="font-bold text-slate-900">{stopLoc.customerName || stopLoc.name}</p>
+                      <p className="text-slate-500">{stopLoc.address}</p>
+                      <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 capitalize">
+                        {status}
+                      </span>
+                    </div>
+                  </Popup>
+                </Marker>
+              );
+            })}
+          </MarkerClusterGroup>
+
+          {/* Render Circles outside of MarkerClusterGroup to avoid Leaflet errors */}
           {currentSelectedRouteInfo?.stops.map((stopLoc, idx) => {
-            const lat = Number(stopLoc.lat || (stopLoc as any).latitude);
-            const lng = Number(stopLoc.lng || (stopLoc as any).longitude);
-            if (isNaN(lat) || isNaN(lng)) return null;
-            const status: "completed" | "current" | "pending" = idx === 0 ? "completed" : idx === 1 ? "current" : "pending";
-            return (
-              <Marker
-                key={stopLoc.id}
-                position={[lat, lng]}
-                icon={createStopIcon(status)}
-              >
-                <Popup>
-                  <div className="p-1 text-xs">
-                    <p className="font-bold text-slate-900">{stopLoc.customerName || stopLoc.name}</p>
-                    <p className="text-slate-500">{stopLoc.address}</p>
-                    <span className="inline-block mt-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-slate-100 text-slate-700 capitalize">
-                      {status}
-                    </span>
-                  </div>
-                </Popup>
-              </Marker>
-            );
+             const lat = Number(stopLoc.lat || (stopLoc as any).latitude);
+             const lng = Number(stopLoc.lng || (stopLoc as any).longitude);
+             if (isNaN(lat) || isNaN(lng)) return null;
+             const status: "completed" | "current" | "pending" | "missed" = idx === 0 ? "completed" : idx === 1 ? "current" : "pending";
+             return (
+               <Circle
+                 key={`circle-${stopLoc.id}`}
+                 center={[lat, lng]}
+                 radius={50}
+                 pathOptions={{ color: status === 'completed' ? '#10B981' : '#64748B', fillColor: status === 'completed' ? '#10B981' : '#64748B', fillOpacity: 0.1, weight: 1 }}
+               />
+             );
           })}
+
 
           {/* Active Driver Markers */}
           {(liveLocations || []).map((loc, idx) => {

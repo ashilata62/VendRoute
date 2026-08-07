@@ -9,7 +9,7 @@ import {
   Shield, Loader2, Pencil, Trash2, X, Check
 } from "lucide-react";
 
-import { usersApi, routesApi, vehiclesApi } from "../services/api";
+import { usersApi, routesApi, vehiclesApi, analyticsApi } from "../services/api";
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate } from "../lib/utils";
@@ -38,6 +38,7 @@ export default function DriverProfilePage() {
   const [vehicle, setVehicle] = useState<any>(null);
   const [driverRoutes, setDriverRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [analyticsData, setAnalyticsData] = useState<any>(null);
   const [activeTab, setActiveTab] = useState<"overview" | "routes" | "attendance" | "performance">("overview");
 
   // Edit & Delete Modal States
@@ -109,6 +110,13 @@ export default function DriverProfilePage() {
         if (userRes.success) setDriver(userRes.data);
         if (routesRes.success) {
           setDriverRoutes(routesRes.data.filter((r: any) => r.driverId === id));
+        }
+        
+        try {
+          const analyticsRes = await analyticsApi.getDriverAnalytics(id);
+          if (analyticsRes.success) setAnalyticsData(analyticsRes.data);
+        } catch (e) {
+          console.error("Failed to load driver analytics", e);
         }
         if (vhRes.success && userRes.success) {
           const assignedVehicle = vhRes.data.find((v: any) =>
@@ -391,12 +399,13 @@ export default function DriverProfilePage() {
             <div className="bg-card rounded-xl border border-border shadow-sm p-6">
               <h3 className="font-bold text-slate-900 text-sm mb-4">Routes Completed Trend</h3>
               <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={performanceLineData}>
+                <LineChart data={analyticsData?.historicalData?.completionRateByDay || performanceLineData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                   <XAxis dataKey="day" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
                   <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Line type="monotone" dataKey="completed" stroke="#2563EB" strokeWidth={2.5} />
+                  <Line type="monotone" dataKey="completed" name="Completed Stops" stroke="#2563EB" strokeWidth={2.5} />
+                  <Line type="monotone" dataKey="missed" name="Missed Stops" stroke="#EF4444" strokeWidth={2.5} />
                 </LineChart>
               </ResponsiveContainer>
             </div>
@@ -404,7 +413,7 @@ export default function DriverProfilePage() {
             <div className="bg-card rounded-xl border border-border shadow-sm p-6">
               <h3 className="font-bold text-slate-900 text-sm mb-4">Daily Stop Volume</h3>
               <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={stopsBarData}>
+                <BarChart data={analyticsData?.historicalData?.stopVolumeByDay || stopsBarData}>
                   <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
                   <XAxis dataKey="day" tick={{ fontSize: 11 }} />
                   <YAxis tick={{ fontSize: 11 }} />
@@ -421,8 +430,10 @@ export default function DriverProfilePage() {
               <h3 className="font-bold text-slate-900 text-base">Performance Grade Scorecard</h3>
               <p className="text-xs text-slate-500 mt-1">Based on safety, on-time arrivals, and customer rating</p>
             </div>
-            <div className="w-16 h-16 rounded-2xl bg-emerald-500 text-white font-black text-3xl flex items-center justify-center shadow-lg">
-              A+
+            <div className={`w-16 h-16 rounded-2xl text-white font-black text-3xl flex items-center justify-center shadow-lg ${
+              (analyticsData?.score || 95) >= 90 ? 'bg-emerald-500' : (analyticsData?.score || 95) >= 75 ? 'bg-amber-500' : 'bg-red-500'
+            }`}>
+              {(analyticsData?.score || 95) >= 90 ? 'A+' : (analyticsData?.score || 95) >= 80 ? 'B' : 'C'}
             </div>
           </div>
         </div>

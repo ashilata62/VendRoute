@@ -4,9 +4,9 @@ export class CustomerService {
   static async getAll() {
     return await prisma.customer.findMany({
       include: {
-        locations: {
+        location: {
           include: {
-            machines: true,
+            machine: true,
           },
         },
       },
@@ -18,8 +18,8 @@ export class CustomerService {
     const customer = await prisma.customer.findUnique({
       where: { id },
       include: {
-        locations: {
-          include: { machines: true },
+        location: {
+          include: { machine: true },
         },
       },
     });
@@ -28,7 +28,8 @@ export class CustomerService {
   }
 
   static async create(data: any) {
-    return await prisma.customer.create({ data });
+    const { v4: uuidv4 } = await import('uuid');
+    return await prisma.customer.create({ data: { ...data, id: uuidv4() } });
   }
 
   static async update(id: string, data: any) {
@@ -43,7 +44,7 @@ export class CustomerService {
     const locationIds = locations.map(l => l.id);
 
     if (locationIds.length > 0) {
-      await prisma.routeStop.deleteMany({ where: { locationId: { in: locationIds } } });
+      await prisma.routestop.deleteMany({ where: { locationId: { in: locationIds } } });
       await prisma.machine.deleteMany({ where: { locationId: { in: locationIds } } });
       await prisma.location.deleteMany({ where: { customerId: id } });
     }

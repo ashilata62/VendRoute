@@ -36,7 +36,7 @@ export default function QRScannerScreen() {
   return (
     <View style={styles.container}>
       <CameraView 
-        style={StyleSheet.absoluteFillObject}
+        style={StyleSheet.absoluteFill}
         barcodeScannerSettings={{
           barcodeTypes: ["qr"],
         }}

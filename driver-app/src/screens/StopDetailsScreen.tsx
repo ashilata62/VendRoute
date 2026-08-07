@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Image } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Image, Linking, Platform } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { Camera, CheckCircle, Package, DollarSign, X, ScanLine } from 'lucide-react-native';
+import { Camera, CheckCircle, Package, DollarSign, X, ScanLine, Navigation } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
 import { stopsApi } from '../services/api';
 
@@ -86,6 +86,28 @@ export default function StopDetailsScreen() {
     }
   };
 
+  const openNavigation = () => {
+    if (!stop.location?.latitude || !stop.location?.longitude) {
+      Alert.alert('Error', 'Location coordinates missing.');
+      return;
+    }
+    const lat = stop.location.latitude;
+    const lng = stop.location.longitude;
+    const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
+    const latLng = `${lat},${lng}`;
+    const label = stop.location.name;
+    const url = Platform.select({
+      ios: `${scheme}${label}@${latLng}`,
+      android: `${scheme}${latLng}(${label})`
+    });
+
+    if (url) {
+      Linking.openURL(url).catch(() => {
+        Alert.alert('Error', 'Could not open maps application.');
+      });
+    }
+  };
+
   return (
     <View style={styles.container}>
       {/* Header */}
@@ -94,9 +116,14 @@ export default function StopDetailsScreen() {
           <Text style={styles.headerTitle}>{stop.location?.name || 'Stop Details'}</Text>
           <Text style={styles.headerSubtitle}>{stop.location?.address}</Text>
         </View>
-        <TouchableOpacity style={styles.qrBtn} onPress={() => navigation.navigate('QRScanner')}>
-          <ScanLine size={24} color="#0f172a" />
-        </TouchableOpacity>
+        <View style={{ flexDirection: 'row' }}>
+          <TouchableOpacity style={[styles.qrBtn, { marginRight: 8 }]} onPress={openNavigation}>
+            <Navigation size={24} color="#0f172a" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.qrBtn} onPress={() => navigation.navigate('QRScanner')}>
+            <ScanLine size={24} color="#0f172a" />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView style={styles.content}>

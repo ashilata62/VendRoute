@@ -1,13 +1,40 @@
 import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useAuthStore } from '../store/authStore';
-import { LogOut } from 'lucide-react-native';
+import { authApi } from '../services/api';
+import { LogOut, Clock } from 'lucide-react-native';
 
 export default function ProfileScreen() {
   const { user, logout, isOnline, toggleOnline } = useAuthStore();
 
   const handleLogout = () => {
     logout();
+  };
+
+  const [punching, setPunching] = React.useState(false);
+
+  const handlePunchIn = async () => {
+    setPunching(true);
+    try {
+      await authApi.punchIn();
+      alert('Punched in successfully!');
+    } catch (e: any) {
+      alert(e.response?.data?.message || 'Failed to punch in');
+    } finally {
+      setPunching(false);
+    }
+  };
+
+  const handlePunchOut = async () => {
+    setPunching(true);
+    try {
+      await authApi.punchOut();
+      alert('Punched out successfully!');
+    } catch (e: any) {
+      alert(e.response?.data?.message || 'Failed to punch out');
+    } finally {
+      setPunching(false);
+    }
   };
 
   return (
@@ -75,6 +102,17 @@ export default function ProfileScreen() {
         {/* Attendance Logs */}
         <View style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>ATTENDANCE LOGS (REAL BACKEND CHECK-INS)</Text>
+          
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', marginBottom: 20 }}>
+            <TouchableOpacity style={[styles.punchBtn, { backgroundColor: '#10b981' }]} onPress={handlePunchIn} disabled={punching}>
+              <Clock size={16} color="#fff" />
+              <Text style={styles.punchText}>Punch In</Text>
+            </TouchableOpacity>
+            <TouchableOpacity style={[styles.punchBtn, { backgroundColor: '#ef4444' }]} onPress={handlePunchOut} disabled={punching}>
+              <Clock size={16} color="#fff" />
+              <Text style={styles.punchText}>Punch Out</Text>
+            </TouchableOpacity>
+          </View>
           
           <View style={styles.attendanceRow}>
             <Text style={styles.attendanceDate}>Today (5 Aug)</Text>
@@ -168,6 +206,9 @@ const styles = StyleSheet.create({
   attendanceTime: { fontSize: 12, color: '#94a3b8', marginRight: 12 },
   noDutyBadge: { backgroundColor: '#f1f5f9', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0' },
   noDutyText: { fontSize: 11, fontWeight: '600', color: '#64748b' },
+
+  punchBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 8, marginHorizontal: 4 },
+  punchText: { color: '#fff', fontWeight: 'bold', marginLeft: 8 },
 
   logoutBtn: { 
     flexDirection: 'row', alignItems: 'center', justifyContent: 'center', 

@@ -40,7 +40,7 @@ export class AuthService {
     };
   }
 
-  static async register(data: { name: string; email: string; password: string; role?: any; phone?: string }) {
+  static async register(data: {  name: string; email: string; password: string; role?: any; phone?: string }) {
     const existingUser = await prisma.user.findUnique({ where: { email: data.email } });
     if (existingUser) {
       throw new Error('Email is already registered');
@@ -48,7 +48,7 @@ export class AuthService {
 
     const hashedPassword = await hashPassword(data.password);
     const user = await prisma.user.create({
-      data: {
+      data: { 
         name: data.name,
         email: data.email,
         password: hashedPassword,
@@ -110,7 +110,7 @@ export class AuthService {
 
     await (prisma.user as any).update({
       where: { email },
-      data: {
+      data: { 
         resetOtp: otp,
         resetOtpExpires: expiresAt,
       },
@@ -153,7 +153,7 @@ export class AuthService {
 
     await (prisma.user as any).update({
       where: { email },
-      data: {
+      data: { 
         password: hashedPassword,
         resetOtp: null,
         resetOtpExpires: null,

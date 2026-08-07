@@ -7,12 +7,23 @@ Welcome to **VendRoute**! This document serves as the master guide for developer
 
 ## 🚀 1. Quick Start & Execution
 
-This project is a React-based SPA built with **Vite, React Router DOM, TailwindCSS, Recharts (Charts), Leaflet (Maps), and Zustand (State Management)**.
+This project is a Full-Stack Monorepo consisting of a React-based Web Admin (Frontend), a Node.js/Express Server (Backend), and a React Native Expo App (Driver App).
 
-* **Install Dependencies**: `npm install`
-* **Run in Development Mode**: `npm run dev` (Runs on `http://localhost:5173/`)
-* **Production Build Check**: `npm run build`
-* **TypeScript Validation**: `npx tsc --noEmit` (Currently compiling with **0 errors**)
+### 🌐 Frontend (React + Vite + TailwindCSS)
+* **Path**: `/frontend`
+* **Install**: `npm install`
+* **Run**: `npm run dev` (Runs on `http://localhost:5173/`)
+
+### 🖥️ Backend (Node.js + Express + Prisma + MySQL)
+* **Path**: `/backend`
+* **Install**: `npm install`
+* **Database Setup**: Ensure MySQL is running on port 3307 (or update `.env`) and run `npx prisma db push`.
+* **Run**: `npm run dev` (Runs on `http://localhost:5000/`)
+
+### 📱 Driver App (React Native + Expo)
+* **Path**: `/driver-app`
+* **Install**: `npm install`
+* **Run**: `npx expo start` (Scan QR code in Expo Go app)
 
 ---
 
@@ -20,19 +31,17 @@ This project is a React-based SPA built with **Vite, React Router DOM, TailwindC
 
 ```
 d:/kiaan/VendRoute
-├── src/
-│   ├── components/
-│   │   ├── layout/       <-- Global Layouts (Header, Sidebar, DriverMobileLayout)
-│   │   └── shared/       <-- Reusable UI elements (Status badges, Page headers)
-│   ├── data/
-│   │   └── mockData.ts   <-- Initial simulation data for stops, locations, routes
-│   ├── lib/
-│   │   └── utils.ts      <-- Currency/date formatters and Tailwind helper classes
-│   ├── pages/            <-- Web Admin dashboards and driver screens
-│   ├── store/            <-- Zustand state management stores (Auth, Tracking, Routes)
-│   ├── types/            <-- Type definitions and schemas for system objects
-│   ├── App.tsx           <-- Router pathways and routing configurations
-│   └── main.tsx          <-- React entry point
+├── frontend/             <-- Web Admin Dashboard (React/Vite)
+│   ├── src/pages/        <-- Web Admin pages (Dashboard, Routes, Drivers)
+│   ├── src/services/     <-- API calls using fetch (`api.ts`)
+│   └── src/store/        <-- Zustand state management
+├── backend/              <-- API Server (Node.js/Express)
+│   ├── src/controllers/  <-- Business logic (userController, routeController)
+│   ├── src/routes/       <-- Express Router endpoints
+│   ├── src/services/     <-- Internal services (AuthService, Socket.io)
+│   └── prisma/           <-- Prisma Schema (`schema.prisma`)
+└── driver-app/           <-- Field Staff Mobile App (Expo)
+    └── src/              <-- Mobile screens, location services, sockets
 ```
 
 ---
@@ -43,19 +52,18 @@ The application supports three distinct user roles, each offering a tailored int
 
 ### 👑 Super Admin (Full System Access)
 * **Goal**: Full operations configuration, route creation, fleet management, and billing reports.
-* **Credentials (Demo)**: `admin@vendroute.in` (Password: `password`).
-* **Sidebar Layout**: Full 12 navigation items + Profile + Logout.
+* **Credentials (Demo)**: `admin@vendroute.com` (Password: `Admin@123`).
+* **Dashboard Layout**: Full 12 navigation items + Profile + Logout.
 
 ### 👨‍💼 Supervisor (Field operations manager)
 * **Goal**: Monitor assigned routes, review driver metrics, and check alerts feed.
-* **Credentials (Demo)**: `manager@vendroute.in` (Password: `password`).
+* **Credentials (Demo)**: `manager@vendroute.in` (Password: `Admin@123`).
 * **Sidebar Layout**: Hides **Settings**, **Users & Roles**, and **Customers** to focus on active field runs.
-* **Dashboard Layout**: Automatically hides today's revenue overview card.
 
 ### 🚚 Driver (Field Staff Mobile Interface)
 * **Goal**: Interactive sequence checklist, GPS arrival check-in, refill listings, and cash capture.
-* **Credentials (Demo)**: `driver@vendroute.in` (Password: `password`).
-* **App Layout**: Web layout is bypassed. Launches a **locked mobile web app UI** with a bottom navigation tab bar.
+* **Credentials (Demo)**: `driver@vendroute.com` (Password: `Driver@123`).
+* **App Layout**: Separate React Native Expo App with background GPS tracking and live sockets.
 
 ---
 
@@ -77,79 +85,39 @@ The application supports three distinct user roles, each offering a tailored int
   └────────────────────────────────────────────────────────┘
   ```
 * **Key Features**:
-  1. **Top Metric Cards**: Summary of Today's Routes, Online Drivers, Completed/Missed stops progress, and Machine Alerts. (Revenue is hidden for supervisors).
-  2. **Live Map**: Real-time Leaflet tracker with moving vehicles (refreshes every 5 seconds).
-  3. **Alerts Feed**: Lists warning flags (emergency alerts, offline machines) with a "Mark all read" option.
-  4. **Donut Chart**: Visual Recharts mapping machine health statuses (Operational, Needs Service, Offline).
-  5. **Quick Actions**: Add locations, assign drivers, or generate reports instantly.
+  1. **Top Metric Cards**: Summary of Today's Routes, Online Drivers, Completed/Missed stops progress.
+  2. **Live Map**: Real-time Leaflet tracker with moving vehicles via Socket.io.
+  3. **Alerts Feed**: Lists warning flags (emergency alerts, offline machines).
 
 ### 🗺️ Routes Page (`src/pages/RoutesPage.tsx`)
-* **Visual Wireframe Layout**:
-  ```
-  ┌────────────────────────────────────────────────────────┐
-  │ [ Active Routes ] [ Scheduled ] [ Completed ] [Calendar]│
-  │ ────────────────────────────────────────────────────── │
-  │ Search: [___________]  Driver: [All ▾]  Status: [All ▾]│
-  │ ┌────────────────────────────────────────────────────┐ │
-  │ │ Route ID | Driver Name | Stops count | Status | Replay│ │
-  │ └────────────────────────────────────────────────────┘ │
-  └────────────────────────────────────────────────────────┘
-  ```
 * **Key Features**:
-  1. **Tab Filters**: View active route logs, scheduled queues, completed runs, or the calendar grid.
-  2. **Optimized Route Builder**: Add stops, pick drivers, specify dates, and toggle AI sequence optimization.
-  3. **Calendar Grid**: Shows schedules on a day-by-day basis.
-  4. **Route Replay Animation**: Leaflet map that traces and replays a driver's stops sequentially with animation.
+  1. **Optimized Route Builder**: Add stops, pick drivers, specify dates, fetching live distances from OSRM.
+  2. **Database Integration**: Saves complete Route and RouteStops to MySQL via backend API.
+  3. **Route Replay Animation**: Leaflet map that traces and replays a driver's stops sequentially with animation.
 
 ### 📍 Live Tracking (`src/pages/TrackingPage.tsx`)
 * **Key Features**:
-  1. **Map Sidebar**: List of drivers showing online/offline status, vehicle name, and active route.
-  2. **Real-time Map**: Plots active paths, speed metrics (e.g. 35 km/h), and stop indicators.
-  3. **Timeline Log**: Step-by-step progress tracking with Estimated Time of Arrival (ETA).
-
-### 🥤 Vending Locations (`src/pages/LocationsPage.tsx` & `LocationDetailPage.tsx`)
-* **Key Features**:
-  1. **Locations Directory**: List of machines displaying customer names, address coordinates, and active statuses.
-  2. **Before/After Photo Comparison**: Interactive slider that splits "Before servicing" and "After servicing" photos with a slide handle.
-  3. **Service History Timeline**: Chronological log of past refills, cash collections, and notes left by drivers.
-  4. **Product Configuration**: Visual product tag tags editor to audit what drinks/snacks are assigned.
+  1. **Socket.io Connection**: Connects to the backend and listens for `driver_location_changed` events.
+  2. **Real-time Map**: Plots active paths and updates marker position instantly when the Driver App pings.
 
 ### 📋 Stops Management (`src/pages/StopsPage.tsx`)
 * **Key Features**:
-  1. **Servicing Log Table**: Lists check-in arrival times, departure times, and verified GPS statuses.
-  2. **Refill Checklists**: Shows products restocked, cash boxes collected, and digital signatures.
+  1. **Servicing Log Table**: Lists check-in arrival times and departure times synced from the Mobile App.
+  2. **Refill Checklists**: Shows products restocked and cash boxes collected.
 
 ### 👥 Drivers & Fleet (`src/pages/DriversPage.tsx` & `DriverProfilePage.tsx`)
 * **Key Features**:
-  1. **Driver Profiles Grid**: Details licensing, ratings (e.g. 4.9⭐), and assigned vehicle specifications.
-  2. **Attendance Tracker**: Lists daily punch-in times.
-  3. **Performance Scorecard**: Dynamic scorecard ratings comparing routes completed, time per stop, and revenue generated.
-
-### 🚚 Vehicles (`src/pages/VehiclesPage.tsx`)
-* **Key Features**:
-  1. **Fleet Dashboard**: Shows fuel levels, odometer counters, and service countdowns.
-  2. **Fuel Logs**: Recharts bar graph displaying monthly fuel consumption versus maintenance costs.
-  3. **Maintenance Schedules**: Log of engine oil replacements, tire align checks, and brake pad servicing.
-
-### 📊 Reports & Analytics (`src/pages/ReportsPage.tsx`)
-* **Key Features**:
-  1. **Analytics Dashboard**: Multi-tab panels for Revenue, Routes, Machine Health, and Driver Scores.
-  2. **Recharts Charts**: Radar chart for driver scorecard metrics, line graphs for monthly revenue, and area graphs for completions.
-  3. **Service Galleries**: Visual log of photos captured by drivers during stop check-ins.
+  1. **Driver Profiles Grid**: Details licensing, ratings, and assigned vehicle specifications connected via Prisma relations (`user` & `vehicle`).
+  2. **Status Badges**: Shows real-time Online/Offline driver status.
 
 ### 👤 Users & Roles (`src/pages/UsersPage.tsx`)
 * **Key Features**:
-  1. **Users Directory**: Table of registered users showing roles (Super Admin, Supervisor, Driver, Viewer).
-  2. **Role Permissions Card**: Live reference guide displaying what actions each role is allowed to perform.
-  3. **New User Invitations**: Form to invite colleagues with role assignment dropdowns.
-
-### ⚙️ Settings (`src/pages/SettingsPage.tsx`)
-* **Key Features**:
-  1. **Form Categories**: Profile metadata, notifications toggles, security passwords, and theme setups (Light, Dark, System).
+  1. **Users Directory**: Database-backed table of registered users.
+  2. **User Invite Modal**: API-driven form that creates a new user, hashes their password, and saves them to MySQL.
 
 ---
 
-## 📱 5. Driver Mobile App Flow
+## 📱 5. Driver Mobile App Flow (Expo)
 
 For route drivers, the interface acts as a focused mobile app.
 
@@ -165,14 +133,9 @@ For route drivers, the interface acts as a focused mobile app.
 └──────────────┘   └──────────────┘   └──────────────┘   └──────────────┘
 ```
 
-1. **Dashboard Start**: The driver sees their summary metrics and clicks **START ROUTE** to initiate GPS tracking.
-2. **Sequential Checklist**: Displays stops in sequence. Tapping the current stop loads the Stop Details.
-3. **Servicing stop form**:
-   * Click **[ Check In ]** ➔ GPS verifies proximity and flags `GPS Verified ✓`.
-   * Check refill inventory logs and type cash collected.
-   * Draw signature, report issues, and click **[ Mark Stop Complete ]**.
-4. **Interactive Specifications**: Tapping "Machine Details" tab displays snacks/beverages stock levels (e.g. Snack 20% critical level, Sodas 85% full) and navigation details.
-5. **App Logs & Logout**: The Driver reviews history records of previous routes and logged out of the app.
+1. **Dashboard Start**: The driver clicks **START ROUTE**. The app connects to the Socket.io server and starts emitting GPS coordinates.
+2. **Sequential Checklist**: Fetches routes dynamically via `GET /api/v1/routes`.
+3. **Servicing stop form**: Driver completes tasks, API updates the route stop to 'COMPLETED', and admins see this live.
 
 ---
 
@@ -180,16 +143,14 @@ For route drivers, the interface acts as a focused mobile app.
 
 | Feature category | Status | Details |
 | :--- | :--- | :--- |
+| **Node.js/Express Backend** | ✅ Implemented | Complete API architecture with auth, controllers, and Prisma. |
+| **MySQL Database** | ✅ Implemented | 8+ structured tables (users, routes, vehicles, machines, etc). |
+| **Socket.io Live Tracking** | ✅ Implemented | GPS coordinates streamed from Expo app to Backend to Web Dashboard. |
+| **Authentication & Passwords** | ✅ Implemented | bcrypt password hashing and JWT token-based authentication. |
+| **Route Generation API** | ✅ Implemented | Dynamic distance/duration calculations saving to MySQL. |
 | **User Roles** | ✅ Implemented | Configured for Super Admin, Supervisor, and Driver. |
-| **Maps & Tracking** | ✅ Implemented | Live movement tracking with dynamic ETA updates. |
 | **Map Replay Animation** | ✅ Implemented | Step-by-step route replay mapping on Leaflet. |
-| **Before/After Photo Compare** | ✅ Implemented | Image sliders with split handles to compare visual conditions. |
-| **Inventory & Cash Logging** | ✅ Implemented | Stop-by-stop restocking log forms. |
-| **Digital Signatures** | ✅ Implemented | Simulated signature writing canvas. |
-| **Role Permissions Mapping** | ✅ Implemented | Settings permissions directory grid. |
-| **Add Customer Modal** | ✅ Implemented | Working form to insert new customer databases. |
-| **Barcode/QR Code Scanner** | ✅ Implemented | Simulated scanner scan radar overlays and verification simulation. |
-| **Offline Cache Storage** | ✅ Implemented | Browser status listeners, orange alert offline warnings, and LocalStorage queues. |
-| **Maps Application Redirects** | ✅ Implemented | Waze and Google Maps deep link anchors inside next stop panels. |
-| **Real-time Routing API** | ✅ Implemented | Live distance & time fetching calls to the public OSRM Routing services. |
-| **Vending Machines Module** | ✅ Implemented | Main sidebar node with KPI row, 4 table actions, and 6 tabbed machine detail panels (Overview, Products, Map, Compare, Service history, Route log). |
+| **Driver Expo App** | ✅ Implemented | React Native app logic for live location publishing and route viewing. |
+| **Offline Cache Storage** | ✅ Implemented | Browser status listeners, orange alert offline warnings. |
+| **Before/After Photo Compare** | 🚧 Frontend Only | Image sliders with split handles (not fully linked to backend storage yet). |
+| **Dashboard Analytics** | 🚧 Frontend Only | Some Recharts charts still use static/mock data metrics. |

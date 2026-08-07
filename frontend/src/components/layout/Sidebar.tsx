@@ -27,7 +27,7 @@ const navItems = [
   { path: "/customers", icon: Building2, label: "Customers / Locations", emoji: "👥" },
   { path: "/reports", icon: BarChart3, label: "Reports", emoji: "📊" },
   { path: "/notifications", icon: Bell, label: "Notifications", emoji: "🔔" },
-  { path: "/users", icon: UserCog, label: "Users & Roles", emoji: "👤" },
+  { path: "/users", icon: UserCog, label: "Supervisor", emoji: "👤" },
   { path: "/settings", icon: Settings, label: "Settings", emoji: "⚙️" },
 ];
 

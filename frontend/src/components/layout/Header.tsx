@@ -23,7 +23,7 @@ const breadcrumbMap: Record<string, string> = {
   customers: "Customers",
   reports: "Reports",
   notifications: "Notifications",
-  users: "Users & Roles",
+  users: "Supervisor",
   settings: "Settings",
   create: "Create New",
 };

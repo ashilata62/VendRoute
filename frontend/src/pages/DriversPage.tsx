@@ -3,7 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Users, UserCheck, Award, Star,
-  Plus, Search, Navigation, MessageSquare, X, ArrowUpRight, Loader2, Pencil
+  Plus, Search, Navigation, MessageSquare, X, ArrowUpRight, Loader2, Pencil, KeyRound, Check
 } from "lucide-react";
 
 import { usersApi, vehiclesApi } from "../services/api";
@@ -40,6 +40,28 @@ export default function DriversPage() {
   const [loading, setLoading] = useState(true);
   const [addForm, setAddForm] = useState({ name: "", email: "", phone: "", licenseNumber: "", address: "", emergencyContact: "", password: "Driver@123" });
   const [addSaving, setAddSaving] = useState(false);
+
+  // Reset Password state
+  const [resetPasswordDriver, setResetPasswordDriver] = useState<any | null>(null);
+  const [newPassword, setNewPassword] = useState("");
+  const [resetMsg, setResetMsg] = useState("");
+  const [resetSuccess, setResetSuccess] = useState(false);
+  const [resetting, setResetting] = useState(false);
+
+  const handleResetPassword = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newPassword || newPassword.length < 6) { setResetMsg("Password must be at least 6 characters."); return; }
+    setResetting(true); setResetMsg("");
+    try {
+      const res = await usersApi.update(resetPasswordDriver.id, { password: newPassword });
+      if (res.success) {
+        setResetSuccess(true);
+        setTimeout(() => { setResetPasswordDriver(null); setNewPassword(""); setResetSuccess(false); }, 1500);
+      } else { setResetMsg("Failed to reset password."); }
+    } catch (err: any) {
+      setResetMsg(err.message || "Failed to reset password.");
+    } finally { setResetting(false); }
+  };
 
   const itemsPerPage = 6;
 
@@ -186,6 +208,13 @@ export default function DriversPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <StatusBadge status={driver.isOnline !== false ? "active" : "offline"} />
+                    <button
+                      onClick={() => { setResetPasswordDriver(driver); setNewPassword(""); setResetMsg(""); setResetSuccess(false); }}
+                      className="p-1.5 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-md transition-colors"
+                      title="Reset Password"
+                    >
+                      <KeyRound className="w-3.5 h-3.5" />
+                    </button>
                     <button
                       onClick={() => navigate(`/drivers/${driver.id}`)}
                       className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-md transition-colors"
@@ -395,6 +424,51 @@ export default function DriversPage() {
           </div>
         )}
       </AnimatePresence>
+
+      {/* Reset Password Modal */}
+      {resetPasswordDriver && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-sm p-6 space-y-4">
+            <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+              <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
+                <KeyRound className="w-4 h-4 text-amber-500" /> Reset Driver Password
+              </h3>
+              <button onClick={() => setResetPasswordDriver(null)} className="p-1 rounded-lg text-slate-400 hover:text-slate-600 hover:bg-slate-100">
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <p className="text-xs text-slate-500">
+              Setting new password for <span className="font-bold text-slate-800">{resetPasswordDriver.name}</span>. They will use this to log in to the Driver App.
+            </p>
+            <form onSubmit={handleResetPassword} className="space-y-3">
+              <div>
+                <label className="block text-xs font-semibold text-slate-700 mb-1">New Password</label>
+                <input
+                  type="password"
+                  required
+                  minLength={6}
+                  placeholder="Enter new password (min. 6 chars)"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-amber-500/20 focus:border-amber-500"
+                />
+              </div>
+              {resetMsg && <div className="bg-red-50 text-red-700 p-2.5 rounded-xl text-xs font-semibold">{resetMsg}</div>}
+              {resetSuccess && (
+                <div className="bg-emerald-50 text-emerald-700 p-2.5 rounded-xl text-xs font-semibold flex items-center gap-2">
+                  <Check className="w-4 h-4" /> Password updated successfully!
+                </div>
+              )}
+              <div className="pt-1 flex justify-end gap-2">
+                <button type="button" onClick={() => setResetPasswordDriver(null)} className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-xl">Cancel</button>
+                <button type="submit" disabled={resetting} className="px-4 py-2 text-xs font-semibold text-white bg-amber-500 hover:bg-amber-600 disabled:opacity-60 rounded-xl shadow-sm">
+                  {resetting ? "Saving..." : "Save New Password"}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

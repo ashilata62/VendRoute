@@ -3,10 +3,10 @@ import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator,
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 
-const API_URL = 'http://192.168.1.14:5000/api/v1'; // Local network IP for physical mobile devices
+const API_URL = 'https://marylandvendngbcknd-production.up.railway.app/api/v1';
 
 export default function LoginScreen() {
-  const [email, setEmail] = useState('driver@vendroute.in');
+  const [email, setEmail] = useState('driver@vendroute.com');
   const [password, setPassword] = useState('password123');
   const [loading, setLoading] = useState(false);
   const setAuth = useAuthStore((state) => state.setAuth);

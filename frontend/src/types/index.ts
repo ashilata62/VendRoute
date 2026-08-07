@@ -117,9 +117,9 @@ export interface Route {
   stops: string[]; // stop IDs
   totalDistance: number; // km
   estimatedTime: number; // minutes
-  actualTime: number | null; // minutes
-  startTime: string | null;
-  endTime: string | null;
+  actualTime?: number | null; // minutes
+  startTime?: string | null;
+  endTime?: string | null;
   createdAt?: string;
   updatedAt?: string;
   driverName?: string;

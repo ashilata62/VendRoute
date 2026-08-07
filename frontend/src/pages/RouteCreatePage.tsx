@@ -94,11 +94,14 @@ export default function RouteCreatePage() {
     if (form.stops.length === 0) { alert("Please select at least one stop."); return; }
     setSaving(true);
     const success = await createRoute({
-      ...form,
+      name: form.name,
+      date: form.date,
+      driverId: form.driverId,
+      vehicleId: form.vehicleId || "",
+      stops: form.stops,
+      totalDistance: form.totalDistance,
+      estimatedTime: form.estimatedTime,
       status: "PENDING" as any,
-      actualTime: null,
-      startTime: null,
-      endTime: null,
     });
     setSaving(false);
     if (success) navigate("/routes");

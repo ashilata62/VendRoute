@@ -1,50 +1,76 @@
 import { Request, Response } from 'express';
-import { PrismaClient } from '@prisma/client';
+import { prisma } from '../config/db.js';
+import { AuthRequest } from '../middlewares/authMiddleware.js';
 
-const prisma = new PrismaClient();
-
-// GET /api/v1/notifications — all notifications, newest first
-export const getNotifications = async (req: Request, res: Response) => {
+export const createNotification = async (req: AuthRequest, res: Response) => {
   try {
+    const { userId, title, message, type } = req.body;
+    const notification = await prisma.notification.create({
+      data: {  userId, title, message, type: type || 'info' }
+    });
+    return res.status(201).json({ success: true, data: notification });
+  } catch (err: any) { return res.status(500).json({ success: false, message: err.message }); }
+};
+
+export const getNotifications = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
     const notifications = await prisma.notification.findMany({
+      where: { userId },
       orderBy: { createdAt: 'desc' },
     });
     res.json({ success: true, data: notifications });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to fetch notifications' });
-  }
+  } catch (err) { res.status(500).json({ success: false, message: 'Failed to fetch notifications' }); }
 };
 
-// GET /api/v1/notifications/unread-count — for bell badge
-export const getUnreadCount = async (req: Request, res: Response) => {
+export const getUnreadCount = async (req: AuthRequest, res: Response) => {
   try {
-    const count = await prisma.notification.count({ where: { read: false } });
-    res.json({ success: true, data: { count } });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to get count' });
-  }
+    const userId = req.user?.id;
+    const count = await prisma.notification.count({ where: { userId, read: false } });
+    res.json({ success: true, data: {  count } });
+  } catch (err) { res.status(500).json({ success: false, message: 'Failed to get count' }); }
 };
 
-// PATCH /api/v1/notifications/:id/read — mark one as read
-export const markAsRead = async (req: Request, res: Response) => {
+export const markAsRead = async (req: AuthRequest, res: Response) => {
   try {
     const id = String(req.params['id']);
-    const notification = await prisma.notification.update({
-      where: { id },
-      data: { read: true },
+    const userId = req.user?.id;
+    const notification = await prisma.notification.updateMany({
+      where: { id, userId },
+      data: {  read: true },
     });
     res.json({ success: true, data: notification });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to mark as read' });
-  }
+  } catch (err) { res.status(500).json({ success: false, message: 'Failed to mark as read' }); }
 };
 
-// PATCH /api/v1/notifications/mark-all-read — mark all as read
-export const markAllRead = async (req: Request, res: Response) => {
+export const markAllRead = async (req: AuthRequest, res: Response) => {
   try {
-    await prisma.notification.updateMany({ data: { read: true } });
+    const userId = req.user?.id;
+    await prisma.notification.updateMany({ where: { userId }, data: {  read: true } });
     res.json({ success: true, message: 'All notifications marked as read' });
-  } catch (err) {
-    res.status(500).json({ success: false, message: 'Failed to mark all read' });
-  }
+  } catch (err) { res.status(500).json({ success: false, message: 'Failed to mark all read' }); }
+};
+
+export const deleteNotification = async (req: AuthRequest, res: Response) => {
+  try {
+    const id = req.params.id as string;
+    const userId = req.user?.id;
+    await prisma.notification.deleteMany({ where: { id, userId } });
+    res.json({ success: true, message: 'Deleted' });
+  } catch (err) { res.status(500).json({ success: false, message: 'Failed to delete' }); }
+};
+
+export const registerToken = async (req: AuthRequest, res: Response) => {
+  try {
+    const driverId = req.user?.id;
+    const { deviceToken, platform } = req.body;
+    if (!driverId) return res.status(401).json({ success: false, message: 'Unauthorized' });
+
+    const token = await prisma.notificationtoken.upsert({
+      where: { deviceToken },
+      update: { driverId, platform },
+      create: { driverId, deviceToken, platform }
+    });
+    res.json({ success: true, data: token });
+  } catch (err: any) { res.status(500).json({ success: false, message: err.message }); }
 };

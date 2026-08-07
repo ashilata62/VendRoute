@@ -314,7 +314,7 @@ export default function RoutesPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredRoutes.map((route) => {
-                  const routeStops = route.stops || [];
+                  const routeStops = route.stops || (route as any).routestop || [];
                   const completedStops = routeStops.filter((s: any) => s.status === "COMPLETED").length;
                   const totalStops = routeStops.length;
                   const pct = totalStops === 0 ? 0 : Math.round((completedStops / totalStops) * 100) || (route.status === "COMPLETED" ? 100 : route.status === "IN_PROGRESS" ? 60 : 0);
@@ -705,10 +705,10 @@ export default function RoutesPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   <button
-                    onClick={() => setIsReplaying(!isReplaying)}
+                    onClick={() => navigate(`/routes/${detailRoute.id}/replay`)}
                     className="px-3 py-1.5 bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-medium rounded-lg flex items-center gap-1.5 shadow-sm"
                   >
-                    <Play className="w-3.5 h-3.5" /> {isReplaying ? "Pause Replay" : "Route Replay"}
+                    <Play className="w-3.5 h-3.5" /> Full Replay
                   </button>
                   <button onClick={() => setDetailRoute(null)} className="text-slate-400 hover:text-slate-600">
                     <X className="w-5 h-5" />
@@ -745,7 +745,7 @@ export default function RoutesPage() {
                 <div className="h-48 rounded-lg overflow-hidden border border-border relative">
                   <MapContainer center={[19.0760, 72.8777]} zoom={11} className="h-full w-full">
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    {detailRoute.stops.map((stop: any, idx) => {
+                    {(detailRoute.stops || (detailRoute as any).routestop || []).map((stop: any, idx: number) => {
                       const locationId = typeof stop === 'string' ? stop : stop.locationId;
                       const loc = locations.find((l) => l.id === locationId);
                       if (!loc) return null;
@@ -771,7 +771,7 @@ export default function RoutesPage() {
                 <div className="space-y-3">
                   <h4 className="font-semibold text-slate-900 text-xs uppercase tracking-wider">Stop Sequence Timeline</h4>
                   <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                    {detailRoute.stops.map((stop: any, idx) => {
+                    {(detailRoute.stops || (detailRoute as any).routestop || []).map((stop: any, idx: number) => {
                       const locationId = typeof stop === 'string' ? stop : stop.locationId;
                       const loc = locations.find((l) => l.id === locationId);
                       if (!loc) return null;

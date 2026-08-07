@@ -5,38 +5,27 @@ import { useAuthStore } from '../store/authStore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CheckCircle, Route } from 'lucide-react-native';
 import { stopsApi } from '../services/api';
+import { useQuery } from '@tanstack/react-query';
 
 const { width } = Dimensions.get('window');
 
 export default function DashboardScreen() {
   const { user, isOnline, toggleOnline } = useAuthStore();
   const navigation = useNavigation();
-  const [stops, setStops] = useState<any[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { data: routesResponse, isLoading: loading } = useQuery({
+    queryKey: ['routes', user?.id],
+    queryFn: () => stopsApi.getDriverRoutes(user?.id!),
+    enabled: !!user?.id,
+    refetchInterval: 60000 // auto refresh every minute
+  });
 
-  useEffect(() => {
-    const fetchStops = async () => {
-      try {
-        setLoading(true);
-        const response = await stopsApi.getDriverStops();
-        if (response.data.success) {
-          setStops(response.data.data);
-        }
-      } catch (error) {
-        console.log('Fetch stops error in Dashboard', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+  const stops = useMemo(() => {
+    if (!routesResponse?.data?.data) return [];
+    // Flatten stops from all routes today
+    return routesResponse.data.data.flatMap((r: any) => r.routestop || []);
+  }, [routesResponse]);
 
-    fetchStops();
-    const unsubscribe = navigation.addListener('focus', () => {
-      fetchStops();
-    });
-    return unsubscribe;
-  }, [navigation]);
-
-  const pendingStops = useMemo(() => stops.filter(s => s.status !== 'COMPLETED'), [stops]);
+  const pendingStops = useMemo(() => stops.filter((s: any) => s.status !== 'COMPLETED'), [stops]);
 
   return (
     <View style={styles.container}>
@@ -97,15 +86,19 @@ export default function DashboardScreen() {
             <Text style={styles.caughtUpSubtitle}>You have no pending routes assigned for today.</Text>
           </View>
         ) : (
-          <View style={[styles.caughtUpCard, { backgroundColor: '#eff6ff', borderColor: '#dbeafe' }]}>
+          <TouchableOpacity 
+            style={[styles.caughtUpCard, { backgroundColor: '#eff6ff', borderColor: '#dbeafe' }]}
+            onPress={() => navigation.navigate('Route')}
+            activeOpacity={0.8}
+          >
             <View style={[styles.iconCircle, { backgroundColor: '#dbeafe' }]}>
               <Route size={24} color="#2563eb" />
             </View>
             <Text style={[styles.caughtUpTitle, { color: '#1e3a8a' }]}>You have active routes!</Text>
             <Text style={[styles.caughtUpSubtitle, { color: '#1d4ed8' }]}>
-              You have {pendingStops.length} pending stops for today. Go to the 'My Route' tab to start!
+              You have {pendingStops.length} pending stops for today. Tap here to start!
             </Text>
-          </View>
+          </TouchableOpacity>
         )}
       </View>
     </View>
