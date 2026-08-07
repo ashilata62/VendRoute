@@ -28,7 +28,7 @@ export const getStops = async (req: Request, res: Response) => {
 export const checkInStop = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
-    const { gpsVerified, cashCollected, productsRefilled, notes, signatureUrl } = req.body;
+    const { gpsVerified, cashCollected, productsRefilled, notes, signatureUrl, machineIssues, photos } = req.body;
 
     // Verify stop exists
     const existingStop = await prisma.routestop.findUnique({ where: { id } });
@@ -42,7 +42,9 @@ export const checkInStop = async (req: Request, res: Response) => {
         cashCollected: parseFloat((cashCollected as string) || '0'),
         productsRefilled,
         notes: notes as string,
-        signatureUrl: signatureUrl as string
+        signatureUrl: signatureUrl as string,
+        machineIssues: machineIssues as string,
+        photos: photos ? JSON.stringify(photos) : null
       },
     });
 

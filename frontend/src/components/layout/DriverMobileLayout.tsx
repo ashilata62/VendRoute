@@ -212,9 +212,16 @@ export default function DriverMobileLayout() {
     setRefillItems(refillItems.filter((_, i) => i !== index));
   };
 
-  const handlePhotoUpload = () => {
-    // Simulate photo add
-    setStopPhotos([...stopPhotos, "https://images.unsplash.com/photo-1604719312566-8912e9227c6a?w=300&auto=format&fit=crop&q=60"]);
+  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          setStopPhotos([...stopPhotos, event.target.result as string]);
+        }
+      };
+      reader.readAsDataURL(e.target.files[0]);
+    }
   };
 
   const handleCompleteStop = async () => {
@@ -231,6 +238,7 @@ export default function DriverMobileLayout() {
       machineIssues: reportedIssue,
       productsRefilled: refillItems,
       signatureUrl: realSignatureUrl,
+      photos: stopPhotos,
     };
 
     // If offline, cache the completed stop locally for sync
@@ -829,13 +837,11 @@ export default function DriverMobileLayout() {
                             </button>
                           </div>
                         ))}
-                        <button
-                          onClick={handlePhotoUpload}
-                          className="w-14 h-14 rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 flex flex-col items-center justify-center text-slate-400 cursor-pointer"
-                        >
+                        <label className="w-14 h-14 rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 flex flex-col items-center justify-center text-slate-400 cursor-pointer">
+                          <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
                           <Camera className="w-5 h-5 text-slate-400" />
                           <span className="text-[8px] font-bold mt-1">[ Upload ]</span>
-                        </button>
+                        </label>
                       </div>
                     </div>
 

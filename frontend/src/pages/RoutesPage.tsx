@@ -786,15 +786,53 @@ export default function RoutesPage() {
                           }`}>
                             {idx + 1}
                           </div>
-                          <div>
-                            <p className="text-xs font-bold text-slate-900">{loc.name}</p>
-                            <p className="text-[10px] text-slate-500">{loc.address}</p>
-                          </div>
-                          <div className="text-right">
-                            <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${isCompleted ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
-                              {isCompleted ? "Completed" : "Scheduled"}
-                            </span>
-                            <p className="text-[10px] text-slate-400 mt-1">ETA: 09:30 AM</p>
+                          <div className="flex-1">
+                            <div className="flex justify-between items-start">
+                              <div>
+                                <p className="text-xs font-bold text-slate-900">{loc.name}</p>
+                                <p className="text-[10px] text-slate-500">{loc.address}</p>
+                              </div>
+                              <div className="text-right">
+                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${isCompleted ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
+                                  {isCompleted ? "Completed" : "Scheduled"}
+                                </span>
+                                <p className="text-[10px] text-slate-400 mt-1">ETA: 09:30 AM</p>
+                              </div>
+                            </div>
+                            
+                            {/* Service Details from Driver */}
+                            {isCompleted && typeof stop === 'object' && (stop.cashCollected > 0 || stop.notes || stop.machineIssues || stop.photos) && (
+                              <div className="mt-3 pt-3 border-t border-slate-200 grid grid-cols-2 gap-2 text-[10px]">
+                                {stop.cashCollected > 0 && (
+                                  <div className="bg-white p-1.5 rounded border border-slate-100">
+                                    <span className="text-slate-400 block mb-0.5">Cash Collected</span>
+                                    <span className="font-bold text-emerald-600">₹{stop.cashCollected}</span>
+                                  </div>
+                                )}
+                                {stop.machineIssues && stop.machineIssues !== "None" && (
+                                  <div className="bg-white p-1.5 rounded border border-slate-100">
+                                    <span className="text-slate-400 block mb-0.5">Issue Reported</span>
+                                    <span className="font-bold text-red-600">{stop.machineIssues}</span>
+                                  </div>
+                                )}
+                                {stop.notes && (
+                                  <div className="bg-white p-1.5 rounded border border-slate-100 col-span-2">
+                                    <span className="text-slate-400 block mb-0.5">Driver Notes</span>
+                                    <span className="text-slate-700 italic">"{stop.notes}"</span>
+                                  </div>
+                                )}
+                                {stop.photos && (
+                                  <div className="col-span-2 mt-1">
+                                    <span className="text-slate-400 block mb-1">Service Photos</span>
+                                    <div className="flex gap-2 overflow-x-auto">
+                                      {JSON.parse(stop.photos).map((p: string, i: number) => (
+                                        <img key={i} src={p} className="h-12 w-12 rounded object-cover border border-slate-200" alt="Service" />
+                                      ))}
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            )}
                           </div>
                         </div>
                       );
