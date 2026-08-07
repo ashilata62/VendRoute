@@ -35,7 +35,7 @@ export class LocationService {
         city,
         latitude: parseFloat(latitude) || 0,
         longitude: parseFloat(longitude) || 0,
-        imageUrl: imageUrl && !imageUrl.startsWith('data:') ? imageUrl : null,
+        imageUrl: imageUrl ? imageUrl : null,
         products: products
           ? (typeof products === 'string' ? products : JSON.stringify(products))
           : null,

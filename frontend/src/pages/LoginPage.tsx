@@ -17,7 +17,7 @@ const DEMO_PASSWORD = "password123";
 // roles constant removed since role dropdown is removed
 
 const demoCredentials: { role: UserRole; label: string; email: string; color: string; bg: string; border: string }[] = [
-  { role: "superadmin", label: "Super Admin", email: "admin@vendroute.in", color: "text-blue-600", bg: "bg-blue-50/80", border: "border-blue-200/60" },
+  { role: "superadmin", label: "Admin", email: "admin@vendroute.in", color: "text-blue-600", bg: "bg-blue-50/80", border: "border-blue-200/60" },
   { role: "supervisor", label: "Supervisor", email: "manager@vendroute.in", color: "text-emerald-600", bg: "bg-emerald-50/80", border: "border-emerald-200/60" },
   { role: "driver", label: "Driver", email: "driver@vendroute.com", color: "text-purple-600", bg: "bg-purple-50/80", border: "border-purple-200/60" },
 ];
@@ -143,7 +143,7 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="h-screen bg-slate-900 flex items-start justify-center overflow-y-auto p-4 lg:p-6 font-sans">
+    <div className="min-h-screen bg-slate-900 flex items-start justify-center overflow-y-auto p-4 lg:p-6 font-sans">
       {/* Outer Card Container */}
       <motion.div
         initial={{ opacity: 0, scale: 0.98 }}
@@ -152,7 +152,7 @@ export default function LoginPage() {
         className="w-full max-w-6xl bg-white rounded-3xl shadow-2xl overflow-hidden grid grid-cols-1 lg:grid-cols-12 my-auto"
       >
         {/* ── LEFT PANEL (Dark Blue Landing Banner) ───────────────────────── */}
-        <div className="lg:col-span-6 bg-[#0B1536] p-8 lg:p-12 text-white flex flex-col justify-between relative overflow-hidden">
+        <div className="lg:col-span-6 bg-[#0B1536] p-5 lg:p-6 text-white flex flex-col justify-between relative overflow-hidden">
           {/* Background Grid Pattern & Isometric Highlights */}
           <div className="absolute inset-0 bg-[linear-gradient(to_right,#1e293b_1px,transparent_1px),linear-gradient(to_bottom,#1e293b_1px,transparent_1px)] bg-[size:3rem_3rem] [mask-image:radial-gradient(ellipse_60%_50%_at_50%_0%,#000_70%,transparent_100%)] opacity-25 pointer-events-none" />
           <div className="absolute -top-24 -left-24 w-96 h-96 bg-blue-600/20 rounded-full blur-3xl pointer-events-none" />
@@ -181,21 +181,21 @@ export default function LoginPage() {
           </div>
 
           {/* Middle Content: Heading + Paragraph + Features List + Isometric Art */}
-          <div className="my-8 z-10 space-y-6">
+          <div className="my-6 z-10 space-y-4">
             <div>
-              <h2 className="text-3xl lg:text-4xl font-extrabold text-white leading-tight">
+              <h2 className="text-2xl lg:text-3xl font-extrabold text-white leading-tight">
                 Smarter Routes. <br />
                 Better Operations. <br />
                 <span className="text-blue-400">Stronger Business.</span>
               </h2>
-              <p className="text-slate-300 text-xs lg:text-sm mt-3 leading-relaxed max-w-lg">
+              <p className="text-slate-300 text-xs mt-2 leading-relaxed max-w-lg">
                 Manage vending machines, routes, drivers and field operations in real-time.
                 Increase efficiency, ensure accountability and grow your business.
               </p>
             </div>
 
             {/* 4 Feature Items */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5 pt-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 pt-2">
               {[
                 { icon: MapPin, title: "Live Tracking", desc: "Track drivers and routes in real-time" },
                 { icon: Route, title: "Route Management", desc: "Optimize routes and assign with ease" },
@@ -215,7 +215,7 @@ export default function LoginPage() {
             </div>
 
             {/* Isometric Visual Graphic Component */}
-            <div className="relative w-full h-36 bg-gradient-to-r from-blue-950/40 to-slate-900/40 rounded-2xl border border-slate-800 p-4 flex items-center justify-center overflow-hidden">
+            <div className="hidden 2xl:flex relative w-full h-28 bg-gradient-to-r from-blue-950/40 to-slate-900/40 rounded-2xl border border-slate-800 p-4 items-center justify-center overflow-hidden">
               {/* Animated Road Line */}
               <svg className="absolute inset-0 w-full h-full" viewBox="0 0 400 120" fill="none">
                 <path d="M 20 100 Q 150 20 250 80 T 380 30" stroke="#2563EB" strokeWidth="3" strokeDasharray="6 6" className="animate-pulse" />
@@ -246,19 +246,19 @@ export default function LoginPage() {
           </div>
 
           {/* Bottom Row: Stats Bar + Copyright */}
-          <div className="z-10 space-y-4">
-            <div className="bg-slate-800/60 backdrop-blur-md rounded-2xl border border-slate-700/60 p-3.5 grid grid-cols-3 divide-x divide-slate-700/60 text-center">
+          <div className="z-10 space-y-3 mt-4">
+            <div className="bg-slate-800/60 backdrop-blur-md rounded-2xl border border-slate-700/60 p-2.5 grid grid-cols-3 divide-x divide-slate-700/60 text-center">
               <div className="px-2">
-                <p className="text-base lg:text-lg font-extrabold text-white">2,500+</p>
-                <p className="text-[10px] text-slate-400 font-medium">Active Drivers</p>
+                <p className="text-sm lg:text-base font-extrabold text-white">2,500+</p>
+                <p className="text-[9px] text-slate-400 font-medium">Active Drivers</p>
               </div>
               <div className="px-2">
-                <p className="text-base lg:text-lg font-extrabold text-white">15,000+</p>
-                <p className="text-[10px] text-slate-400 font-medium">Routes Done</p>
+                <p className="text-sm lg:text-base font-extrabold text-white">15,000+</p>
+                <p className="text-[9px] text-slate-400 font-medium">Routes Done</p>
               </div>
               <div className="px-2">
-                <p className="text-base lg:text-lg font-extrabold text-white">99.9%</p>
-                <p className="text-[10px] text-slate-400 font-medium">System Uptime</p>
+                <p className="text-sm lg:text-base font-extrabold text-white">99.9%</p>
+                <p className="text-[9px] text-slate-400 font-medium">System Uptime</p>
               </div>
             </div>
 
@@ -269,8 +269,8 @@ export default function LoginPage() {
         </div>
 
         {/* ── RIGHT PANEL (White Form Container) ─────────────────────────── */}
-        <div className="lg:col-span-6 p-8 lg:p-12 flex flex-col justify-between bg-white">
-          <div className="max-w-md mx-auto w-full space-y-6">
+        <div className="lg:col-span-6 p-5 lg:p-6 flex flex-col justify-center bg-white">
+          <div className="max-w-md mx-auto w-full space-y-4">
             {/* Form Title Header */}
             <div className="flex justify-between items-start">
               <div>
@@ -291,7 +291,7 @@ export default function LoginPage() {
             </div>
 
             {/* Login Form */}
-            <form onSubmit={handleSubmit} className="space-y-4">
+            <form onSubmit={handleSubmit} className="space-y-3">
               {/* Role is determined by backend response */}
 
               {/* Email Input */}
@@ -386,7 +386,7 @@ export default function LoginPage() {
             </form>
 
             {/* Divider */}
-            <div className="relative flex items-center justify-center my-4">
+            <div className="relative flex items-center justify-center my-3">
               <div className="border-t border-slate-200 w-full" />
               <span className="bg-white px-3 text-[11px] text-slate-400 font-semibold uppercase">or</span>
             </div>
@@ -407,11 +407,11 @@ export default function LoginPage() {
             </button>
 
             {/* Demo Accounts Section */}
-            <div className="pt-3">
+            <div className="pt-2">
               <p className="text-[11px] font-semibold text-slate-400 text-center mb-2.5 uppercase tracking-wider">
                 Demo Accounts
               </p>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-3 gap-1.5">
                 {demoCredentials.map((c) => (
                   <button
                     key={c.role}
@@ -430,7 +430,7 @@ export default function LoginPage() {
             </div>
 
             {/* Footer Contact Note */}
-            <p className="text-center text-xs text-slate-500 pt-2 font-medium">
+            <p className="text-center text-xs text-slate-500 pt-1 font-medium">
               New to VendRoute?{" "}
               <button type="button" onClick={() => alert("Our company number is 443 764 8363")} className="text-red-600 font-bold hover:underline">
                 Contact Administrator

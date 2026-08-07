@@ -2,6 +2,7 @@ import React from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { authApi } from '../services/api';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LogOut, Clock } from 'lucide-react-native';
 
 export default function ProfileScreen() {
@@ -11,12 +12,22 @@ export default function ProfileScreen() {
     logout();
   };
 
+  const queryClient = useQueryClient();
   const [punching, setPunching] = React.useState(false);
+
+  const { data: historyRes, isLoading: historyLoading } = useQuery({
+    queryKey: ['attendance', user?.id],
+    queryFn: () => authApi.getHistory(),
+    enabled: !!user?.id,
+  });
+
+  const attendanceLogs = historyRes?.data?.data || [];
 
   const handlePunchIn = async () => {
     setPunching(true);
     try {
       await authApi.punchIn();
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
       alert('Punched in successfully!');
     } catch (e: any) {
       alert(e.response?.data?.message || 'Failed to punch in');
@@ -29,6 +40,7 @@ export default function ProfileScreen() {
     setPunching(true);
     try {
       await authApi.punchOut();
+      queryClient.invalidateQueries({ queryKey: ['attendance'] });
       alert('Punched out successfully!');
     } catch (e: any) {
       alert(e.response?.data?.message || 'Failed to punch out');
@@ -114,37 +126,36 @@ export default function ProfileScreen() {
             </TouchableOpacity>
           </View>
           
-          <View style={styles.attendanceRow}>
-            <Text style={styles.attendanceDate}>Today (5 Aug)</Text>
-            <View style={styles.attendanceRight}>
-              <Text style={styles.attendanceTime}>In: --</Text>
-              <View style={styles.noDutyBadge}><Text style={styles.noDutyText}>No Duty</Text></View>
-            </View>
-          </View>
-          
-          <View style={styles.attendanceRow}>
-            <Text style={styles.attendanceDate}>Yesterday (4 Aug)</Text>
-            <View style={styles.attendanceRight}>
-              <Text style={styles.attendanceTime}>In: --</Text>
-              <View style={styles.noDutyBadge}><Text style={styles.noDutyText}>No Duty</Text></View>
-            </View>
-          </View>
-
-          <View style={styles.attendanceRow}>
-            <Text style={styles.attendanceDate}>3 Aug</Text>
-            <View style={styles.attendanceRight}>
-              <Text style={styles.attendanceTime}>In: --</Text>
-              <View style={styles.noDutyBadge}><Text style={styles.noDutyText}>No Duty</Text></View>
-            </View>
-          </View>
-
-          <View style={[styles.attendanceRow, { borderBottomWidth: 0 }]}>
-            <Text style={styles.attendanceDate}>2 Aug</Text>
-            <View style={styles.attendanceRight}>
-              <Text style={styles.attendanceTime}>In: --</Text>
-              <View style={styles.noDutyBadge}><Text style={styles.noDutyText}>No Duty</Text></View>
-            </View>
-          </View>
+          {historyLoading ? (
+            <Text style={{ textAlign: 'center', marginVertical: 20, color: '#64748b' }}>Loading logs...</Text>
+          ) : attendanceLogs.length === 0 ? (
+            <Text style={{ textAlign: 'center', marginVertical: 20, color: '#64748b' }}>No attendance history found</Text>
+          ) : (
+            attendanceLogs.slice(0, 5).map((log: any, index: number) => {
+              const punchInTime = new Date(log.punchIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
+              const punchOutTime = log.punchOut ? new Date(log.punchOut).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : null;
+              
+              const dateStr = new Date(log.punchIn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+              const isToday = new Date(log.punchIn).toDateString() === new Date().toDateString();
+              const isYesterday = new Date(log.punchIn).toDateString() === new Date(Date.now() - 86400000).toDateString();
+              
+              const displayDate = isToday ? `Today (${dateStr})` : isYesterday ? `Yesterday (${dateStr})` : dateStr;
+              
+              return (
+                <View key={log.id} style={[styles.attendanceRow, index === attendanceLogs.slice(0, 5).length - 1 && { borderBottomWidth: 0 }]}>
+                  <Text style={styles.attendanceDate}>{displayDate}</Text>
+                  <View style={styles.attendanceRight}>
+                    <Text style={styles.attendanceTime}>
+                      In: {punchInTime} {punchOutTime ? `| Out: ${punchOutTime}` : ''}
+                    </Text>
+                    <View style={[styles.noDutyBadge, { backgroundColor: punchOutTime ? '#f1f5f9' : '#ecfdf5', borderColor: punchOutTime ? '#e2e8f0' : '#10b981' }]}>
+                      <Text style={[styles.noDutyText, { color: punchOutTime ? '#64748b' : '#10b981' }]}>{punchOutTime ? 'Duty Ended' : 'On Duty'}</Text>
+                    </View>
+                  </View>
+                </View>
+              );
+            })
+          )}
         </View>
 
         {/* Logout Button */}

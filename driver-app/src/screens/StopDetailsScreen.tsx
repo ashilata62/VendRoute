@@ -1,245 +1,490 @@
 import React, { useState } from 'react';
-import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, ActivityIndicator, Image, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, ScrollView, TouchableOpacity, TextInput, Alert, Image, ActivityIndicator, Platform } from 'react-native';
 import { useRoute, useNavigation } from '@react-navigation/native';
-import { Camera, CheckCircle, Package, DollarSign, X, ScanLine, Navigation } from 'lucide-react-native';
+import { Camera, QrCode, Trash2, MapPin, ShieldCheck, FileText, Image as ImageIcon } from 'lucide-react-native';
 import * as ImagePicker from 'expo-image-picker';
-import { stopsApi } from '../services/api';
+import { stopsApi, routesApi } from '../services/api';
+import { useAuthStore } from '../store/authStore';
 
 export default function StopDetailsScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const { user } = useAuthStore();
   const stop = route.params?.stop;
   
+  const [activeTab, setActiveTab] = useState<'service' | 'machine'>('service');
+  const [isCheckedIn, setIsCheckedIn] = useState(false);
   const [cashCollected, setCashCollected] = useState('');
-  const [notes, setNotes] = useState('');
+  const [stopNotes, setStopNotes] = useState('');
+  const [reportedIssue, setReportedIssue] = useState('None');
+  const [isSigned, setIsSigned] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [photoUri, setPhotoUri] = useState<string | null>(null);
-
-  const [products, setProducts] = useState<{ id: string; name: string; added: string }[]>(
-    Array.isArray(stop?.location?.products) && stop.location.products.length > 0 
-      ? stop.location.products.map((p: string, idx: number) => ({ id: String(idx + 1), name: p, added: '' }))
-      : []
-  );
+  const [photoUris, setPhotoUris] = useState<string[]>([]);
+  
+  const [newRefillProduct, setNewRefillProduct] = useState('');
+  const [newRefillQty, setNewRefillQty] = useState('5');
+  const [refillItems, setRefillItems] = useState<{ product: string; qty: number }[]>([]);
 
   if (!stop) {
     return (
-      <View style={styles.container}>
+      <View style={[styles.container, { justifyContent: 'center', alignItems: 'center' }]}>
         <Text>Error: Stop details not found.</Text>
       </View>
     );
   }
 
-  const handleProductChange = (index: number, val: string) => {
-    const newProds = [...products];
-    newProds[index].added = val;
-    setProducts(newProds);
+  const handleAddRefill = () => {
+    if (!newRefillProduct) return;
+    setRefillItems([...refillItems, { product: newRefillProduct, qty: parseInt(newRefillQty, 10) || 1 }]);
+    setNewRefillProduct('');
+  };
+
+  const handleRemoveRefill = (index: number) => {
+    setRefillItems(refillItems.filter((_, i) => i !== index));
   };
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission Denied', 'Camera permission is required to take photo proof.');
+      Alert.alert('Permission Denied', 'Camera permission is required.');
       return;
     }
-
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.3, // compress heavily to save data
+      quality: 0.3,
       base64: true,
     });
-
     if (!result.canceled) {
-      // Create a data URI for the base64 string
-      setPhotoUri(`data:image/jpeg;base64,${result.assets[0].base64}`);
+      setPhotoUris([...photoUris, `data:image/jpeg;base64,${result.assets[0].base64}`]);
     }
   };
 
   const handleCompleteService = async () => {
+    if (!isCheckedIn) {
+      Alert.alert('Check-In Required', 'Please check-in before completing the service.');
+      return;
+    }
     try {
       setLoading(true);
-      
-      const inventoryChanges = products.filter(p => p.added !== '').map(p => ({
-        productId: p.id,
-        quantityAdded: parseInt(p.added, 10) || 0
+      const inventoryChanges = refillItems.map((p, idx) => ({
+        productId: String(idx + 1), // Dummy ID
+        quantityAdded: p.qty
       }));
 
       const payload = {
         cashCollected: parseFloat(cashCollected) || 0,
-        productsRefilled: inventoryChanges,
-        notes,
-        signatureUrl: photoUri // send photo URI (acting as signature/proof)
+        productsRefilled: JSON.stringify(inventoryChanges),
+        notes: stopNotes + (reportedIssue !== 'None' ? ` [Issue: ${reportedIssue}]` : ''),
+        signatureUrl: photoUris.length > 0 ? photoUris[0] : null
       };
 
       const response = await stopsApi.completeService(stop.id, payload);
       
       if (response.data.success) {
-        Alert.alert('Success', 'Stop service completed successfully!');
-        navigation.navigate('DashboardList');
+        Alert.alert('Success', 'Stop completed successfully!');
+        navigation.goBack();
       } else {
         Alert.alert('Error', response.data.message || 'Failed to complete service.');
       }
     } catch (error: any) {
-      console.log(error);
-      Alert.alert('Error', error.response?.data?.message || 'Network error');
+      console.log('API Error:', error.response?.data || error.message);
+      const errMessage = error.response?.data?.message || error.message || 'Network error';
+      Alert.alert('Error', typeof errMessage === 'string' ? errMessage : JSON.stringify(errMessage));
     } finally {
       setLoading(false);
     }
   };
 
-  const openNavigation = () => {
-    if (!stop.location?.latitude || !stop.location?.longitude) {
-      Alert.alert('Error', 'Location coordinates missing.');
-      return;
-    }
-    const lat = stop.location.latitude;
-    const lng = stop.location.longitude;
-    const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
-    const latLng = `${lat},${lng}`;
-    const label = stop.location.name;
-    const url = Platform.select({
-      ios: `${scheme}${label}@${latLng}`,
-      android: `${scheme}${latLng}(${label})`
-    });
-
-    if (url) {
-      Linking.openURL(url).catch(() => {
-        Alert.alert('Error', 'Could not open maps application.');
-      });
-    }
+  const handleSkipStop = async () => {
+    Alert.alert(
+      'Skip Stop',
+      'Are you sure you want to SKIP this stop? A notification will be sent to the admin.',
+      [
+        { text: 'Cancel', style: 'cancel' },
+        { 
+          text: 'Skip Stop', 
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setLoading(true);
+              const response = await routesApi.updateStopStatus(stop.id, "SKIPPED", stop.route?.name, stop.location?.name);
+              if (response.data?.success) {
+                Alert.alert('Stop Skipped', 'You have skipped this stop.');
+                navigation.goBack();
+              }
+            } catch (err: any) {
+              Alert.alert('Error', 'Failed to skip stop.');
+            } finally {
+              setLoading(false);
+            }
+          }
+        }
+      ]
+    );
   };
 
   return (
     <View style={styles.container}>
-      {/* Header */}
       <View style={styles.header}>
-        <View style={styles.headerTextContainer}>
-          <Text style={styles.headerTitle}>{stop.location?.name || 'Stop Details'}</Text>
-          <Text style={styles.headerSubtitle}>{stop.location?.address}</Text>
-        </View>
-        <View style={{ flexDirection: 'row' }}>
-          <TouchableOpacity style={[styles.qrBtn, { marginRight: 8 }]} onPress={openNavigation}>
-            <Navigation size={24} color="#0f172a" />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.qrBtn} onPress={() => navigation.navigate('QRScanner')}>
-            <ScanLine size={24} color="#0f172a" />
-          </TouchableOpacity>
-        </View>
-      </View>
-
-      <ScrollView style={styles.content}>
-        {/* Camera Verification Placeholder */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Photo Verification</Text>
-          
-          {!photoUri ? (
-            <TouchableOpacity style={styles.cameraBtn} onPress={takePhoto}>
-              <Camera size={24} color="#0f172a" />
-              <Text style={styles.cameraBtnText}>Take Machine Photo</Text>
-            </TouchableOpacity>
-          ) : (
-            <View style={styles.photoContainer}>
-              <Image source={{ uri: photoUri }} style={styles.previewImage} />
-              <TouchableOpacity style={styles.removePhotoBtn} onPress={() => setPhotoUri(null)}>
-                <X size={20} color="#fff" />
-              </TouchableOpacity>
-              <Text style={styles.photoSuccessText}>Photo attached successfully!</Text>
-            </View>
-          )}
-        </View>
-
-        {/* Refill Form */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <Package size={20} color="#0f172a" />
-            <Text style={styles.sectionTitle}>Inventory Refill</Text>
-          </View>
-          
-          {products.map((item, index) => (
-            <View key={item.id} style={styles.productRow}>
-              <Text style={styles.productName}>{item.name}</Text>
-              <TextInput 
-                style={styles.input} 
-                placeholder="Qty added"
-                keyboardType="numeric"
-                value={item.added}
-                onChangeText={(val) => handleProductChange(index, val)}
-              />
-            </View>
-          ))}
-        </View>
-
-        {/* Cash Collection */}
-        <View style={styles.section}>
-          <View style={styles.sectionHeader}>
-            <DollarSign size={20} color="#0f172a" />
-            <Text style={styles.sectionTitle}>Cash Collection</Text>
-          </View>
-          <TextInput 
-            style={styles.fullInput} 
-            placeholder="Enter amount collected (₹)"
-            keyboardType="numeric"
-            value={cashCollected}
-            onChangeText={setCashCollected}
-          />
-        </View>
-
-        {/* Notes */}
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Service Notes</Text>
-          <TextInput 
-            style={[styles.fullInput, { height: 80 }]} 
-            placeholder="Any issues or remarks?"
-            multiline
-            value={notes}
-            onChangeText={setNotes}
-          />
-        </View>
-
-      </ScrollView>
-
-      {/* Footer Action */}
-      <View style={styles.footer}>
-        <TouchableOpacity 
-          style={[styles.submitBtn, loading && { opacity: 0.7 }]} 
-          onPress={handleCompleteService}
-          disabled={loading}
-        >
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <CheckCircle size={20} color="#fff" />
-              <Text style={styles.submitText}>Complete Service</Text>
-            </>
-          )}
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.backBtnText}>← Back to Route Sequence</Text>
         </TouchableOpacity>
       </View>
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+        
+        {/* Machine Info Card */}
+        <View style={styles.machineCard}>
+          <View style={styles.machineHeaderRow}>
+            <View style={{ flex: 1 }}>
+              <Text style={styles.machineName}>{stop.location?.customer?.companyName || stop.location?.name}</Text>
+              <Text style={styles.machineAddress}>{stop.location?.address}</Text>
+            </View>
+            <View style={styles.vehicleTag}>
+              <Text style={styles.vehicleTagText}>{stop.route?.vehicle?.plateNumber || 'MH-01-AB-1234'}</Text>
+            </View>
+          </View>
+
+          <View style={styles.checkInRow}>
+            {!isCheckedIn ? (
+              <View style={styles.checkInActionsRow}>
+                <Text style={styles.notCheckedText}>Not Checked In</Text>
+                <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity style={styles.checkInBtn} onPress={() => setIsCheckedIn(true)}>
+                    <Text style={styles.checkInBtnText}>[ Check In ]</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity style={styles.scanBtn} onPress={() => navigation.navigate('QRScanner', { setQrScanned: () => setIsCheckedIn(true) })}>
+                    <QrCode size={14} color="#2563eb" />
+                    <Text style={styles.scanBtnText}>[ Scan QR ]</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <View style={styles.checkedInBadge}>
+                <ShieldCheck size={16} color="#059669" style={{ marginRight: 6 }} />
+                <Text style={styles.checkedInText}>Checked In</Text>
+              </View>
+            )}
+          </View>
+        </View>
+
+        {/* Tabs */}
+        <View style={styles.tabsRow}>
+          <TouchableOpacity 
+            style={[styles.tabBtn, activeTab === 'service' ? styles.tabBtnActive : styles.tabBtnInactive]}
+            onPress={() => setActiveTab('service')}
+          >
+            <Text style={[styles.tabText, activeTab === 'service' ? styles.tabTextActive : styles.tabTextInactive]}>Servicing Form</Text>
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.tabBtn, activeTab === 'machine' ? styles.tabBtnActive : styles.tabBtnInactive]}
+            onPress={() => setActiveTab('machine')}
+          >
+            <Text style={[styles.tabText, activeTab === 'machine' ? styles.tabTextActive : styles.tabTextInactive]}>🥤 Machine Details</Text>
+          </TouchableOpacity>
+        </View>
+
+        {activeTab === 'service' ? (
+          <View style={styles.formSection}>
+            {/* Photos */}
+            <View style={styles.formCard}>
+              <View style={styles.cardHeaderRow}>
+                <Text style={styles.cardTitle}>Previous Service Photos</Text>
+                <TouchableOpacity onPress={() => Alert.alert('History', 'Showing historical photos for this machine.')}>
+                  <Text style={styles.viewLinkText}>[ View ]</Text>
+                </TouchableOpacity>
+              </View>
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <View style={[styles.photoBox, { backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center' }]}>
+                  <ImageIcon size={20} color="#94a3b8" />
+                </View>
+                <View style={[styles.photoBox, styles.photoBoxDashed]}>
+                  <Text style={styles.plusCount}>+3</Text>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.formCard}>
+              <Text style={styles.cardTitle}>Service Visual Confirmation</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                {photoUris.map((uri, idx) => (
+                  <View key={idx} style={styles.photoBox}>
+                    <Image source={{ uri }} style={styles.photoImg} />
+                    <TouchableOpacity style={styles.deletePhotoBtn} onPress={() => setPhotoUris(photoUris.filter((_, i) => i !== idx))}>
+                      <Text style={styles.deletePhotoText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                <TouchableOpacity style={styles.uploadBtn} onPress={takePhoto}>
+                  <Camera size={20} color="#94a3b8" />
+                  <Text style={styles.uploadText}>[ Upload ]</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Inventory */}
+            <View style={styles.formCard}>
+              <Text style={styles.cardTitle}>Inventory Refilled Checklist</Text>
+              <View style={{ gap: 8, marginTop: 8 }}>
+                {refillItems.map((item, idx) => (
+                  <View key={idx} style={styles.refillListItem}>
+                    <Text style={styles.refillItemName}>{item.product}</Text>
+                    <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+                      <Text style={styles.refillItemQty}>Qty: {item.qty}</Text>
+                      <TouchableOpacity onPress={() => handleRemoveRefill(idx)}>
+                        <Trash2 size={16} color="#ef4444" />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.addRefillRow}>
+                <TextInput 
+                  style={[styles.input, { flex: 1 }]} 
+                  placeholder="Product Name" 
+                  value={newRefillProduct} 
+                  onChangeText={setNewRefillProduct} 
+                />
+                <TextInput 
+                  style={[styles.input, { width: 60 }]} 
+                  placeholder="Qty" 
+                  keyboardType="numeric" 
+                  value={newRefillQty} 
+                  onChangeText={setNewRefillQty} 
+                />
+                <TouchableOpacity style={styles.addBtn} onPress={handleAddRefill}>
+                  <Text style={styles.addBtnText}>[ Add ]</Text>
+                </TouchableOpacity>
+              </View>
+            </View>
+
+            {/* Financial & Notes */}
+            <View style={styles.formCard}>
+              <Text style={styles.cardTitle}>Cash Collected (₹)</Text>
+              <TextInput 
+                style={styles.inputLarge} 
+                placeholder="e.g. 4500" 
+                keyboardType="numeric" 
+                value={cashCollected} 
+                onChangeText={setCashCollected} 
+              />
+              
+              <Text style={[styles.cardTitle, { marginTop: 12 }]}>Service Notes</Text>
+              <TextInput 
+                style={styles.textarea} 
+                placeholder="Add machine notes, stock remarks, or cleaning updates..." 
+                multiline 
+                numberOfLines={3} 
+                value={stopNotes} 
+                onChangeText={setStopNotes} 
+                textAlignVertical="top"
+              />
+            </View>
+
+            {/* Issues & Signature */}
+            <View style={styles.formCard}>
+              <Text style={styles.cardTitle}>Operational Issues</Text>
+              <View style={styles.issuesRow}>
+                {['None', 'Coin Jam', 'Cooler Issue', 'Offline'].map((issue) => (
+                  <TouchableOpacity 
+                    key={issue} 
+                    style={[styles.issuePill, reportedIssue === issue ? styles.issuePillActive : styles.issuePillInactive]}
+                    onPress={() => setReportedIssue(issue)}
+                  >
+                    <Text style={[styles.issueText, reportedIssue === issue ? styles.issueTextActive : styles.issueTextInactive]}>
+                      {issue}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <View style={styles.divider} />
+              
+              <Text style={styles.cardTitle}>Digital Signature Confirmation</Text>
+              <TouchableOpacity 
+                style={styles.signatureBox} 
+                activeOpacity={0.8}
+                onPress={() => setIsSigned(!isSigned)}
+              >
+                {isSigned ? (
+                  <Text style={styles.signedText}>{user?.name || 'Driver Signature'} ✓</Text>
+                ) : (
+                  <Text style={styles.signPromptText}>[ Click to sign digitally ]</Text>
+                )}
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity 
+              style={[styles.completeBtn, !isCheckedIn && styles.completeBtnDisabled]} 
+              disabled={!isCheckedIn || loading}
+              onPress={handleCompleteService}
+            >
+              {loading ? <ActivityIndicator color="#fff" /> : <Text style={styles.completeBtnText}>[ Mark Stop Complete ]</Text>}
+            </TouchableOpacity>
+
+            <TouchableOpacity style={styles.skipBtn} onPress={handleSkipStop} disabled={loading}>
+              <Text style={styles.skipBtnText}>[ Skip This Stop ]</Text>
+            </TouchableOpacity>
+
+          </View>
+        ) : (
+          <View style={styles.formSection}>
+            <View style={styles.formCard}>
+              <Text style={styles.cardSectionLabel}>Machine Profile Specs</Text>
+              
+              <View style={styles.specsGrid}>
+                <View style={styles.specBox}>
+                  <Text style={styles.specLabel}>Machine ID</Text>
+                  <Text style={styles.specValue}>{stop.location?.machineId || 'N/A'}</Text>
+                </View>
+                <View style={styles.specBox}>
+                  <Text style={styles.specLabel}>Type</Text>
+                  <Text style={styles.specValue}>{stop.location?.machineType || 'Snack & Drink'}</Text>
+                </View>
+                <View style={styles.specBox}>
+                  <Text style={styles.specLabel}>Last Visit</Text>
+                  <Text style={styles.specValue}>{stop.location?.lastServiceDate || 'N/A'}</Text>
+                </View>
+                <View style={styles.specBox}>
+                  <Text style={styles.specLabel}>Frequency</Text>
+                  <Text style={styles.specValue}>{stop.location?.visitFrequency || 'Weekly'}</Text>
+                </View>
+              </View>
+
+              <View style={styles.divider} />
+
+              <Text style={styles.cardSectionLabel}>Refill Stock Levels</Text>
+              <View style={{ gap: 12, marginTop: 8 }}>
+                {[
+                  { name: 'Snacks / Chips', pct: 20, color: '#ef4444' },
+                  { name: 'Beverages / Sodas', pct: 85, color: '#10b981' },
+                  { name: 'Chocolates / Candies', pct: 45, color: '#f59e0b' }
+                ].map((s) => (
+                  <View key={s.name}>
+                    <View style={styles.stockLabelRow}>
+                      <Text style={styles.stockLabel}>{s.name}</Text>
+                      <Text style={styles.stockPct}>{s.pct}%</Text>
+                    </View>
+                    <View style={styles.stockBg}>
+                      <View style={[styles.stockFill, { backgroundColor: s.color, width: `${s.pct}%` }]} />
+                    </View>
+                  </View>
+                ))}
+              </View>
+
+              <View style={styles.divider} />
+
+              <View style={{ marginTop: 8 }}>
+                <Text style={[styles.cardTitle, { color: '#0f172a' }]}>📍 Live Navigation Coordinates</Text>
+                <Text style={styles.monoText}>LAT: {stop.location?.latitude || 'N/A'} · LNG: {stop.location?.longitude || 'N/A'}</Text>
+                <Text style={styles.metaDescText}>ETA: {stop?.route?.estimatedTime ? Math.round(stop.route.estimatedTime / Math.max(stop.route.routestop?.length || 1, 1)) : 10} mins · Distance: {stop?.route?.totalDistance ? (stop.route.totalDistance / Math.max(stop.route.routestop?.length || 1, 1)).toFixed(1) : "0"} km to Next stop</Text>
+              </View>
+            </View>
+          </View>
+        )}
+
+      </ScrollView>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#f1f5f9' },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#fff', padding: 20, paddingTop: 50, borderBottomWidth: 1, borderBottomColor: '#e2e8f0' },
-  headerTextContainer: { flex: 1 },
-  headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#0f172a' },
-  headerSubtitle: { fontSize: 14, color: '#64748b', marginTop: 4 },
-  qrBtn: { padding: 10, backgroundColor: '#f1f5f9', borderRadius: 8 },
+  container: { flex: 1, backgroundColor: '#f8fafc' },
+  header: { 
+    backgroundColor: '#0B1536', 
+    paddingTop: 60, 
+    paddingBottom: 16, 
+    paddingHorizontal: 20 
+  },
+  backBtnText: { color: '#ef4444', fontSize: 14, fontWeight: 'bold' },
+  
   content: { flex: 1, padding: 16 },
-  section: { backgroundColor: '#fff', borderRadius: 12, padding: 16, marginBottom: 16, borderWidth: 1, borderColor: '#e2e8f0' },
-  sectionHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 16, fontWeight: 'bold', color: '#334155', marginLeft: 8 },
-  cameraBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', backgroundColor: '#f8fafc', padding: 16, borderRadius: 8, borderWidth: 1, borderColor: '#cbd5e1', borderStyle: 'dashed', marginTop: 12 },
-  cameraBtnText: { marginLeft: 12, fontSize: 16, fontWeight: '600', color: '#0f172a' },
-  photoContainer: { marginTop: 12, alignItems: 'center', position: 'relative' },
-  previewImage: { width: '100%', height: 200, borderRadius: 8 },
-  removePhotoBtn: { position: 'absolute', top: 8, right: 8, backgroundColor: 'rgba(0,0,0,0.5)', padding: 8, borderRadius: 20 },
-  photoSuccessText: { color: '#16a34a', fontWeight: 'bold', marginTop: 8 },
-  productRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 8, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
-  productName: { fontSize: 16, color: '#1e293b', flex: 1 },
-  input: { width: 100, backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, padding: 8, textAlign: 'center' },
-  fullInput: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 6, padding: 12, fontSize: 16 },
-  footer: { backgroundColor: '#fff', padding: 16, borderTopWidth: 1, borderTopColor: '#e2e8f0' },
-  submitBtn: { backgroundColor: '#16a34a', padding: 16, borderRadius: 12, flexDirection: 'row', justifyContent: 'center', alignItems: 'center' },
-  submitText: { color: '#fff', fontSize: 18, fontWeight: 'bold', marginLeft: 8 }
+
+  machineCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2, marginBottom: 16 },
+  machineHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start' },
+  machineName: { fontSize: 16, fontWeight: 'bold', color: '#0f172a' },
+  machineAddress: { fontSize: 12, color: '#64748b', marginTop: 4 },
+  vehicleTag: { backgroundColor: '#eff6ff', paddingHorizontal: 10, paddingVertical: 4, borderRadius: 12, borderWidth: 1, borderColor: '#dbeafe' },
+  vehicleTagText: { color: '#2563eb', fontSize: 10, fontWeight: 'bold' },
+
+  checkInRow: { marginTop: 16, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 16 },
+  checkInActionsRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  notCheckedText: { color: '#64748b', fontSize: 12, fontWeight: 'bold' },
+  checkInBtn: { backgroundColor: '#ef4444', paddingHorizontal: 12, paddingVertical: 8, borderRadius: 8 },
+  checkInBtnText: { color: '#fff', fontSize: 11, fontWeight: 'bold' },
+  scanBtn: { backgroundColor: '#fff', borderWidth: 1, borderColor: '#e2e8f0', flexDirection: 'row', alignItems: 'center', paddingHorizontal: 10, paddingVertical: 8, borderRadius: 8 },
+  scanBtnText: { color: '#334155', fontSize: 11, fontWeight: 'bold', marginLeft: 4 },
+  
+  checkedInBadge: { flexDirection: 'row', alignItems: 'center', alignSelf: 'flex-start', backgroundColor: '#ecfdf5', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 8, borderWidth: 1, borderColor: '#a7f3d0' },
+  checkedInText: { color: '#047857', fontSize: 12, fontWeight: 'bold' },
+
+  tabsRow: { flexDirection: 'row', gap: 8, borderBottomWidth: 1, borderBottomColor: '#e2e8f0', paddingBottom: 12, marginBottom: 16 },
+  tabBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, alignItems: 'center' },
+  tabBtnActive: { backgroundColor: '#e2e8f0' },
+  tabBtnInactive: { backgroundColor: 'transparent' },
+  tabText: { fontSize: 12, fontWeight: 'bold' },
+  tabTextActive: { color: '#1e293b' },
+  tabTextInactive: { color: '#64748b' },
+
+  formSection: { gap: 16 },
+  formCard: { backgroundColor: '#fff', borderRadius: 16, padding: 16, borderWidth: 1, borderColor: '#e2e8f0', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
+  cardHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
+  cardTitle: { fontSize: 12, fontWeight: 'bold', color: '#334155', marginBottom: 6 },
+  viewLinkText: { color: '#2563eb', fontSize: 10, fontWeight: 'bold' },
+
+  photoBox: { width: 60, height: 60, borderRadius: 12, overflow: 'hidden', borderWidth: 1, borderColor: '#e2e8f0', position: 'relative' },
+  photoBoxDashed: { borderStyle: 'dashed', backgroundColor: '#f8fafc', justifyContent: 'center', alignItems: 'center' },
+  plusCount: { color: '#94a3b8', fontSize: 12, fontWeight: 'bold' },
+  photoImg: { width: '100%', height: '100%', resizeMode: 'cover' },
+  deletePhotoBtn: { position: 'absolute', top: 2, right: 2, backgroundColor: '#ef4444', width: 16, height: 16, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  deletePhotoText: { color: '#fff', fontSize: 8, fontWeight: 'bold' },
+  uploadBtn: { width: 60, height: 60, borderRadius: 12, borderStyle: 'dashed', borderWidth: 2, borderColor: '#cbd5e1', backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
+  uploadText: { color: '#94a3b8', fontSize: 9, fontWeight: 'bold', marginTop: 4 },
+
+  refillListItem: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#f8fafc', padding: 8, borderRadius: 8, borderWidth: 1, borderColor: '#f1f5f9' },
+  refillItemName: { fontSize: 12, fontWeight: '600', color: '#334155' },
+  refillItemQty: { fontSize: 12, fontWeight: 'bold', color: '#0f172a' },
+  addRefillRow: { flexDirection: 'row', gap: 8, marginTop: 12, borderTopWidth: 1, borderTopColor: '#f1f5f9', paddingTop: 12 },
+  input: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 8, paddingHorizontal: 12, paddingVertical: 8, fontSize: 12, color: '#334155' },
+  addBtn: { backgroundColor: '#2563eb', paddingHorizontal: 12, borderRadius: 8, justifyContent: 'center' },
+  addBtnText: { color: '#fff', fontSize: 12, fontWeight: 'bold' },
+
+  inputLarge: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: 14, color: '#334155' },
+  textarea: { backgroundColor: '#f8fafc', borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 12, paddingHorizontal: 16, paddingVertical: 12, fontSize: 12, color: '#334155', minHeight: 80 },
+
+  issuesRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 4 },
+  issuePill: { flex: 1, minWidth: '45%', paddingVertical: 8, borderRadius: 8, borderWidth: 1, alignItems: 'center' },
+  issuePillActive: { backgroundColor: '#fef2f2', borderColor: '#fecaca' },
+  issuePillInactive: { backgroundColor: '#f8fafc', borderColor: '#e2e8f0' },
+  issueText: { fontSize: 11, fontWeight: 'bold' },
+  issueTextActive: { color: '#b91c1c' },
+  issueTextInactive: { color: '#64748b' },
+
+  divider: { height: 1, backgroundColor: '#f1f5f9', marginVertical: 16 },
+
+  signatureBox: { height: 80, backgroundColor: '#f8fafc', borderStyle: 'dashed', borderWidth: 1, borderColor: '#cbd5e1', borderRadius: 12, alignItems: 'center', justifyContent: 'center', marginTop: 4 },
+  signPromptText: { color: '#94a3b8', fontSize: 12, fontWeight: 'bold' },
+  signedText: { color: '#dc2626', fontSize: 18, fontWeight: '900', fontStyle: 'italic', letterSpacing: 2 },
+
+  completeBtn: { backgroundColor: '#059669', paddingVertical: 16, borderRadius: 12, alignItems: 'center', shadowColor: '#059669', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.25, shadowRadius: 6, elevation: 5 },
+  completeBtnDisabled: { backgroundColor: '#cbd5e1', shadowOpacity: 0 },
+  completeBtnText: { color: '#fff', fontSize: 14, fontWeight: '900' },
+  skipBtn: { backgroundColor: '#fef2f2', paddingVertical: 12, borderRadius: 12, alignItems: 'center', borderWidth: 1, borderColor: '#fecaca', marginTop: 12 },
+  skipBtnText: { color: '#dc2626', fontSize: 12, fontWeight: 'bold' },
+
+  cardSectionLabel: { fontSize: 12, fontWeight: 'bold', color: '#94a3b8', textTransform: 'uppercase', marginBottom: 12, letterSpacing: 1 },
+  specsGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  specBox: { width: '48%', backgroundColor: '#f8fafc', padding: 12, borderRadius: 8, borderWidth: 1, borderColor: '#f1f5f9' },
+  specLabel: { fontSize: 10, color: '#94a3b8', marginBottom: 2 },
+  specValue: { fontSize: 12, fontWeight: 'bold', color: '#1e293b' },
+
+  stockLabelRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 6 },
+  stockLabel: { fontSize: 12, color: '#64748b' },
+  stockPct: { fontSize: 12, fontWeight: 'bold', color: '#334155' },
+  stockBg: { height: 6, backgroundColor: '#f1f5f9', borderRadius: 3, overflow: 'hidden' },
+  stockFill: { height: '100%', borderRadius: 3 },
+
+  monoText: { fontFamily: Platform.OS === 'ios' ? 'Courier' : 'monospace', fontSize: 10, color: '#64748b', marginTop: 4 },
+  metaDescText: { fontSize: 10, color: '#94a3b8', marginTop: 2 }
 });

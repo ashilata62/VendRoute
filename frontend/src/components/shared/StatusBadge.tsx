@@ -27,7 +27,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   available: { label: "Available", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   "in-use": { label: "In Use", className: "bg-blue-50 text-blue-700 border-blue-200" },
   maintenance: { label: "Maintenance", className: "bg-amber-50 text-amber-700 border-amber-200" },
-  superadmin: { label: "Super Admin", className: "bg-purple-50 text-purple-700 border-purple-200" },
+  superadmin: { label: "Admin", className: "bg-purple-50 text-purple-700 border-purple-200" },
   supervisor: { label: "Supervisor", className: "bg-blue-50 text-blue-700 border-blue-200" },
   driver: { label: "Driver", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   viewer: { label: "Viewer", className: "bg-slate-50 text-slate-500 border-slate-200" },

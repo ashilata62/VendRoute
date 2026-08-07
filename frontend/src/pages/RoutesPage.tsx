@@ -1,4 +1,5 @@
 import { useState, useMemo, useEffect } from "react";
+import { createPortal } from "react-dom";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from "react-leaflet";
@@ -314,7 +315,7 @@ export default function RoutesPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredRoutes.map((route) => {
-                  const routeStops = route.stops || (route as any).routestop || [];
+                  const routeStops = route.stops || [];
                   const completedStops = routeStops.filter((s: any) => s.status === "COMPLETED").length;
                   const totalStops = routeStops.length;
                   const pct = totalStops === 0 ? 0 : Math.round((completedStops / totalStops) * 100) || (route.status === "COMPLETED" ? 100 : route.status === "IN_PROGRESS" ? 60 : 0);
@@ -326,15 +327,15 @@ export default function RoutesPage() {
                       </td>
                       <td className="px-4 py-3 w-40">
                         <p className="font-semibold text-slate-900 truncate max-w-[140px]">{route.name}</p>
-                        <p className="text-xs text-slate-400">{formatDate(route.date)}</p>
+                        <p className="text-xs text-slate-400">{formatDate(route.date)} • {route.createdAt ? new Date(route.createdAt).toLocaleTimeString('en-IN', {hour: '2-digit', minute:'2-digit'}) : ''}</p>
                       </td>
                       <td className="px-4 py-3 w-36">
-                        {(route as any).driver ? (
+                        {(route as any).user ? (
                           <div className="flex items-center gap-2">
                             <div className="w-6 h-6 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
-                              {(route as any).driver.name?.charAt(0)}
+                              {(route as any).user.name?.charAt(0)}
                             </div>
-                            <span className="text-xs font-medium text-slate-700 truncate">{(route as any).driver.name}</span>
+                            <span className="text-xs font-medium text-slate-700 truncate">{(route as any).user.name}</span>
                           </div>
                         ) : (
                           <span className="text-xs text-slate-400">Unassigned</span>
@@ -508,7 +509,9 @@ export default function RoutesPage() {
       )}
 
       {/* CREATE ROUTE MODAL */}
-      <AnimatePresence>
+      {createPortal(
+        <>
+          <AnimatePresence>
         {isCreateModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
             <motion.div
@@ -745,7 +748,7 @@ export default function RoutesPage() {
                 <div className="h-48 rounded-lg overflow-hidden border border-border relative">
                   <MapContainer center={[19.0760, 72.8777]} zoom={11} className="h-full w-full">
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    {(detailRoute.stops || (detailRoute as any).routestop || []).map((stop: any, idx: number) => {
+                    {detailRoute.stops?.map((stop: any, idx) => {
                       const locationId = typeof stop === 'string' ? stop : stop.locationId;
                       const loc = locations.find((l) => l.id === locationId);
                       if (!loc) return null;
@@ -771,7 +774,7 @@ export default function RoutesPage() {
                 <div className="space-y-3">
                   <h4 className="font-semibold text-slate-900 text-xs uppercase tracking-wider">Stop Sequence Timeline</h4>
                   <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                    {(detailRoute.stops || (detailRoute as any).routestop || []).map((stop: any, idx: number) => {
+                    {detailRoute.stops?.map((stop: any, idx) => {
                       const locationId = typeof stop === 'string' ? stop : stop.locationId;
                       const loc = locations.find((l) => l.id === locationId);
                       if (!loc) return null;
@@ -939,6 +942,9 @@ export default function RoutesPage() {
           </div>
         )}
       </AnimatePresence>
+        </>,
+        document.body
+      )}
     </div>
   );
 }

@@ -371,7 +371,7 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
           <div className="hidden lg:block text-left">
             <p className="text-xs font-bold text-slate-800 leading-tight">{user?.name}</p>
             <p className="text-[10px] text-slate-400 font-semibold capitalize">
-              {user?.role === "superadmin" ? "Super Admin" : user?.role}
+              {user?.role === "superadmin" ? "Admin" : user?.role}
             </p>
           </div>
           <ChevronDown className="w-3.5 h-3.5 text-slate-400 hidden sm:block" />

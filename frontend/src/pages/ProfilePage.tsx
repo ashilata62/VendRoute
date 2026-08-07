@@ -119,7 +119,7 @@ export default function ProfilePage() {
 
   const roleLabel =
     user?.role === "superadmin"
-      ? "Super Administrator"
+      ? "Administrator"
       : user?.role === "supervisor"
       ? "Field Supervisor"
       : "Field Operations Officer";

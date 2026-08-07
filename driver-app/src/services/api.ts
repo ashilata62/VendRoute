@@ -33,9 +33,16 @@ export const stopsApi = {
   },
 };
 
+export const routesApi = {
+  updateStopStatus: (stopId: string, status: string, routeName?: string, locationName?: string) =>
+    api.patch(`/routes/stops/${stopId}`, { status, routeName, locationName }),
+};
+
 export const authApi = {
   punchIn: () => api.post('/attendance/punch-in'),
   punchOut: () => api.post('/attendance/punch-out'),
+  getHistory: () => api.get('/attendance/history'),
+  updateStatus: (userId: string, isOnline: boolean) => api.put(`/users/${userId}`, { isOnline }),
 };
 
 export default api;

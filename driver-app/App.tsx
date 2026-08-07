@@ -44,14 +44,16 @@ function TabNavigator() {
           tabBarActiveTintColor: '#ef4444',
           tabBarInactiveTintColor: '#64748b',
           tabBarStyle: {
-            backgroundColor: '#0f172a',
-            borderTopWidth: 0,
+            backgroundColor: '#0B1536',
+            borderTopWidth: 1,
+            borderTopColor: '#1e293b',
             paddingTop: 5,
             minHeight: 65,
           },
           tabBarLabelStyle: {
             fontSize: 11,
-            fontWeight: '600'
+            fontWeight: '600',
+            marginBottom: 5,
           }
         })}
       >
@@ -71,7 +73,7 @@ export default function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <NavigationContainer>
-        <StatusBar style="auto" />
+        <StatusBar style="light" backgroundColor="#0B1536" />
         <Stack.Navigator screenOptions={{ headerShown: false }}>
           {!isAuthenticated ? (
             <Stack.Screen name="Login" component={LoginScreen} />

@@ -22,6 +22,7 @@ import { useNotificationStore } from "../store/notificationStore";
 import PageHeader from "../components/shared/PageHeader";
 import { formatCurrency } from "../lib/utils";
 import { reportsApi } from "../services/api";
+import DriverDashboardView from "../components/dashboard/DriverDashboardView";
 
 // Leaflet Icon setup
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -83,6 +84,10 @@ export default function DashboardPage() {
 
   // Real stats from backend
   const [dbStats, setDbStats] = useState<any>(null);
+
+  if (user?.role === "driver" || user?.role === "DRIVER") {
+    return <DriverDashboardView />;
+  }
 
   useEffect(() => {
     reportsApi.getDashboard().then((res) => {

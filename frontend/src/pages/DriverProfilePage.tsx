@@ -9,26 +9,12 @@ import {
   Shield, Loader2, Pencil, Trash2, X, Check
 } from "lucide-react";
 
-import { usersApi, routesApi, vehiclesApi, analyticsApi } from "../services/api";
+import { usersApi, routesApi, vehiclesApi, analyticsApi, attendanceApi } from "../services/api";
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate } from "../lib/utils";
 
-const performanceLineData = [
-  { day: "Week 1", completed: 12, target: 10 },
-  { day: "Week 2", completed: 15, target: 12 },
-  { day: "Week 3", completed: 14, target: 12 },
-  { day: "Week 4", completed: 18, target: 15 },
-];
-
-const stopsBarData = [
-  { day: "Mon", stops: 12 },
-  { day: "Tue", stops: 14 },
-  { day: "Wed", stops: 18 },
-  { day: "Thu", stops: 15 },
-  { day: "Fri", stops: 20 },
-  { day: "Sat", stops: 10 },
-];
+// Removed hardcoded performanceLineData and stopsBarData
 
 export default function DriverProfilePage() {
   const { id } = useParams();
@@ -39,6 +25,7 @@ export default function DriverProfilePage() {
   const [driverRoutes, setDriverRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyticsData, setAnalyticsData] = useState<any>(null);
+  const [attendanceData, setAttendanceData] = useState<any[]>([]);
   const [activeTab, setActiveTab] = useState<"overview" | "routes" | "attendance" | "performance">("overview");
 
   // Edit & Delete Modal States
@@ -117,6 +104,13 @@ export default function DriverProfilePage() {
           if (analyticsRes.success) setAnalyticsData(analyticsRes.data);
         } catch (e) {
           console.error("Failed to load driver analytics", e);
+        }
+        
+        try {
+          const attendanceRes = await attendanceApi.getDriverHistory(id);
+          if (attendanceRes.success) setAttendanceData(attendanceRes.data);
+        } catch (e) {
+          console.error("Failed to load driver attendance", e);
         }
         if (vhRes.success && userRes.success) {
           const assignedVehicle = vhRes.data.find((v: any) =>
@@ -378,17 +372,30 @@ export default function DriverProfilePage() {
       {activeTab === "attendance" && (
         <div className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-4">
           <h3 className="font-bold text-slate-900 text-sm border-b border-border pb-3">Monthly Attendance Log</h3>
-          <div className="grid grid-cols-7 gap-2 text-center text-xs">
-            {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((d) => (
-              <div key={d} className="font-semibold text-slate-400">{d}</div>
-            ))}
-            {Array.from({ length: 28 }).map((_, i) => (
-              <div key={i} className="p-3 rounded-lg border border-border bg-emerald-50/50 text-slate-800">
-                <span className="font-bold block">{i + 1}</span>
-                <span className="text-[9px] text-emerald-700 font-semibold">08:00 - 17:30</span>
-              </div>
-            ))}
-          </div>
+          {attendanceData && attendanceData.length > 0 ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {attendanceData.map((log: any) => (
+                <div key={log.id} className="p-4 rounded-lg border border-border bg-slate-50 flex flex-col gap-2">
+                  <div className="flex justify-between items-center border-b border-border pb-2">
+                    <span className="font-bold text-slate-900 text-sm">{new Date(log.punchIn).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' })}</span>
+                    <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${log.punchOut ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                      {log.punchOut ? 'Duty Ended' : 'On Duty'}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-xs text-slate-600 font-medium">
+                    <span>Punch In:</span>
+                    <span>{new Date(log.punchIn).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' })}</span>
+                  </div>
+                  <div className="flex justify-between text-xs text-slate-600 font-medium">
+                    <span>Punch Out:</span>
+                    <span>{log.punchOut ? new Date(log.punchOut).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' }) : '--'}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <p className="text-slate-500 text-sm text-center py-6">No attendance records found for this driver.</p>
+          )}
         </div>
       )}
 
@@ -398,29 +405,37 @@ export default function DriverProfilePage() {
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-card rounded-xl border border-border shadow-sm p-6">
               <h3 className="font-bold text-slate-900 text-sm mb-4">Routes Completed Trend</h3>
-              <ResponsiveContainer width="100%" height={220}>
-                <LineChart data={analyticsData?.historicalData?.completionRateByDay || performanceLineData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Line type="monotone" dataKey="completed" name="Completed Stops" stroke="#2563EB" strokeWidth={2.5} />
-                  <Line type="monotone" dataKey="missed" name="Missed Stops" stroke="#EF4444" strokeWidth={2.5} />
-                </LineChart>
-              </ResponsiveContainer>
+              {analyticsData?.historicalData?.completionRateByDay ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <LineChart data={analyticsData.historicalData.completionRateByDay}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Line type="monotone" dataKey="completed" name="Completed Stops" stroke="#2563EB" strokeWidth={2.5} />
+                    <Line type="monotone" dataKey="missed" name="Missed Stops" stroke="#EF4444" strokeWidth={2.5} />
+                  </LineChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[220px] flex items-center justify-center text-slate-400 text-xs">No trend data available</div>
+              )}
             </div>
 
             <div className="bg-card rounded-xl border border-border shadow-sm p-6">
               <h3 className="font-bold text-slate-900 text-sm mb-4">Daily Stop Volume</h3>
-              <ResponsiveContainer width="100%" height={220}>
-                <BarChart data={analyticsData?.historicalData?.stopVolumeByDay || stopsBarData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
-                  <XAxis dataKey="day" tick={{ fontSize: 11 }} />
-                  <YAxis tick={{ fontSize: 11 }} />
-                  <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
-                  <Bar dataKey="stops" fill="#10B981" radius={[4, 4, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
+              {analyticsData?.historicalData?.stopVolumeByDay ? (
+                <ResponsiveContainer width="100%" height={220}>
+                  <BarChart data={analyticsData.historicalData.stopVolumeByDay}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="#F1F5F9" />
+                    <XAxis dataKey="day" tick={{ fontSize: 11 }} />
+                    <YAxis tick={{ fontSize: 11 }} />
+                    <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+                    <Bar dataKey="stops" fill="#10B981" radius={[4, 4, 0, 0]} />
+                  </BarChart>
+                </ResponsiveContainer>
+              ) : (
+                <div className="h-[220px] flex items-center justify-center text-slate-400 text-xs">No volume data available</div>
+              )}
             </div>
           </div>
 
@@ -431,9 +446,9 @@ export default function DriverProfilePage() {
               <p className="text-xs text-slate-500 mt-1">Based on safety, on-time arrivals, and customer rating</p>
             </div>
             <div className={`w-16 h-16 rounded-2xl text-white font-black text-3xl flex items-center justify-center shadow-lg ${
-              (analyticsData?.score || 95) >= 90 ? 'bg-emerald-500' : (analyticsData?.score || 95) >= 75 ? 'bg-amber-500' : 'bg-red-500'
+              (analyticsData?.score || 0) >= 90 ? 'bg-emerald-500' : (analyticsData?.score || 0) >= 75 ? 'bg-amber-500' : 'bg-red-500'
             }`}>
-              {(analyticsData?.score || 95) >= 90 ? 'A+' : (analyticsData?.score || 95) >= 80 ? 'B' : 'C'}
+              {analyticsData?.score ? ((analyticsData.score >= 90) ? 'A+' : (analyticsData.score >= 80) ? 'B' : 'C') : 'N/A'}
             </div>
           </div>
         </div>

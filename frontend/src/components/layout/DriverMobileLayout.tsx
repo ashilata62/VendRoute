@@ -3,11 +3,11 @@ import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
 import {
   Home, Route, History, User, LogOut, CheckCircle2,
-  Play, MapPin, Camera, Trash2,
+  Play, MapPin, Camera, Trash2, Clock,
   Navigation, ShieldCheck, QrCode
 } from "lucide-react";
 import { useAuthStore } from "../../store/authStore";
-import { stopsApi, routesApi, usersApi } from "../../services/api";
+import { stopsApi, routesApi, usersApi, authApi, attendanceApi } from "../../services/api";
 // mock import removed — all data is now loaded from backend API
 import { cn } from "../../lib/utils";
 import brandLogo from "../../assets/maryland-logo.png";
@@ -84,6 +84,23 @@ export default function DriverMobileLayout() {
   const [historyRoutes, setHistoryRoutes] = useState<any[]>([]);
   const [driverAllRoutes, setDriverAllRoutes] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  const [punching, setPunching] = useState(false);
+  const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
+
+  const fetchAttendance = async () => {
+    if (!user?.id) return;
+    try {
+      const res = await attendanceApi.getDriverHistory(user.id);
+      if (res.data) {
+        setAttendanceLogs(Array.isArray(res.data) ? res.data : (res.data.data || []));
+      } else if (Array.isArray(res)) {
+        setAttendanceLogs(res);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
 
   const fetchStops = async () => {
     try {
@@ -116,6 +133,7 @@ export default function DriverMobileLayout() {
 
   useEffect(() => {
     fetchStops();
+    fetchAttendance();
   }, [user]);
 
   const completedCount = stopsList.filter(s => s.status === "COMPLETED").length;
@@ -258,6 +276,32 @@ export default function DriverMobileLayout() {
     setShowMachineDetails(false);
   };
 
+  const handlePunchIn = async () => {
+    setPunching(true);
+    try {
+      await authApi.punchIn();
+      await fetchAttendance();
+      alert('Punched in successfully!');
+    } catch (e: any) {
+      alert(e.message || 'Failed to punch in');
+    } finally {
+      setPunching(false);
+    }
+  };
+
+  const handlePunchOut = async () => {
+    setPunching(true);
+    try {
+      await authApi.punchOut();
+      await fetchAttendance();
+      alert('Punched out successfully!');
+    } catch (e: any) {
+      alert(e.message || 'Failed to punch out');
+    } finally {
+      setPunching(false);
+    }
+  };
+
   const handleSkipStop = async () => {
     if (!currentStop) return;
     
@@ -297,9 +341,9 @@ export default function DriverMobileLayout() {
   };
 
   return (
-    <div className="min-h-screen bg-slate-900 flex items-center justify-center p-0 sm:p-4 font-sans text-slate-800">
+    <div className="min-h-screen bg-slate-900 flex items-start justify-center overflow-y-auto p-0 sm:p-2 font-sans text-slate-800">
       {/* Mobile Frame Container */}
-      <div className="w-full sm:max-w-[420px] h-screen sm:h-[840px] bg-slate-50 sm:rounded-[36px] sm:shadow-2xl sm:border-[8px] border-slate-950 overflow-hidden flex flex-col relative">
+      <div className="w-full sm:max-w-[400px] h-screen sm:h-[95vh] sm:max-h-[840px] my-0 sm:my-2 flex-shrink-0 bg-slate-50 sm:rounded-[36px] sm:shadow-2xl sm:border-[8px] border-slate-950 overflow-hidden flex flex-col relative">
         
         {/* Device Status Bar */}
         <div className="bg-[#0B1536] text-white px-6 py-2 flex justify-between items-center text-xs font-semibold select-none flex-shrink-0">
@@ -520,8 +564,8 @@ export default function DriverMobileLayout() {
                         <p className="text-xs font-bold text-slate-900">{currentLocation?.customer?.companyName || currentLocation?.name}</p>
                         <p className="text-[10px] text-slate-400 mt-0.5">{currentLocation?.address}</p>
                         <div className="flex gap-4 mt-2 text-[10px] text-slate-500 font-bold">
-                          <span>📍 2.4 km away</span>
-                          <span>⏱️ ETA: 10 mins</span>
+                          <span>📍 {currentStop?.route?.totalDistance ? (currentStop.route.totalDistance / Math.max(currentStop.route.routestop?.length || 1, 1)).toFixed(1) : "0"} km away</span>
+                          <span>⏱️ ETA: {currentStop?.route?.estimatedTime ? Math.round(currentStop.route.estimatedTime / Math.max(currentStop.route.routestop?.length || 1, 1)) : 10} mins</span>
                         </div>
                       </div>
                     </div>
@@ -585,6 +629,15 @@ export default function DriverMobileLayout() {
                     <Navigation className="w-3.5 h-3.5" /> Navigate All
                   </button>
                 </div>
+
+                {!isRouteStarted && stopsList.length > 0 && (
+                  <button
+                    onClick={handleStartRoute}
+                    className="w-full py-3 bg-blue-600 hover:bg-blue-700 text-white rounded-xl font-bold text-xs shadow-md shadow-blue-600/25 flex items-center justify-center gap-2 cursor-pointer transition-colors mt-2"
+                  >
+                    <Play className="w-4 h-4 fill-white" /> START ROUTE
+                  </button>
+                )}
 
                 {/* Stops Checklist Sequence */}
                 <div className="space-y-4 relative pl-4 border-l border-slate-200 ml-3">
@@ -968,7 +1021,7 @@ export default function DriverMobileLayout() {
                           <div className="border-t border-slate-100 pt-3 text-xs space-y-1.5">
                             <p className="font-bold text-slate-700">📍 Live Navigation Coordinates</p>
                             <p className="font-mono text-[10px] text-slate-500">LAT: {loc.lat} · LNG: {loc.lng}</p>
-                            <p className="text-[10px] text-slate-400">ETA: 10 mins · Distance: 2.4 km to Next stop</p>
+                            <p className="text-[10px] text-slate-400">ETA: {currentStop?.route?.estimatedTime ? Math.round(currentStop.route.estimatedTime / Math.max(currentStop.route.routestop?.length || 1, 1)) : 10} mins · Distance: {currentStop?.route?.totalDistance ? (currentStop.route.totalDistance / Math.max(currentStop.route.routestop?.length || 1, 1)).toFixed(1) : "0"} km to Next stop</p>
                           </div>
                         </div>
                       );
@@ -1097,58 +1150,52 @@ export default function DriverMobileLayout() {
 
                 {/* Real Dynamic Attendance Records from Backend Check-ins */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Attendance Logs (Real Backend Check-ins)</h4>
-                  <div className="space-y-2">
-                    {(() => {
-                      // Extract completed stops from driver's backend history routes
-                      const allDriverStops = historyRoutes.flatMap(r => r.stops || []);
+                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Attendance Logs</h4>
+                  
+                  <div className="flex gap-3 mt-2">
+                    <button
+                      onClick={handlePunchIn}
+                      disabled={punching}
+                      className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    >
+                      <Clock className="w-4 h-4" /> Punch In
+                    </button>
+                    <button
+                      onClick={handlePunchOut}
+                      disabled={punching}
+                      className="flex-1 bg-red-500 hover:bg-red-600 text-white py-3 rounded-xl font-bold flex items-center justify-center gap-2 transition-colors disabled:opacity-50"
+                    >
+                      <LogOut className="w-4 h-4" /> Punch Out
+                    </button>
+                  </div>
 
-                      return [0, 1, 2, 3].map(daysAgo => {
-                        const dateObj = new Date();
-                        dateObj.setDate(dateObj.getDate() - daysAgo);
-                        const dateStr = dateObj.toISOString().split("T")[0];
+                  <div className="space-y-2 mt-4">
+                    {attendanceLogs.length === 0 ? (
+                      <div className="text-center p-4 text-slate-400 text-xs">No recent logs</div>
+                    ) : (
+                      attendanceLogs.slice(0, 5).map((log, idx) => {
+                        const dateObj = new Date(log.date);
+                        const isToday = dateObj.toDateString() === new Date().toDateString();
+                        const dayLabel = isToday ? `Today (${dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })})` : dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' });
+                        
+                        const signIn = log.punchIn ? new Date(log.punchIn).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' }) : "--";
+                        const signOut = log.punchOut ? new Date(log.punchOut).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' }) : "--";
+                        
+                        const dutyEnded = !!log.punchOut;
 
-                        // Find if driver checked in any stop on this date
-                        const stopOnDate = allDriverStops.find(s => {
-                          const refDate = s.route?.endTime || s.route?.date;
-                          const sDate = refDate ? new Date(refDate).toISOString().split("T")[0] : null;
-                          return sDate === dateStr;
-                        });
-
-                        const dayLabel = daysAgo === 0 
-                          ? `Today (${dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })})`
-                          : daysAgo === 1
-                            ? `Yesterday (${dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })})`
-                            : dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' });
-
-                        if (stopOnDate) {
-                          const punchTime = new Date(stopOnDate.route?.endTime || stopOnDate.route?.date || Date.now()).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' });
-                          return {
-                            label: dayLabel,
-                            signin: punchTime,
-                            status: "Present",
-                            class: "text-emerald-700 bg-emerald-50 border-emerald-100"
-                          };
-                        } else {
-                          return {
-                            label: dayLabel,
-                            signin: "--",
-                            status: "No Duty",
-                            class: "text-slate-500 bg-slate-100 border-slate-200"
-                          };
-                        }
-                      }).map((att, i) => (
-                        <div key={i} className="flex justify-between items-center text-xs p-2.5 rounded-xl border border-slate-100 bg-slate-50">
-                          <span className="font-bold text-slate-700">{att.label}</span>
-                          <div className="flex items-center gap-2.5">
-                            <span className="text-[10px] text-slate-400 font-mono">In: {att.signin}</span>
-                            <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${att.class}`}>
-                              {att.status}
-                            </span>
+                        return (
+                          <div key={idx} className="flex justify-between items-center text-xs p-2.5 rounded-xl border border-slate-100 bg-slate-50">
+                            <span className="font-bold text-slate-700">{dayLabel}</span>
+                            <div className="flex items-center gap-2.5">
+                              <span className="text-[10px] text-slate-400 font-mono">In: {signIn} | Out: {signOut}</span>
+                              <span className={`text-[10px] font-extrabold px-2 py-0.5 rounded-full border ${dutyEnded ? "text-slate-500 bg-slate-100 border-slate-200" : "text-emerald-700 bg-emerald-50 border-emerald-100"}`}>
+                                {dutyEnded ? "Duty Ended" : "Active"}
+                              </span>
+                            </div>
                           </div>
-                        </div>
-                      ));
-                    })()}
+                        );
+                      })
+                    )}
                   </div>
                 </div>
 

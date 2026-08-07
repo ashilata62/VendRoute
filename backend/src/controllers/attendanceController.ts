@@ -5,7 +5,8 @@ import { AuthRequest } from '../middlewares/authMiddleware.js';
 export const punchIn = async (req: AuthRequest, res: Response) => {
   try {
     const driverId = req.user?.id;
-    const date = new Date().toISOString().split('T')[0];
+    const d = new Date();
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (!driverId) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const existing = await prisma.attendance.findFirst({ where: { driverId, date } });
     if (existing) return res.status(400).json({ success: false, message: 'Already punched in' });
@@ -17,7 +18,8 @@ export const punchIn = async (req: AuthRequest, res: Response) => {
 export const punchOut = async (req: AuthRequest, res: Response) => {
   try {
     const driverId = req.user?.id;
-    const date = new Date().toISOString().split('T')[0];
+    const d = new Date();
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const attendance = await prisma.attendance.findFirst({ where: { driverId, date } });
     if (!attendance) return res.status(400).json({ success: false, message: 'No punch-in found' });
     if (attendance.punchOut) return res.status(400).json({ success: false, message: 'Already punched out' });
@@ -31,7 +33,8 @@ export const punchOut = async (req: AuthRequest, res: Response) => {
 export const breakStart = async (req: AuthRequest, res: Response) => {
   try {
     const driverId = req.user?.id;
-    const date = new Date().toISOString().split('T')[0];
+    const d = new Date();
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const attendance = await prisma.attendance.findFirst({ where: { driverId, date } });
     if (!attendance) return res.status(400).json({ success: false, message: 'No punch-in found' });
     const updated = await prisma.attendance.update({ where: { id: attendance.id }, data: {  breakStart: new Date() } });
@@ -42,7 +45,8 @@ export const breakStart = async (req: AuthRequest, res: Response) => {
 export const breakEnd = async (req: AuthRequest, res: Response) => {
   try {
     const driverId = req.user?.id;
-    const date = new Date().toISOString().split('T')[0];
+    const d = new Date();
+    const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const attendance = await prisma.attendance.findFirst({ where: { driverId, date } });
     if (!attendance || !attendance.breakStart) return res.status(400).json({ success: false, message: 'No break started' });
     const updated = await prisma.attendance.update({ where: { id: attendance.id }, data: {  breakEnd: new Date() } });

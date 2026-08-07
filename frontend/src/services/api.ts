@@ -87,6 +87,8 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ email, otp, newPassword }),
     }),
+  punchIn: () => apiFetch<{ success: boolean }>("/attendance/punch-in", { method: "POST" }),
+  punchOut: () => apiFetch<{ success: boolean }>("/attendance/punch-out", { method: "POST" }),
 };
 
 // ─── Customers APIs ────────────────────────────────────────────────────────────
@@ -265,3 +267,7 @@ export const analyticsApi = {
     apiFetch<{ success: boolean; data: any }>(`/analytics/driver/${driverId}`),
 };
 
+// ─── Attendance APIs ────────────────────────────────────────────────────────────
+export const attendanceApi = {
+  getDriverHistory: (driverId: string) => apiFetch<any>(`/attendance/history?driverId=${driverId}`),
+};

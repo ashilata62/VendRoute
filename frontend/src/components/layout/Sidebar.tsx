@@ -115,7 +115,7 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
                   })()}
                 </p>
                 <p className="text-[10px] text-slate-400 font-medium tracking-wide">
-                  {isSuperAdmin ? "Super Admin Portal" : isSupervisor ? "Supervisor Portal" : "Field Operations"}
+                  {isSuperAdmin ? "Admin Portal" : isSupervisor ? "Supervisor Portal" : "Field Operations"}
                 </p>
               </div>
             )}

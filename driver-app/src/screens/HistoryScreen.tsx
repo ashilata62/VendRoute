@@ -46,7 +46,7 @@ export default function HistoryScreen() {
             <Text style={styles.routeName}>{item.name}</Text>
             <View style={styles.dateRow}>
               <Calendar size={12} color="#64748b" />
-              <Text style={styles.dateText}>{item.date} • {item.createdAt ? new Date(item.createdAt).toLocaleTimeString('en-IN', {hour: '2-digit', minute:'2-digit'}) : '05:00 pm'}</Text>
+              <Text style={styles.dateText}>{item.date} • {item.endTime ? new Date(item.endTime).toLocaleTimeString('en-IN', {hour: '2-digit', minute:'2-digit'}) : item.createdAt ? new Date(item.createdAt).toLocaleTimeString('en-IN', {hour: '2-digit', minute:'2-digit'}) : '05:00 pm'}</Text>
             </View>
           </View>
         </View>
