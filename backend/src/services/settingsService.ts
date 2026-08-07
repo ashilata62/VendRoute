@@ -37,9 +37,9 @@ const DEFAULT_SETTINGS = {
     cloudProvider: 'Firebase Storage',
   },
   permissions: {
-    superadmin: { regions: true, users: true, routes: true, reports: true },
-    supervisor: { regions: true, users: false, routes: true, reports: true },
-    user: { regions: false, users: false, routes: false, reports: false },
+    superadmin: { dashboard: true, routes: true, tracking: true, locations: true, stops: true, drivers: true, vehicles: true, customers: true, reports: true, notifications: true, users: true, settings: true },
+    supervisor: { dashboard: true, routes: true, tracking: true, locations: true, stops: true, drivers: true, vehicles: true, customers: false, reports: true, notifications: true, users: false, settings: false },
+    driver: { dashboard: true, routes: true, tracking: false, locations: false, stops: true, drivers: false, vehicles: false, customers: false, reports: false, notifications: true, users: false, settings: false },
   },
 };
 
@@ -52,6 +52,15 @@ export class SettingsService {
     if (typeof row.data === 'string') {
       try { parsedData = JSON.parse(row.data); } catch (e) { parsedData = DEFAULT_SETTINGS; }
     }
+    
+    const mergedPerms: any = { ...DEFAULT_SETTINGS.permissions };
+    if (parsedData.permissions) {
+      for (const role of Object.keys(DEFAULT_SETTINGS.permissions)) {
+        mergedPerms[role] = { ...(DEFAULT_SETTINGS.permissions as any)[role], ...(parsedData.permissions[role] || {}) };
+      }
+    }
+    parsedData.permissions = mergedPerms;
+    
     return parsedData as typeof DEFAULT_SETTINGS;
   }
 

@@ -57,12 +57,13 @@ export default function Sidebar({ collapsed, onToggle, mobileOpen, onCloseMobile
     const rolePerms = permissions?.[roleKey];
 
     if (rolePerms) {
-      if (item.path === "/routes" && rolePerms.routes === false) return false;
-      if (item.path === "/users" && rolePerms.users === false) return false;
-      if (item.path === "/reports" && rolePerms.reports === false) return false;
-      if (item.path === "/customers" && rolePerms.regions === false) return false;
+      const key = item.path.substring(1);
+      if (rolePerms[key] !== undefined) {
+        return rolePerms[key];
+      }
     }
 
+    // Fallback if no dynamic permissions are set for this item
     if (isSupervisor) {
       return !["/customers", "/users", "/settings"].includes(item.path);
     }

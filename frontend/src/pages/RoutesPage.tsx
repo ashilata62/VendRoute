@@ -156,6 +156,7 @@ export default function RoutesPage() {
     
     if (success) {
       setIsCreateModalOpen(false);
+      setActiveTab("scheduled");
       setCreateForm({
         name: "",
         date: new Date().toISOString().split("T")[0],

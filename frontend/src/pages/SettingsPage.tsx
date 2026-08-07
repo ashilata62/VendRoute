@@ -13,6 +13,21 @@ const tabs = [
   { id: "api_matrix", label: "APIs & Permissions", icon: Key },
 ];
 
+const PERMISSION_MODULES = [
+  { key: "dashboard", label: "Dashboard" },
+  { key: "routes", label: "Routes" },
+  { key: "tracking", label: "Live Tracking" },
+  { key: "locations", label: "Vending Machines" },
+  { key: "stops", label: "Stops" },
+  { key: "drivers", label: "Drivers" },
+  { key: "vehicles", label: "Vehicles" },
+  { key: "customers", label: "Customers / Locations" },
+  { key: "reports", label: "Reports" },
+  { key: "notifications", label: "Notifications" },
+  { key: "users", label: "Supervisor" },
+  { key: "settings", label: "Settings" },
+];
+
 export default function SettingsPage() {
   const { user } = useAuthStore();
   const location = useLocation();
@@ -68,7 +83,10 @@ export default function SettingsPage() {
         if (d.company) setCompanyForm((prev) => ({ ...prev, ...d.company, theme: d.company.theme || prev.theme, logo: d.company.logo || localStorage.getItem("company-logo") || "" }));
         if (d.routing) setRouteHoursForm((prev) => ({ ...prev, ...d.routing }));
         if (d.gps) setGpsPhotoForm((prev) => ({ ...prev, ...d.gps }));
-        if (d.permissions) setPermissions((prev: any) => ({ ...prev, ...d.permissions }));
+        if (d.permissions) {
+          setPermissions((prev: any) => ({ ...prev, ...d.permissions }));
+          localStorage.setItem("role-permissions", JSON.stringify({ ...permissions, ...d.permissions }));
+        }
         if (d.machineTypes) setMachineTypes(d.machineTypes);
         if (d.productCategories) setProductCategories(d.productCategories);
         if (d.inventoryRules) setInventoryRules((prev) => ({ ...prev, ...d.inventoryRules }));
@@ -103,6 +121,7 @@ export default function SettingsPage() {
         localStorage.setItem("app-theme", companyForm.theme);
         localStorage.setItem("app-currency", companyForm.currency);
         localStorage.setItem("company-logo", companyForm.logo);
+        localStorage.setItem("role-permissions", JSON.stringify(permissions));
       } catch (storageErr) {
         console.warn("Could not save to localStorage (might be too large)", storageErr);
       }
@@ -179,9 +198,9 @@ export default function SettingsPage() {
       try { return JSON.parse(savedPerms) as PermissionsType; } catch {}
     }
     return {
-      superadmin: { regions: true, users: true, routes: true, reports: true },
-      supervisor: { regions: true, users: false, routes: true, reports: true },
-      driver: { regions: false, users: false, routes: false, reports: false },
+      superadmin: { dashboard: true, routes: true, tracking: true, locations: true, stops: true, drivers: true, vehicles: true, customers: true, reports: true, notifications: true, users: true, settings: true },
+      supervisor: { dashboard: true, routes: true, tracking: true, locations: true, stops: true, drivers: true, vehicles: true, customers: false, reports: true, notifications: true, users: false, settings: false },
+      driver: { dashboard: true, routes: true, tracking: false, locations: false, stops: true, drivers: false, vehicles: false, customers: false, reports: false, notifications: true, users: false, settings: false },
     };
   });
 
@@ -813,25 +832,24 @@ export default function SettingsPage() {
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
                     <tr className="border-b border-slate-200 text-slate-400 font-bold uppercase">
-                      <th className="py-2.5">User Role</th>
-                      <th className="py-2.5 text-center">Manage Regions</th>
-                      <th className="py-2.5 text-center">Manage Users</th>
-                      <th className="py-2.5 text-center">Manage Routes</th>
-                      <th className="py-2.5 text-center">Audits & Reports</th>
+                      <th className="py-2.5 px-2">User Role</th>
+                      {PERMISSION_MODULES.map(m => (
+                        <th key={m.key} className="py-2.5 px-2 text-center whitespace-nowrap">{m.label}</th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {(Object.keys(permissions) as Array<"superadmin" | "supervisor" | "driver">).map((role) => (
+                    {(Object.keys(permissions) as Array<"superadmin" | "supervisor" | "driver">).filter(role => role !== "superadmin").map((role) => (
                       <tr key={role} className="border-b border-slate-100 last:border-0 hover:bg-slate-50/50">
-                        <td className="py-3 font-extrabold capitalize text-slate-700">{role}</td>
-                        {["regions", "users", "routes", "reports"].map((module) => {
-                          const val = permissions[role][module as keyof typeof permissions[typeof role]];
+                        <td className="py-3 px-2 font-extrabold capitalize text-slate-700 whitespace-nowrap">{role}</td>
+                        {PERMISSION_MODULES.map((m) => {
+                          const val = (permissions as any)[role]?.[m.key] ?? false;
                           return (
-                            <td key={module} className="py-3 text-center">
+                            <td key={m.key} className="py-3 px-2 text-center">
                               <input
                                 type="checkbox"
                                 checked={val}
-                                onChange={() => togglePermission(role, module)}
+                                onChange={() => togglePermission(role, m.key)}
                                 className="w-4 h-4 text-blue-600 border-slate-300 rounded focus:ring-blue-500 cursor-pointer"
                               />
                             </td>
