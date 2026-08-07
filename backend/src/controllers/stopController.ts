@@ -40,7 +40,7 @@ export const checkInStop = async (req: Request, res: Response) => {
         status: 'COMPLETED',
         gpsVerified: Boolean(gpsVerified),
         cashCollected: parseFloat((cashCollected as string) || '0'),
-        productsRefilled,
+        productsRefilled: productsRefilled ? JSON.stringify(productsRefilled) : null,
         notes: notes as string,
         signatureUrl: signatureUrl as string,
         machineIssues: machineIssues as string,

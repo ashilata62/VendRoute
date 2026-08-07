@@ -3,7 +3,7 @@
 -- https://www.phpmyadmin.net/
 --
 -- Host: 127.0.0.1:3307
--- Generation Time: Aug 07, 2026 at 02:03 PM
+-- Generation Time: Aug 07, 2026 at 02:31 PM
 -- Server version: 10.4.32-MariaDB
 -- PHP Version: 8.2.12
 
@@ -254,18 +254,20 @@ CREATE TABLE `routestop` (
   `cashCollected` double NOT NULL DEFAULT 0,
   `productsRefilled` longtext CHARACTER SET utf8mb4 COLLATE utf8mb4_bin DEFAULT NULL CHECK (json_valid(`productsRefilled`)),
   `signatureUrl` longtext DEFAULT NULL,
-  `notes` varchar(191) DEFAULT NULL
+  `notes` varchar(191) DEFAULT NULL,
+  `machineIssues` varchar(191) DEFAULT NULL,
+  `photos` longtext DEFAULT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 --
 -- Dumping data for table `routestop`
 --
 
-INSERT INTO `routestop` (`id`, `routeId`, `locationId`, `stopOrder`, `status`, `gpsVerified`, `cashCollected`, `productsRefilled`, `signatureUrl`, `notes`) VALUES
-('9b6627a7-f3ad-4705-9824-96bbfa905e8f', 'ba442901-ec1c-40f1-81a8-7152b44b65eb', 'b8332504-d200-413c-9450-816030601720', 1, 'PENDING', 0, 0, NULL, NULL, NULL),
-('a2de9527-d2c2-40ef-bbf3-5bcd41a0f6ea', '6920d6bf-85ee-4e80-82ab-8c1c28b483c4', '8a905cc5-e3d3-4dd9-b65f-cdb77b3ddc54', 1, 'PENDING', 0, 0, NULL, NULL, NULL),
-('dbecbac3-ac23-47af-ad4f-ad4ae9060430', '776b93c4-fe9b-4fe5-b6e5-5480575d2b1d', 'b8332504-d200-413c-9450-816030601720', 1, 'PENDING', 0, 0, NULL, NULL, NULL),
-('efed7f88-3827-4cb8-938c-88e5579a706a', '5ba48c74-0903-49c9-ab67-ed3f8d03ac6e', '9de3022f-a650-4294-bab5-2438b4a1ab2f', 1, 'SKIPPED', 0, 0, NULL, NULL, NULL);
+INSERT INTO `routestop` (`id`, `routeId`, `locationId`, `stopOrder`, `status`, `gpsVerified`, `cashCollected`, `productsRefilled`, `signatureUrl`, `notes`, `machineIssues`, `photos`) VALUES
+('9b6627a7-f3ad-4705-9824-96bbfa905e8f', 'ba442901-ec1c-40f1-81a8-7152b44b65eb', 'b8332504-d200-413c-9450-816030601720', 1, 'PENDING', 0, 0, NULL, NULL, NULL, NULL, NULL),
+('a2de9527-d2c2-40ef-bbf3-5bcd41a0f6ea', '6920d6bf-85ee-4e80-82ab-8c1c28b483c4', '8a905cc5-e3d3-4dd9-b65f-cdb77b3ddc54', 1, 'PENDING', 0, 0, NULL, NULL, NULL, NULL, NULL),
+('dbecbac3-ac23-47af-ad4f-ad4ae9060430', '776b93c4-fe9b-4fe5-b6e5-5480575d2b1d', 'b8332504-d200-413c-9450-816030601720', 1, 'PENDING', 0, 0, NULL, NULL, NULL, NULL, NULL),
+('efed7f88-3827-4cb8-938c-88e5579a706a', '5ba48c74-0903-49c9-ab67-ed3f8d03ac6e', '9de3022f-a650-4294-bab5-2438b4a1ab2f', 1, 'SKIPPED', 0, 0, NULL, NULL, NULL, NULL, NULL);
 
 -- --------------------------------------------------------
 
