@@ -217,7 +217,19 @@ export default function DriverMobileLayout() {
       const reader = new FileReader();
       reader.onload = (event) => {
         if (event.target?.result) {
-          setStopPhotos([...stopPhotos, event.target.result as string]);
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const MAX_WIDTH = 800;
+            const scaleSize = MAX_WIDTH / img.width;
+            canvas.width = MAX_WIDTH;
+            canvas.height = img.height * scaleSize;
+            const ctx = canvas.getContext("2d");
+            ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const resizedBase64 = canvas.toDataURL("image/jpeg", 0.6);
+            setStopPhotos(prev => [...prev, resizedBase64]);
+          };
+          img.src = event.target.result as string;
         }
       };
       reader.readAsDataURL(e.target.files[0]);

@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -441,7 +442,8 @@ export default function LoginPage() {
       </motion.div>
 
       {/* ── FORGOT PASSWORD OTP MODAL ────────────────────────────────────── */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {forgotModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-md">
             <motion.div
@@ -622,7 +624,9 @@ export default function LoginPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

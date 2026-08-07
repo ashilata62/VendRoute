@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useState, useEffect, useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -299,7 +300,8 @@ export default function DriversPage() {
       )}
 
       {/* ADD DRIVER MODAL - connected to real API */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {isAddModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
             <motion.div
@@ -373,10 +375,13 @@ export default function DriversPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+        document.body
+      )}
 
       {/* MESSAGE DRAWER */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {messageDriver && (
           <div className="fixed inset-0 z-50 flex justify-end bg-slate-900/30 backdrop-blur-sm">
             <motion.div
@@ -423,7 +428,9 @@ export default function DriversPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+        document.body
+      )}
 
       {/* Reset Password Modal */}
       {resetPasswordDriver && (

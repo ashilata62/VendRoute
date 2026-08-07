@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useState, useEffect } from "react";
 import { MapContainer, TileLayer, Marker, Polyline, Popup, useMap } from "react-leaflet";
 import L from "leaflet";
@@ -415,7 +416,8 @@ export default function VehiclesPage() {
       )}
 
       {/* CREATE VEHICLE MODAL */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {isAddModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
             <motion.div
@@ -501,10 +503,13 @@ export default function VehiclesPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+        document.body
+      )}
 
       {/* EDIT VEHICLE MODAL */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {editingVehicle && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
             <motion.div
@@ -601,10 +606,13 @@ export default function VehiclesPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+        document.body
+      )}
 
       {/* DELETE VEHICLE CONFIRMATION MODAL */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {vehicleToDelete && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
             <motion.div
@@ -658,10 +666,13 @@ export default function VehiclesPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+        document.body
+      )}
 
       {/* ADD FUEL ENTRY MODAL */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {isFuelModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
             <motion.div
@@ -752,10 +763,13 @@ export default function VehiclesPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+        document.body
+      )}
 
       {/* LOG SERVICE EXPENSE MODAL */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {isServiceModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
             <motion.div
@@ -861,7 +875,9 @@ export default function VehiclesPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

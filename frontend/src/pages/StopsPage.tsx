@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useState, useMemo, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -255,7 +256,8 @@ export default function StopsPage() {
       </div>
 
       {/* STOP DETAIL MODAL */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {selectedStop && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
             <motion.div
@@ -385,10 +387,13 @@ export default function StopsPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+        document.body
+      )}
 
       {/* PHOTO LIGHTBOX MODAL */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {galleryModalPhotos && (
           <div
             onClick={() => setGalleryModalPhotos(null)}
@@ -416,7 +421,9 @@ export default function StopsPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

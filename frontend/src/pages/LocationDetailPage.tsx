@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -578,7 +579,8 @@ export default function LocationDetailPage() {
       </div>
 
       {/* Lightbox Modal */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {lightboxImg && (
           <div
             onClick={() => setLightboxImg(null)}
@@ -600,7 +602,9 @@ export default function LocationDetailPage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }

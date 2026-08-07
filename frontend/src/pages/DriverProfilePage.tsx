@@ -1,3 +1,4 @@
+import { createPortal } from "react-dom";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
@@ -455,7 +456,8 @@ export default function DriverProfilePage() {
       )}
 
       {/* ── EDIT DRIVER PROFILE MODAL ── */}
-      <AnimatePresence>
+      {createPortal(
+        <AnimatePresence>
         {isEditModalOpen && (
           <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
             <motion.div
@@ -572,7 +574,9 @@ export default function DriverProfilePage() {
             </motion.div>
           </div>
         )}
-      </AnimatePresence>
+      </AnimatePresence>,
+        document.body
+      )}
     </div>
   );
 }
