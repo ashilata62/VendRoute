@@ -53,7 +53,9 @@ export class LocationService {
     if (latitude !== undefined) updateData.latitude = parseFloat(latitude) || 0;
     if (longitude !== undefined) updateData.longitude = parseFloat(longitude) || 0;
     if (imageUrl !== undefined) updateData.imageUrl = imageUrl;
-    if (products !== undefined) updateData.products = products;
+    if (products !== undefined) {
+      updateData.products = typeof products === 'string' ? products : JSON.stringify(products);
+    }
 
     return await prisma.location.update({
       where: { id },

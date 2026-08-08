@@ -110,7 +110,7 @@ export default function LocationsPage() {
   });
 
   // ── Machine status counts from backend machines ─────────────────────────────
-  const allMachines = locations.flatMap((l) => l.machines || []);
+  const allMachines = locations.flatMap((l: any) => l.machine || l.machines || []);
   const activeCount = allMachines.filter((m) => m.status === "ACTIVE").length;
   const maintenanceCount = allMachines.filter((m) => m.status === "NEEDS_MAINTENANCE").length;
   const inactiveCount = allMachines.filter((m) => m.status === "INACTIVE").length;
@@ -363,7 +363,7 @@ export default function LocationsPage() {
                   </div>
                 </div>
                 <div className="flex items-center justify-between border-t border-border pt-3 text-xs text-slate-500">
-                  <span className="text-[11px] text-slate-400">{loc.machines?.length || 0} machine(s)</span>
+                  <span className="text-[11px] text-slate-400">{((loc as any).machine || loc.machines)?.length || 0} machine(s)</span>
                   <span className="text-[11px] text-slate-400">
                     {new Date(loc.createdAt).toLocaleDateString("en-IN")}
                   </span>
@@ -400,12 +400,12 @@ export default function LocationsPage() {
                   <td className="px-4 py-3 text-xs text-slate-600">{loc.city}</td>
                   <td className="px-4 py-3">
                     <div className="flex gap-1 flex-wrap">
-                      {(loc.machines || []).slice(0, 2).map((m) => (
+                      {((loc as any).machine || loc.machines || []).slice(0, 2).map((m: any) => (
                         <span key={m.id} className={`text-[10px] px-1.5 py-0.5 rounded font-mono ${getMachineStatusColor(m.status)}`}>
                           {m.machineCode}
                         </span>
                       ))}
-                      {(loc.machines?.length || 0) === 0 && <span className="text-xs text-slate-400">—</span>}
+                      {(((loc as any).machine || loc.machines)?.length || 0) === 0 && <span className="text-xs text-slate-400">—</span>}
                     </div>
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-500">
@@ -450,7 +450,7 @@ export default function LocationsPage() {
                     <p className="font-bold text-slate-900">{loc.name}</p>
                     <p className="text-slate-500">{loc.address}, {loc.city}</p>
                     <p className="text-slate-600">{loc.customer?.companyName}</p>
-                    <p className="text-slate-500">{loc.machines?.length || 0} machine(s)</p>
+                    <p className="text-slate-500">{((loc as any).machine || loc.machines)?.length || 0} machine(s)</p>
                     <button onClick={() => navigate(`/locations/${loc.id}`)}
                       className="mt-2 w-full bg-primary-600 text-white py-1 text-[10px] rounded font-semibold text-center">
                       View Details

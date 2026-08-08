@@ -174,7 +174,8 @@ export default function RoutesPage() {
     if (!isReplaying || !detailRoute) return;
     const interval = setInterval(() => {
       setReplayStep((prev) => {
-        if (prev >= (detailRoute.stops.length || 3) - 1) {
+        const stopsCount = (detailRoute as any).routestop?.length || detailRoute.stops?.length || 3;
+        if (prev >= stopsCount - 1) {
           setIsReplaying(false);
           return 0;
         }
@@ -316,7 +317,7 @@ export default function RoutesPage() {
               </thead>
               <tbody className="divide-y divide-border">
                 {filteredRoutes.map((route) => {
-                  const routeStops = route.stops || [];
+                  const routeStops = (route as any).routestop || route.stops || [];
                   const completedStops = routeStops.filter((s: any) => s.status === "COMPLETED").length;
                   const totalStops = routeStops.length;
                   const pct = totalStops === 0 ? 0 : Math.round((completedStops / totalStops) * 100) || (route.status === "COMPLETED" ? 100 : route.status === "IN_PROGRESS" ? 60 : 0);
@@ -352,7 +353,7 @@ export default function RoutesPage() {
                         <div className="flex items-center gap-2">
                           <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                             <div
-                              className="bg-primary-600 h-full rounded-full transition-all"
+                              className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-emerald-500' : pct === 0 ? 'bg-red-500' : 'bg-amber-500'}`}
                               style={{ width: `${pct}%` }}
                             />
                           </div>
@@ -726,7 +727,7 @@ export default function RoutesPage() {
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-border">
                     <p className="text-[10px] text-slate-400 uppercase">Driver</p>
                     <p className="text-xs font-bold text-slate-900 mt-0.5">
-                      {(detailRoute as any).driver?.name || "—"}
+                      {(detailRoute as any).user?.name || "—"}
                     </p>
                   </div>
                   <div className="bg-slate-50 p-2.5 rounded-lg border border-border">
@@ -749,7 +750,7 @@ export default function RoutesPage() {
                 <div className="h-48 rounded-lg overflow-hidden border border-border relative">
                   <MapContainer center={[19.0760, 72.8777]} zoom={11} className="h-full w-full">
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    {detailRoute.stops?.map((stop: any, idx) => {
+                    {((detailRoute as any).routestop || detailRoute.stops)?.map((stop: any, idx) => {
                       const locationId = typeof stop === 'string' ? stop : stop.locationId;
                       const loc = locations.find((l) => l.id === locationId);
                       if (!loc) return null;
@@ -775,7 +776,7 @@ export default function RoutesPage() {
                 <div className="space-y-3">
                   <h4 className="font-semibold text-slate-900 text-xs uppercase tracking-wider">Stop Sequence Timeline</h4>
                   <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                    {detailRoute.stops?.map((stop: any, idx) => {
+                    {((detailRoute as any).routestop || detailRoute.stops)?.map((stop: any, idx) => {
                       const locationId = typeof stop === 'string' ? stop : stop.locationId;
                       const loc = locations.find((l) => l.id === locationId);
                       if (!loc) return null;

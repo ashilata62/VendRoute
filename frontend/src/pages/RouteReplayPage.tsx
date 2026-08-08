@@ -37,36 +37,55 @@ export default function RouteReplayPage() {
             let currentTime = new Date();
             currentTime.setHours(9, 0, 0, 0); // Start at 9 AM
             
-            for (let i = 0; i < route.routestop.length - 1; i++) {
-               const start = route.routestop[i].location;
-               const end = route.routestop[i+1].location;
-               
-               const startLat = Number(start.latitude || start.lat);
-               const startLng = Number(start.longitude || start.lng);
-               const endLat = Number(end.latitude || end.lat);
-               const endLng = Number(end.longitude || end.lng);
-               
-               if (isNaN(startLat) || isNaN(endLat)) continue;
-               
-               // Interpolate 10 points between start and end
-               for (let j = 0; j <= 10; j++) {
-                  const fraction = j / 10;
-                  const lat = startLat + (endLat - startLat) * fraction;
-                  const lng = startLng + (endLng - startLng) * fraction;
-                  
-                  // Add some random noise for realism
-                  const noiseLat = lat + (Math.random() - 0.5) * 0.001;
-                  const noiseLng = lng + (Math.random() - 0.5) * 0.001;
-                  
-                  currentTime = new Date(currentTime.getTime() + 60000 * 5); // Add 5 mins per point
-                  
-                  generatedCoords.push({
-                    lat: noiseLat,
-                    lng: noiseLng,
-                    timestamp: currentTime.toISOString(),
-                    speed: Math.floor(Math.random() * (40 - 15 + 1) + 15), // Random speed 15-40 km/h
-                  });
+            if (route.routestop.length === 1) {
+               const loc = route.routestop[0].location;
+               const lat = Number(loc.latitude || loc.lat);
+               const lng = Number(loc.longitude || loc.lng);
+               if (!isNaN(lat) && !isNaN(lng)) {
+                 for (let j = 0; j <= 5; j++) {
+                   const noiseLat = lat + (j * 0.001); // Simulate moving slightly
+                   const noiseLng = lng + (j * 0.001);
+                   currentTime = new Date(currentTime.getTime() + 60000 * 5);
+                   generatedCoords.push({
+                     lat: noiseLat,
+                     lng: noiseLng,
+                     timestamp: currentTime.toISOString(),
+                     speed: Math.floor(Math.random() * 20 + 10),
+                   });
+                 }
                }
+            } else {
+              for (let i = 0; i < route.routestop.length - 1; i++) {
+                 const start = route.routestop[i].location;
+                 const end = route.routestop[i+1].location;
+                 
+                 const startLat = Number(start.latitude || start.lat);
+                 const startLng = Number(start.longitude || start.lng);
+                 const endLat = Number(end.latitude || end.lat);
+                 const endLng = Number(end.longitude || end.lng);
+                 
+                 if (isNaN(startLat) || isNaN(endLat)) continue;
+                 
+                 // Interpolate 10 points between start and end
+                 for (let j = 0; j <= 10; j++) {
+                    const fraction = j / 10;
+                    const lat = startLat + (endLat - startLat) * fraction;
+                    const lng = startLng + (endLng - startLng) * fraction;
+                    
+                    // Add some random noise for realism
+                    const noiseLat = lat + (Math.random() - 0.5) * 0.001;
+                    const noiseLng = lng + (Math.random() - 0.5) * 0.001;
+                    
+                    currentTime = new Date(currentTime.getTime() + 60000 * 5); // Add 5 mins per point
+                    
+                    generatedCoords.push({
+                      lat: noiseLat,
+                      lng: noiseLng,
+                      timestamp: currentTime.toISOString(),
+                      speed: Math.floor(Math.random() * (40 - 15 + 1) + 15), // Random speed 15-40 km/h
+                    });
+                 }
+              }
             }
             setCoordinates(generatedCoords);
           }

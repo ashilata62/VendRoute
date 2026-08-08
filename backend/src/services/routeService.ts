@@ -71,13 +71,14 @@ export class RouteService {
     });
   }
 
-  static async update(id: string, payload: { driverId?: string; vehicleId?: string; name?: string; date?: string }) {
-    const { driverId, vehicleId, name, date } = payload;
+  static async update(id: string, payload: { driverId?: string; vehicleId?: string; name?: string; date?: string; status?: any }) {
+    const { driverId, vehicleId, name, date, status } = payload;
     const updateData: any = {};
     if (driverId) updateData.driverId = driverId;
     if (vehicleId !== undefined) updateData.vehicleId = vehicleId || null;
     if (name) updateData.name = name;
     if (date) updateData.date = date;
+    if (status) updateData.status = status;
 
     return await prisma.route.update({
       where: { id },

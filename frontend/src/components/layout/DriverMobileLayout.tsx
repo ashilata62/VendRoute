@@ -142,9 +142,18 @@ export default function DriverMobileLayout() {
   const currentLocation = currentStop?.location;
   const driverRoute = currentStop?.route || (stopsList.length > 0 ? stopsList[0].route : null) || { name: "No Active Route" };
 
-  const handleStartRoute = () => {
+  const handleStartRoute = async () => {
     setIsRouteStarted(true);
     setTrackingActive(true); // Start broadcasting location
+    
+    if (driverRoute?.id) {
+      try {
+        await routesApi.update(driverRoute.id, { status: "IN_PROGRESS" });
+      } catch (err) {
+        console.error("Failed to start route on backend", err);
+      }
+    }
+
     // Auto check-in next stop
     if (currentStop) {
       setStopsList(prev => prev.map(s => s.id === currentStop.id ? { ...s, status: "in-progress" } : s));

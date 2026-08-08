@@ -106,10 +106,10 @@ export default function DashboardPage() {
   const totalRoutesToday = dbStats?.routes?.today ?? routes.filter((r) => r.date === new Date().toISOString().split('T')[0]).length;
   const activeDriversCount = dbStats?.drivers?.active ?? drivers.filter((d) => d.liveStatus !== "offline").length;
   const totalDriversCount = dbStats?.drivers?.total ?? drivers.length;
-  const completedStopsCount = dbStats?.stops?.completed ?? 0;
-  const totalStopsCount = dbStats?.stops?.total ?? 0;
+  const completedStopsCount = dbStats?.routestop?.completed ?? 0;
+  const totalStopsCount = dbStats?.routestop?.total ?? 0;
   const missedStopsCount = 0;
-  const machineAlertsCount = dbStats?.machines?.alerts ?? 0;
+  const machineAlertsCount = dbStats?.machine?.alerts ?? 0;
   const todayRevenue = 0;
 
   // Donut chart machine status
