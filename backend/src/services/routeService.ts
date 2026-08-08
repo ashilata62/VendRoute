@@ -11,7 +11,10 @@ export class RouteService {
         routestop: {
           include: {
             location: {
-              include: { machine: true },
+              include: {
+                machine: true,
+                customer: { select: { id: true, companyName: true, contactPerson: true } },
+              },
             },
           },
           orderBy: { stopOrder: 'asc' },
@@ -30,7 +33,10 @@ export class RouteService {
         routestop: {
           include: {
             location: {
-              include: { machine: true },
+              include: {
+                machine: true,
+                customer: { select: { id: true, companyName: true, contactPerson: true } },
+              },
             },
           },
           orderBy: { stopOrder: 'asc' },
