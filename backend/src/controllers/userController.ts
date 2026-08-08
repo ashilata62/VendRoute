@@ -20,6 +20,12 @@ export const getUsers = async (req: Request, res: Response) => {
         role: true,
         avatar: true,
         isOnline: true,
+        vehicle: true,
+        route: {
+          take: 1,
+          orderBy: { date: 'desc' },
+          include: { vehicle: true },
+        },
       },
       orderBy: { name: 'asc' },
     });
@@ -46,6 +52,12 @@ export const getUserById = async (req: Request, res: Response) => {
         avatar: true,
         isOnline: true,
         createdAt: true,
+        vehicle: true,
+        route: {
+          take: 1,
+          orderBy: { date: 'desc' },
+          include: { vehicle: true },
+        },
       },
     });
     if (!user) throw new Error('User not found');

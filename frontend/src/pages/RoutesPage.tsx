@@ -131,6 +131,30 @@ export default function RoutesPage() {
     return [19.0760, 72.8777];
   }, [previewPolylineCoords]);
 
+  // Detail Modal Coordinates & Map Center
+  const detailPolylineCoords: [number, number][] = useMemo(() => {
+    if (!detailRoute) return [];
+    const stops = (detailRoute as any).routestop || (detailRoute as any).stops || [];
+    const coords: [number, number][] = [];
+    stops.forEach((s: any) => {
+      const locId = typeof s === 'string' ? s : s.locationId;
+      const loc = (typeof s === 'object' && s.location) ? s.location : locations.find((l: any) => l.id === locId);
+      if (loc && loc.latitude && loc.longitude) {
+        const lat = Number(loc.latitude);
+        const lng = Number(loc.longitude);
+        if (!isNaN(lat) && !isNaN(lng) && lat !== 0 && lng !== 0) {
+          coords.push([lat, lng]);
+        }
+      }
+    });
+    return coords;
+  }, [detailRoute, locations]);
+
+  const detailMapCenter: [number, number] = useMemo(() => {
+    if (detailPolylineCoords.length > 0) return detailPolylineCoords[0];
+    return [19.0760, 72.8777];
+  }, [detailPolylineCoords]);
+
   // Handle Form Submit
   const handleSaveRoute = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -620,6 +644,7 @@ export default function RoutesPage() {
                         <p className="text-xs text-slate-400 text-center py-4">Loading locations...</p>
                       ) : locations.map((loc: any) => {
                         const selected = createForm.stops.includes(loc.id);
+                        const customerName = loc.customer?.companyName || loc.customer?.contactPerson || loc.customerName || "";
                         return (
                           <div
                             key={loc.id}
@@ -633,11 +658,18 @@ export default function RoutesPage() {
                               selected ? "bg-primary-50/70" : "hover:bg-slate-100"
                             }`}
                           >
-                            <div>
-                              <p className="text-xs font-medium text-slate-900">{loc.name}</p>
-                              <p className="text-[10px] text-slate-500 truncate max-w-[220px]">{loc.address}</p>
+                            <div className="flex-1 min-w-0 pr-2">
+                              <div className="flex items-center gap-1.5 flex-wrap">
+                                <p className="text-xs font-semibold text-slate-900">{loc.name}</p>
+                                {customerName ? (
+                                  <span className="text-[9px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.2 rounded">
+                                    {customerName}
+                                  </span>
+                                ) : null}
+                              </div>
+                              <p className="text-[10px] text-slate-500 truncate max-w-[240px] mt-0.5">{loc.address}</p>
                             </div>
-                            <div className={`w-4 h-4 rounded border flex items-center justify-center ${selected ? "bg-primary-600 border-primary-600 text-white" : "border-slate-300"}`}>
+                            <div className={`w-4 h-4 rounded border flex items-center justify-center shrink-0 ${selected ? "bg-primary-600 border-primary-600 text-white" : "border-slate-300"}`}>
                               {selected && <Check className="w-3 h-3" />}
                             </div>
                           </div>
@@ -748,24 +780,31 @@ export default function RoutesPage() {
 
                 {/* Animated Replay Map Section */}
                 <div className="h-48 rounded-lg overflow-hidden border border-border relative">
-                  <MapContainer center={[19.0760, 72.8777]} zoom={11} className="h-full w-full">
+                  <MapContainer center={detailMapCenter} zoom={11} className="h-full w-full">
+                    <MapFlyController center={detailMapCenter} />
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     {((detailRoute as any).routestop || detailRoute.stops)?.map((stop: any, idx: number) => {
                       const locationId = typeof stop === 'string' ? stop : stop.locationId;
-                      const loc = locations.find((l) => l.id === locationId);
+                      const loc = (typeof stop === 'object' && stop.location) ? stop.location : locations.find((l) => l.id === locationId);
                       if (!loc) return null;
                       const lat = Number(loc.latitude || loc.lat);
                       const lng = Number(loc.longitude || loc.lng);
                       if (isNaN(lat) || isNaN(lng) || !lat || !lng) return null;
                       return (
-                        <Marker key={loc.id} position={[lat, lng]}>
-                          <Popup>{idx + 1}. {loc.name}</Popup>
+                        <Marker key={loc.id || idx} position={[lat, lng]}>
+                          <Popup>
+                            <div className="text-xs font-semibold">{idx + 1}. {loc.name}</div>
+                            {loc.address && <div className="text-[10px] text-slate-500">{loc.address}</div>}
+                          </Popup>
                         </Marker>
                       );
                     })}
+                    {detailPolylineCoords.length > 1 && (
+                      <Polyline positions={detailPolylineCoords} color="#2563EB" weight={3} />
+                    )}
                   </MapContainer>
                   {isReplaying && (
-                    <div className="absolute top-2 right-2 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded-full z-[1000] flex items-center gap-1.5">
+                    <div className="absolute top-2 right-2 bg-slate-900/80 text-white text-xs px-2.5 py-1 rounded-full z-[1000] flex items-center gap-1.5 shadow-md">
                       <span className="w-2 h-2 rounded-full bg-emerald-400 animate-ping" />
                       Replaying Stop {replayStep + 1}
                     </div>
@@ -778,27 +817,76 @@ export default function RoutesPage() {
                   <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
                     {((detailRoute as any).routestop || detailRoute.stops)?.map((stop: any, idx: number) => {
                       const locationId = typeof stop === 'string' ? stop : stop.locationId;
-                      const loc = locations.find((l) => l.id === locationId);
+                      const loc = (typeof stop === 'object' && stop.location) ? stop.location : locations.find((l) => l.id === locationId);
                       if (!loc) return null;
-                      const isCompleted = idx <= replayStep;
+
+                      // Real backend stop status
+                      const stopStatus = typeof stop === 'object' && stop.status 
+                        ? stop.status 
+                        : (detailRoute.status === 'COMPLETED' ? 'COMPLETED' : 'PENDING');
+                      
+                      const isCompleted = isReplaying ? idx <= replayStep : stopStatus === 'COMPLETED';
+                      const isInProgress = !isReplaying && stopStatus === 'IN_PROGRESS';
+                      const isSkipped = !isReplaying && stopStatus === 'SKIPPED';
+
+                      // Dynamic ETA / Time calculation
+                      const getStopEtaText = () => {
+                        if (isCompleted) return "Visited & Completed";
+                        if (isInProgress) return "In Progress · Current Stop";
+                        if (isSkipped) return "Skipped by Driver";
+                        
+                        let baseMinutes = 9 * 60; // 09:00 AM standard shift start
+                        if (detailRoute.startTime) {
+                          const d = new Date(detailRoute.startTime);
+                          if (!isNaN(d.getTime())) baseMinutes = d.getHours() * 60 + d.getMinutes();
+                        }
+                        const totalMinutes = baseMinutes + (idx + 1) * 35;
+                        const h = Math.floor(totalMinutes / 60) % 24;
+                        const m = totalMinutes % 60;
+                        const ampm = h >= 12 ? 'PM' : 'AM';
+                        const displayH = h % 12 || 12;
+                        return `Est. ETA: ${String(displayH).padStart(2, '0')}:${String(m).padStart(2, '0')} ${ampm}`;
+                      };
+
                       return (
-                        <div key={loc.id} className="relative flex items-start justify-between bg-slate-50 p-3 rounded-lg border border-border">
+                        <div key={loc.id || idx} className="relative flex items-start justify-between bg-slate-50 p-3 rounded-lg border border-border">
                           <div className={`absolute -left-6 top-3 w-5 h-5 rounded-full border-2 flex items-center justify-center text-[10px] font-bold ${
-                            isCompleted ? "bg-emerald-500 border-white text-white" : "bg-white border-slate-300 text-slate-600"
+                            isCompleted 
+                              ? "bg-emerald-500 border-white text-white shadow-sm" 
+                              : isInProgress 
+                              ? "bg-amber-500 border-white text-white animate-pulse shadow-sm" 
+                              : isSkipped 
+                              ? "bg-rose-500 border-white text-white" 
+                              : "bg-white border-slate-300 text-slate-600"
                           }`}>
                             {idx + 1}
                           </div>
                           <div className="flex-1">
                             <div className="flex justify-between items-start">
                               <div>
-                                <p className="text-xs font-bold text-slate-900">{loc.name}</p>
-                                <p className="text-[10px] text-slate-500">{loc.address}</p>
+                                <div className="flex items-center gap-1.5 flex-wrap">
+                                  <p className="text-xs font-bold text-slate-900">{loc.name}</p>
+                                  {(loc.customer?.companyName || loc.customer?.contactPerson || loc.customerName) && (
+                                    <span className="text-[9px] font-semibold bg-blue-50 text-blue-700 border border-blue-200 px-1.5 py-0.2 rounded">
+                                      {loc.customer?.companyName || loc.customer?.contactPerson || loc.customerName}
+                                    </span>
+                                  )}
+                                </div>
+                                <p className="text-[10px] text-slate-500 mt-0.5">{loc.address}</p>
                               </div>
                               <div className="text-right">
-                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${isCompleted ? "bg-emerald-100 text-emerald-800" : "bg-slate-200 text-slate-600"}`}>
-                                  {isCompleted ? "Completed" : "Scheduled"}
+                                <span className={`text-[10px] font-medium px-2 py-0.5 rounded-full ${
+                                  isCompleted 
+                                    ? "bg-emerald-100 text-emerald-800" 
+                                    : isInProgress 
+                                    ? "bg-amber-100 text-amber-800" 
+                                    : isSkipped 
+                                    ? "bg-rose-100 text-rose-800" 
+                                    : "bg-slate-200 text-slate-600"
+                                }`}>
+                                  {isCompleted ? "Completed" : isInProgress ? "In Progress" : isSkipped ? "Skipped" : "Scheduled"}
                                 </span>
-                                <p className="text-[10px] text-slate-400 mt-1">ETA: 09:30 AM</p>
+                                <p className="text-[10px] text-slate-400 mt-1">{getStopEtaText()}</p>
                               </div>
                             </div>
                             

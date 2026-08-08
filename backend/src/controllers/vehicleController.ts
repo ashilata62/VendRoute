@@ -53,9 +53,20 @@ export const createVehicle = async (req: Request, res: Response) => {
 export const updateVehicle = async (req: Request, res: Response) => {
   try {
     const id = req.params.id as string;
+    const { assignedDriverId, ...rest } = req.body;
+
+    if (assignedDriverId) {
+      // Unassign driver from any other vehicle
+      await prisma.vehicle.updateMany({
+        where: { assignedDriverId, id: { not: id } },
+        data: { assignedDriverId: null },
+      }).catch(() => {});
+    }
+
     const vehicle = await prisma.vehicle.update({
       where: { id },
       data: req.body,
+      include: { user: { select: { id: true, name: true } } },
     });
 
     // Auto-trigger Low Fuel notification if fuel drops below 20%

@@ -205,12 +205,12 @@ function RoutesTab({ routes, drivers }: { routes: any[]; drivers: any[] }) {
   ];
 
   const routeTimingData = routes
-    .filter(r => r.estimatedTime && r.actualTime)
+    .filter(r => r.estimatedTime)
     .slice(0, 8)
     .map(r => ({
       name: r.name.split(" ").slice(0, 2).join(" "),
       estimated: r.estimatedTime,
-      actual: r.actualTime,
+      actual: r.actualTime || 0,
     }));
 
   return (
@@ -563,7 +563,16 @@ export default function ReportsPage() {
   const [dashboardStats, setDashboardStats] = useState<any>(null);
 
   useEffect(() => {
-    routesApi.getAll().then(res => { if (res.success) setRoutes(res.data); }).catch(() => {});
+    routesApi.getAll().then(res => { 
+      if (res.success) {
+        const mappedRoutes = res.data.map((r: any) => ({
+          ...r,
+          stops: r.routestop || r.stops || [],
+          driver: r.user || r.driver || null
+        }));
+        setRoutes(mappedRoutes);
+      } 
+    }).catch(() => {});
     usersApi.getAll("DRIVER").then(res => { if (res.success) setDrivers(res.data); }).catch(() => {});
     reportsApi.getDashboard().then(res => { if (res.success) setDashboardStats(res.data); }).catch(() => {});
     stopsApi.getAll().then(res => { if (res.success) setStops(res.data); }).catch(() => {});

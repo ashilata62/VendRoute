@@ -79,11 +79,17 @@ export default function VehiclesPage() {
   // ── Fuel & Service Expense Modals State ──
   const [isFuelModalOpen, setIsFuelModalOpen] = useState(false);
   const [fuelForm, setFuelForm] = useState({ vehicleId: "", liters: "", cost: "", month: "Jul" });
-  const [fuelLogs, setFuelLogs] = useState<any[]>([]);
+  const [fuelLogs, setFuelLogs] = useState<any[]>(() => {
+    const saved = localStorage.getItem('fuelLogs');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [serviceForm, setServiceForm] = useState({ vehicleId: "", date: new Date().toISOString().split("T")[0], type: "", cost: "", notes: "" });
-  const [serviceHistory, setServiceHistory] = useState<any[]>([]);
+  const [serviceHistory, setServiceHistory] = useState<any[]>(() => {
+    const saved = localStorage.getItem('serviceHistory');
+    return saved ? JSON.parse(saved) : [];
+  });
 
   const fetchVehicles = () => {
     vehiclesApi.getAll().then(res => {
@@ -681,7 +687,9 @@ export default function VehiclesPage() {
                 e.preventDefault();
                 const litersNum = Number(fuelForm.liters) || 30;
                 const costNum = Number(fuelForm.cost) || 3000;
-                setFuelLogs([...fuelLogs, { month: fuelForm.month, liters: litersNum, cost: costNum }]);
+                const newLogs = [...fuelLogs, { month: fuelForm.month, liters: litersNum, cost: costNum }];
+                setFuelLogs(newLogs);
+                localStorage.setItem('fuelLogs', JSON.stringify(newLogs));
                 setIsFuelModalOpen(false);
                 setFuelForm({ vehicleId: "", liters: "", cost: "", month: "Aug" });
               }} className="space-y-4">
@@ -776,7 +784,7 @@ export default function VehiclesPage() {
 
               <form onSubmit={(e) => {
                 e.preventDefault();
-                setServiceHistory([
+                const newHistory = [
                   {
                     date: serviceForm.date,
                     type: serviceForm.type || "Full Engine Service",
@@ -784,7 +792,9 @@ export default function VehiclesPage() {
                     notes: serviceForm.notes || "Servicing and maintenance bill entry",
                   },
                   ...serviceHistory,
-                ]);
+                ];
+                setServiceHistory(newHistory);
+                localStorage.setItem('serviceHistory', JSON.stringify(newHistory));
                 setIsServiceModalOpen(false);
                 setServiceForm({ vehicleId: "", date: new Date().toISOString().split("T")[0], type: "", cost: "", notes: "" });
               }} className="space-y-4">
