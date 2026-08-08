@@ -47,21 +47,52 @@ function MapFlyToController({ center }: { center: [number, number] }) {
   return null;
 }
 
-// Preset GPS Route paths and coordinates for fleet vehicles
-const VEHICLE_COORDINATES_PRESETS: Record<number, { center: [number, number]; path: [number, number][] }> = {
-  0: {
-    center: [19.0596, 72.8656], // Bandra / BKC Area
-    path: [[19.0400, 72.8500], [19.0520, 72.8580], [19.0596, 72.8656], [19.0760, 72.8777]],
-  },
-  1: {
-    center: [19.1196, 72.9050], // Powai / Andheri East Area
-    path: [[19.1000, 72.8800], [19.1100, 72.8920], [19.1196, 72.9050], [19.1400, 72.9250]],
-  },
-  2: {
-    center: [19.0178, 72.8478], // Lower Parel / Dadar Area
-    path: [[18.9900, 72.8300], [19.0050, 72.8400], [19.0178, 72.8478], [19.0350, 72.8580]],
-  },
+// Helper to resolve real GPS location from backend telemetry & live socket
+const getVehicleLocation = (vehicle: any, liveLocs: any[]) => {
+  if (!vehicle) return null;
+  const driverId = vehicle.assignedDriverId || vehicle.user?.id;
+  const live = liveLocs.find((l) => l.driverId === driverId);
+  if (live && live.lat && live.lng) {
+    return {
+      lat: live.lat,
+      lng: live.lng,
+      speed: live.speed ?? 0,
+      heading: live.heading ?? 0,
+      isLive: true,
+      label: "Live GPS",
+    };
+  }
+  if (vehicle.currentLocation?.latitude && vehicle.currentLocation?.longitude) {
+    return {
+      lat: vehicle.currentLocation.latitude,
+      lng: vehicle.currentLocation.longitude,
+      speed: vehicle.currentLocation.speed ?? 0,
+      heading: vehicle.currentLocation.heading ?? 0,
+      isLive: vehicle.currentLocation.isLive ?? false,
+      label: vehicle.currentLocation.isLive ? "Live GPS" : (vehicle.currentLocation.locationName || "Assigned Location"),
+    };
+  }
+  if (vehicle.routePath && vehicle.routePath.length > 0) {
+    return {
+      lat: vehicle.routePath[0][0],
+      lng: vehicle.routePath[0][1],
+      speed: 0,
+      heading: 0,
+      isLive: false,
+      label: "Route Base",
+    };
+  }
+  return null;
 };
+
+// Create custom numbered stop icon
+const createStopIcon = (num: number, isCompleted: boolean) =>
+  L.divIcon({
+    className: "custom-stop-marker",
+    html: `<div style="background-color: ${isCompleted ? '#10B981' : '#2563EB'}; color: white; width: 22px; height: 22px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-weight: 700; font-size: 11px; border: 2px solid #ffffff; box-shadow: 0 2px 5px rgba(0,0,0,0.3);">${num}</div>`,
+    iconSize: [22, 22],
+    iconAnchor: [11, 11],
+  });
 
 export default function VehiclesPage() {
   const [activeTab, setActiveTab] = useState<"fleet" | "schedule" | "fuel" | "history">("fleet");
@@ -95,7 +126,7 @@ export default function VehiclesPage() {
     vehiclesApi.getAll().then(res => {
       if (res.success) {
         setVehicles(res.data);
-        if (res.data.length > 0 && selectedVehicleId === "v1") {
+        if (res.data.length > 0 && (selectedVehicleId === "v1" || !selectedVehicleId)) {
           setSelectedVehicleId(res.data[0].id);
         }
       }
@@ -126,18 +157,18 @@ export default function VehiclesPage() {
   const { liveLocations } = useTrackingStore();
 
   const selectedVehicle = vehicles.find((v) => v.id === selectedVehicleId) || vehicles[0] || null;
-  const selectedVehicleIndex = vehicles.findIndex((v) => v.id === (selectedVehicle?.id || selectedVehicleId));
-  const safeIdx = selectedVehicleIndex >= 0 ? selectedVehicleIndex % 3 : 0;
-  const defaultPreset = VEHICLE_COORDINATES_PRESETS[safeIdx] || VEHICLE_COORDINATES_PRESETS[0];
+  const selectedVehicleLocation = getVehicleLocation(selectedVehicle, liveLocations);
 
-  const assignedDriverForSelected = drivers.find((d) => d.id === selectedVehicle?.assignedDriverId);
-  const liveSocketLoc = liveLocations.find((l) => l.driverId === assignedDriverForSelected?.id);
+  const currentCenter: [number, number] = selectedVehicleLocation
+    ? [selectedVehicleLocation.lat, selectedVehicleLocation.lng]
+    : [19.0760, 72.8777];
 
-  const currentCenter: [number, number] = liveSocketLoc
-    ? [liveSocketLoc.lat, liveSocketLoc.lng]
-    : defaultPreset.center;
-
-  const currentPath: [number, number][] = defaultPreset.path;
+  const currentPath: [number, number][] =
+    selectedVehicle?.routePath && selectedVehicle.routePath.length > 0
+      ? selectedVehicle.routePath
+      : selectedVehicleLocation
+      ? [[selectedVehicleLocation.lat, selectedVehicleLocation.lng]]
+      : [];
 
   return (
     <div className="space-y-6 pb-12">
@@ -186,10 +217,10 @@ export default function VehiclesPage() {
                 <p className="text-[10px] text-slate-400 mt-1">Click "+ Add Vehicle" to register one.</p>
               </div>
             ) : (
-              vehicles.map((vehicle, idx) => {
-                const assignedDriver = drivers.find((d) => d.id === vehicle.assignedDriverId);
+              vehicles.map((vehicle) => {
+                const assignedDriver = drivers.find((d) => d.id === vehicle.assignedDriverId) || vehicle.user;
                 const isSelected = selectedVehicle?.id === vehicle.id;
-                const vPreset = VEHICLE_COORDINATES_PRESETS[idx % 3];
+                const vLoc = getVehicleLocation(vehicle, liveLocations);
 
               return (
                 <div
@@ -250,11 +281,18 @@ export default function VehiclesPage() {
                       <FuelBar level={vehicle.currentFuelLevel || 75} />
                     </div>
 
+                    {vehicle.activeRoute && (
+                      <div className="text-[11px] bg-slate-100/80 rounded px-2 py-1 text-slate-700 font-medium flex items-center justify-between">
+                        <span className="truncate">🛣️ {vehicle.activeRoute.name}</span>
+                        <span className="text-[10px] text-slate-500 font-semibold">{vehicle.activeRoute.stopsCount} stops</span>
+                      </div>
+                    )}
+
                     <div className="flex justify-between border-t border-border pt-2 text-[11px] text-slate-500">
                       <span>Driver: <strong className="text-slate-800">{assignedDriver?.name || "Unassigned"}</strong></span>
-                      <span className="flex items-center gap-1 text-emerald-600 font-semibold">
+                      <span className={`flex items-center gap-1 font-semibold ${vLoc?.isLive ? "text-emerald-600" : vLoc ? "text-blue-600" : "text-slate-400"}`}>
                         <Navigation className="w-3 h-3" />
-                        {vPreset.center[0].toFixed(3)}°, {vPreset.center[1].toFixed(3)}°
+                        {vLoc ? `${vLoc.lat.toFixed(3)}°, ${vLoc.lng.toFixed(3)}°` : "No GPS"}
                       </span>
                     </div>
                   </div>
@@ -270,13 +308,32 @@ export default function VehiclesPage() {
               <>
                 <div className="p-4 border-b border-border bg-slate-50 flex items-center justify-between">
                   <div>
-                    <h3 className="font-bold text-slate-900 text-sm flex items-center gap-2">
-                      {selectedVehicle.model} ({selectedVehicle.plateNumber})
-                    </h3>
+                    <div className="flex items-center gap-2">
+                      <h3 className="font-bold text-slate-900 text-sm">
+                        {selectedVehicle.model} ({selectedVehicle.plateNumber})
+                      </h3>
+                      {selectedVehicle.activeRoute && (
+                        <span className="text-[10px] bg-blue-100 text-blue-800 font-semibold px-2 py-0.5 rounded-full">
+                          {selectedVehicle.activeRoute.name}
+                        </span>
+                      )}
+                    </div>
                     <p className="text-xs text-slate-500 flex items-center gap-2 mt-0.5">
-                      <span>Live GPS: <strong className="font-mono text-blue-600">{currentCenter[0].toFixed(4)}° N, {currentCenter[1].toFixed(4)}° E</strong></span>
+                      <span>
+                        GPS:{" "}
+                        <strong className="font-mono text-blue-600">
+                          {selectedVehicleLocation ? `${selectedVehicleLocation.lat.toFixed(4)}° N, ${selectedVehicleLocation.lng.toFixed(4)}° E` : "Pending GPS Signal"}
+                        </strong>
+                      </span>
                       <span>•</span>
-                      <span>Speed: <strong className="text-emerald-600">{liveSocketLoc?.speed || 28} km/h</strong></span>
+                      <span>
+                        Speed: <strong className="text-emerald-600">{selectedVehicleLocation?.speed || 0} km/h</strong>
+                      </span>
+                      {selectedVehicleLocation?.isLive && (
+                        <span className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 py-0.5 rounded">
+                          <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" /> LIVE
+                        </span>
+                      )}
                     </p>
                   </div>
                   <StatusBadge status={selectedVehicle.status} />
@@ -286,23 +343,53 @@ export default function VehiclesPage() {
                   <MapContainer center={currentCenter} zoom={13} className="h-full w-full">
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
                     <MapFlyToController center={currentCenter} />
-                    <Marker position={currentCenter}>
-                      <Popup>
-                        <div className="p-1 space-y-1">
-                          <p className="font-bold text-xs text-slate-900">{selectedVehicle.model}</p>
-                          <p className="text-[11px] font-mono text-slate-600">{selectedVehicle.plateNumber}</p>
-                          <p className="text-[10px] text-emerald-600 font-semibold">
-                            GPS Live: {currentCenter[0].toFixed(4)}° N, {currentCenter[1].toFixed(4)}° E
-                          </p>
-                        </div>
-                      </Popup>
-                    </Marker>
-                    <Polyline
-                      positions={currentPath}
-                      color="#2563EB"
-                      weight={4}
-                      dashArray="5 5"
-                    />
+                    
+                    {/* Vehicle Location Marker */}
+                    {selectedVehicleLocation && (
+                      <Marker position={currentCenter}>
+                        <Popup>
+                          <div className="p-1 space-y-1">
+                            <p className="font-bold text-xs text-slate-900">{selectedVehicle.model}</p>
+                            <p className="text-[11px] font-mono text-slate-600">{selectedVehicle.plateNumber}</p>
+                            <p className="text-[10px] text-emerald-600 font-semibold">
+                              {selectedVehicleLocation.isLive ? "🟢 Live GPS" : "📍 Spot"}: {currentCenter[0].toFixed(4)}° N, {currentCenter[1].toFixed(4)}° E
+                            </p>
+                          </div>
+                        </Popup>
+                      </Marker>
+                    )}
+
+                    {/* Active Route Stops Markers */}
+                    {selectedVehicle.activeRoute?.stops?.map((stop: any, sIdx: number) => {
+                      if (!stop.latitude || !stop.longitude) return null;
+                      return (
+                        <Marker
+                          key={stop.id || sIdx}
+                          position={[stop.latitude, stop.longitude]}
+                          icon={createStopIcon(sIdx + 1, stop.status === "COMPLETED")}
+                        >
+                          <Popup>
+                            <div className="p-1 space-y-0.5 text-xs">
+                              <p className="font-bold text-slate-900">Stop #{sIdx + 1}: {stop.name}</p>
+                              <p className="text-[11px] text-slate-600">{stop.address}{stop.city ? `, ${stop.city}` : ""}</p>
+                              <span className={`inline-block text-[10px] font-semibold px-1.5 py-0.5 rounded mt-1 ${stop.status === 'COMPLETED' ? 'bg-emerald-100 text-emerald-800' : 'bg-blue-100 text-blue-800'}`}>
+                                {stop.status}
+                              </span>
+                            </div>
+                          </Popup>
+                        </Marker>
+                      );
+                    })}
+
+                    {/* Real Route Polyline */}
+                    {currentPath.length > 1 && (
+                      <Polyline
+                        positions={currentPath}
+                        color="#2563EB"
+                        weight={4}
+                        dashArray="5 5"
+                      />
+                    )}
                   </MapContainer>
                 </div>
               </>

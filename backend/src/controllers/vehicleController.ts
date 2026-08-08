@@ -4,13 +4,110 @@ import { v4 as uuidv4 } from 'uuid';
 import { createNotification } from '../services/notificationService.js';
 import { io } from '../server.js';
 
+// Helper to enrich vehicle with real live GPS telemetry and active route waypoints
+const enrichVehicleWithTelemetry = async (vehicle: any) => {
+  let liveTracking: any = null;
+  let activeRoute: any = null;
+
+  // 1. Fetch latest GPS tracking record for assigned driver
+  if (vehicle.assignedDriverId) {
+    liveTracking = await prisma.livetracking.findFirst({
+      where: { driverId: vehicle.assignedDriverId },
+      orderBy: { timestamp: 'desc' },
+    });
+  }
+
+  // 2. Fetch active or latest route assigned to this vehicle or driver
+  const routes = await prisma.route.findMany({
+    where: {
+      OR: [
+        { vehicleId: vehicle.id },
+        ...(vehicle.assignedDriverId ? [{ driverId: vehicle.assignedDriverId }] : []),
+      ],
+    },
+    orderBy: { createdAt: 'desc' },
+    take: 1,
+    include: {
+      routestop: {
+        include: { location: true },
+        orderBy: { stopOrder: 'asc' },
+      },
+    },
+  });
+
+  if (routes.length > 0) {
+    activeRoute = routes[0];
+  }
+
+  // 3. Compute real route path from route stops
+  const routePath: [number, number][] = activeRoute?.routestop
+    ? activeRoute.routestop
+        .map((s: any) => [s.location?.latitude, s.location?.longitude] as [number, number])
+        .filter((coord: [number, number]) => coord[0] != null && coord[1] != null && !isNaN(coord[0]) && !isNaN(coord[1]))
+    : [];
+
+  // 4. Compute current location
+  let currentLocation: any = null;
+  if (liveTracking && liveTracking.latitude && liveTracking.longitude) {
+    currentLocation = {
+      latitude: liveTracking.latitude,
+      longitude: liveTracking.longitude,
+      speed: liveTracking.speed ?? 0,
+      heading: liveTracking.heading ?? 0,
+      timestamp: liveTracking.timestamp,
+      isLive: true,
+    };
+  } else if (routePath.length > 0) {
+    const firstStopLoc = activeRoute.routestop[0]?.location;
+    currentLocation = {
+      latitude: routePath[0][0],
+      longitude: routePath[0][1],
+      speed: 0,
+      heading: 0,
+      isLive: false,
+      locationName: firstStopLoc?.name || '',
+      city: firstStopLoc?.city || '',
+    };
+  }
+
+  return {
+    ...vehicle,
+    currentLocation,
+    routePath,
+    activeRoute: activeRoute
+      ? {
+          id: activeRoute.id,
+          name: activeRoute.name,
+          status: activeRoute.status,
+          date: activeRoute.date,
+          stopsCount: activeRoute.routestop.length,
+          stops: activeRoute.routestop.map((s: any) => ({
+            id: s.id,
+            stopOrder: s.stopOrder,
+            name: s.location?.name,
+            address: s.location?.address,
+            city: s.location?.city,
+            latitude: s.location?.latitude,
+            longitude: s.location?.longitude,
+            status: s.status,
+          })),
+        }
+      : null,
+  };
+};
+
 export const getVehicles = async (req: Request, res: Response) => {
   try {
     const vehicles = await prisma.vehicle.findMany({
-      include: { user: { select: { id: true, name: true } } },
+      include: { user: { select: { id: true, name: true, email: true, phone: true, isOnline: true } } },
       orderBy: { model: 'asc' },
     });
-    return res.status(200).json({ success: true, data: vehicles });
+
+    const enrichedVehicles = await Promise.all(
+      vehicles.map((v) => enrichVehicleWithTelemetry(v))
+    );
+
+    return res.status(200).json({ success: true, data: enrichedVehicles });
   } catch (error: any) {
     return res.status(400).json({ success: false, message: error.message });
   }
@@ -20,10 +117,12 @@ export const getVehicleById = async (req: Request, res: Response) => {
   try {
     const vehicle = await prisma.vehicle.findUnique({
       where: { id: req.params.id as string },
-      include: { user: { select: { id: true, name: true } } },
+      include: { user: { select: { id: true, name: true, email: true, phone: true, isOnline: true } } },
     });
     if (!vehicle) throw new Error('Vehicle not found');
-    return res.status(200).json({ success: true, data: vehicle });
+
+    const enriched = await enrichVehicleWithTelemetry(vehicle);
+    return res.status(200).json({ success: true, data: enriched });
   } catch (error: any) {
     return res.status(404).json({ success: false, message: error.message });
   }

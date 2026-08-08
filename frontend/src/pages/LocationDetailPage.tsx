@@ -2,17 +2,18 @@ import { createPortal } from "react-dom";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { ArrowLeft, MapPin, Phone, Package, Image as ImageIcon,
-  Clock, Upload, ShieldCheck, X, Route as RouteIcon, Loader2, AlertCircle
+  Clock, Upload, ShieldCheck, X, Route as RouteIcon, Loader2, AlertCircle, ExternalLink, Navigation,
+  RefreshCw, Crosshair, Check
 } from "lucide-react";
 
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate } from "../lib/utils";
-import { locationsApi, stopsApi } from "../services/api";
+import { locationsApi, stopsApi, machinesApi } from "../services/api";
 
 // Fix Leaflet default icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -21,6 +22,27 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
+
+// Map Controller for smooth focusing
+function MapFocusController({ center, zoom }: { center: [number, number]; zoom?: number }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center && !isNaN(center[0]) && !isNaN(center[1])) {
+      map.flyTo(center, zoom || 15, { animate: true, duration: 1 });
+    }
+  }, [center[0], center[1], zoom, map]);
+  return null;
+}
+
+// Map Click Event Listener for picking location
+function LocationDetailMapEvents({ onLocationChange }: { onLocationChange: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      onLocationChange(parseFloat(e.latlng.lat.toFixed(6)), parseFloat(e.latlng.lng.toFixed(6)));
+    },
+  });
+  return null;
+}
 
 const detailTabs = [
   { id: "overview", label: "Overview", icon: Clock },
@@ -54,6 +76,191 @@ export default function LocationDetailPage() {
   ]);
   const [newNoteInput, setNewNoteInput] = useState("");
 
+  const [isSyncingGps, setIsSyncingGps] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  // Vending Machine Edit state
+  const [isMachineModalOpen, setIsMachineModalOpen] = useState(false);
+  const [machineForm, setMachineForm] = useState({ machineCode: "", model: "", fillLevel: 100 });
+  const [machineSubmitting, setMachineSubmitting] = useState(false);
+
+  const openMachineModal = (m: any) => {
+    setMachineForm({
+      machineCode: m?.machineCode || "",
+      model: m?.model || "",
+      fillLevel: m?.fillLevel ?? 100,
+    });
+    setIsMachineModalOpen(true);
+  };
+
+  const handleSaveMachine = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    setMachineSubmitting(true);
+    try {
+      if (firstMachine.id) {
+        // Update stock/status
+        await machinesApi.updateStock(firstMachine.id, {
+          fillLevel: Number(machineForm.fillLevel),
+          status: machineForm.fillLevel < 20 ? 'OUT_OF_STOCK' : 'ACTIVE',
+        });
+      } else {
+        // Create new machine for this location
+        await machinesApi.create({
+          locationId: id,
+          machineCode: machineForm.machineCode,
+          model: machineForm.model,
+          fillLevel: Number(machineForm.fillLevel),
+        });
+      }
+      setIsMachineModalOpen(false);
+      // Reload location details
+      const res = await locationsApi.getById(id);
+      if (res.success) {
+        setLoc(res.data);
+      }
+      alert("Vending Machine details saved successfully!");
+    } catch (err: any) {
+      alert(err.message || "Failed to save machine details");
+    } finally {
+      setMachineSubmitting(false);
+    }
+  };
+
+  // Auto-geocode & sync if coordinates are default Mumbai or missing
+  const checkAndSyncCoordinates = async (locationData: any) => {
+    if (!locationData) return;
+    const addressQuery = [locationData.address, locationData.city].filter(Boolean).join(", ");
+    if (!addressQuery) return;
+
+    const lat = Number(locationData.latitude);
+    const lng = Number(locationData.longitude);
+
+    const isDefaultMumbai = (Math.abs(lat - 19.076) < 0.02 && Math.abs(lng - 72.8777) < 0.02);
+    const isCityNotMumbai = !locationData.city?.toLowerCase().includes("mumbai");
+
+    if ((!lat && !lng) || (isDefaultMumbai && isCityNotMumbai)) {
+      try {
+        let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}&limit=1`);
+        let data = await res.json();
+        if (!data || data.length === 0) {
+          if (locationData.city) {
+            res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationData.city)}&limit=1`);
+            data = await res.json();
+          }
+        }
+        if (data && data.length > 0) {
+          const newLat = parseFloat(parseFloat(data[0].lat).toFixed(6));
+          const newLng = parseFloat(parseFloat(data[0].lon).toFixed(6));
+          setLoc((prev: any) => ({ ...prev, latitude: newLat, longitude: newLng }));
+          await locationsApi.update(locationData.id, { latitude: newLat, longitude: newLng });
+          setSyncMsg(`📍 Coordinates auto-synced to "${addressQuery}": ${newLat}, ${newLng}`);
+          setTimeout(() => setSyncMsg(null), 5000);
+        }
+      } catch (err) {
+        console.warn("Auto-geocode sync failed:", err);
+      }
+    }
+  };
+
+  // Manual GPS / Map Sync
+  const handleManualGpsSync = async () => {
+    if (!loc) return;
+    const addressQuery = [loc.address, loc.city].filter(Boolean).join(", ");
+    if (!addressQuery) {
+      setSyncMsg("⚠️ Address / City missing");
+      setTimeout(() => setSyncMsg(null), 3000);
+      return;
+    }
+    setIsSyncingGps(true);
+    setSyncMsg(null);
+    try {
+      let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}&limit=1`);
+      let data = await res.json();
+      if (!data || data.length === 0) {
+        if (loc.city) {
+          res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(loc.city)}&limit=1`);
+          data = await res.json();
+        }
+      }
+      if (data && data.length > 0) {
+        const newLat = parseFloat(parseFloat(data[0].lat).toFixed(6));
+        const newLng = parseFloat(parseFloat(data[0].lon).toFixed(6));
+        setLoc((prev: any) => ({ ...prev, latitude: newLat, longitude: newLng }));
+        await locationsApi.update(loc.id, { latitude: newLat, longitude: newLng });
+        setSyncMsg(`📍 Map updated to "${addressQuery}": ${newLat}, ${newLng}`);
+      } else {
+        setSyncMsg(`⚠️ Could not auto-locate. Click on map to pinpoint.`);
+      }
+    } catch (err) {
+      setSyncMsg("⚠️ Sync failed. Click directly on map to set position.");
+    } finally {
+      setIsSyncingGps(false);
+      setTimeout(() => setSyncMsg(null), 4000);
+    }
+  };
+
+  // Update pin directly from Map click/drag + reverse geocode address
+  const handleUpdateCoordinatesFromMap = async (newLat: number, newLng: number) => {
+    if (!loc) return;
+    setLoc((prev: any) => ({ ...prev, latitude: newLat, longitude: newLng }));
+    try {
+      // Reverse geocode to get address
+      let newAddress = loc.address;
+      let newCity = loc.city;
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLat}&lon=${newLng}&zoom=18&addressdetails=1`,
+          { headers: { "Accept-Language": "en" } }
+        );
+        const data = await res.json();
+        if (data && data.address) {
+          const addr = data.address;
+          const detectedCity =
+            addr.city || addr.town || addr.city_district || addr.state_district || addr.county || "";
+          const parts = [
+            addr.amenity || addr.building || addr.shop,
+            addr.road || addr.street,
+            addr.suburb || addr.neighbourhood || addr.residential,
+          ].filter(Boolean);
+          const detectedAddress = parts.join(", ") || data.display_name?.split(",")?.slice(0, 3)?.join(",");
+          if (detectedAddress) newAddress = detectedAddress;
+          if (detectedCity) newCity = detectedCity;
+        }
+      } catch (err) {
+        console.warn("Reverse geocode in detail page skipped:", err);
+      }
+
+      setLoc((prev: any) => ({ ...prev, latitude: newLat, longitude: newLng, address: newAddress, city: newCity }));
+      await locationsApi.update(loc.id, {
+        latitude: newLat,
+        longitude: newLng,
+        address: newAddress,
+        city: newCity,
+      });
+      setSyncMsg(`📍 Updated location & address: ${newAddress}${newCity ? `, ${newCity}` : ""} (${newLat}, ${newLng})`);
+      setTimeout(() => setSyncMsg(null), 4000);
+    } catch (err) {
+      console.error("Failed to save updated pin:", err);
+    }
+  };
+
+  const handleUploadPhoto = async (file: File) => {
+    if (!id || !loc) return;
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      try {
+        const base64 = reader.result as string;
+        await locationsApi.update(id, { imageUrl: base64 });
+        setLoc((prev: any) => ({ ...prev, imageUrl: base64 }));
+        alert("Photo uploaded successfully!");
+      } catch (err: any) {
+        alert(err.message || "Failed to upload photo");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   // Fetch location data on mount
   useEffect(() => {
     if (!id) return;
@@ -63,6 +270,7 @@ export default function LocationDetailPage() {
         const res = await locationsApi.getById(id);
         if (res.success) {
           setLoc(res.data);
+          checkAndSyncCoordinates(res.data);
           // Try to get stops for this location from API
           try {
             const stopsRes = await stopsApi.getAll();
@@ -99,9 +307,58 @@ export default function LocationDetailPage() {
 
   // Data parsing
   const customer = loc?.customer || {};
-  const firstMachine = loc?.machines?.[0] || {};
-  const photoGallery = loc?.imageUrl ? [loc.imageUrl] : ["https://picsum.photos/800/600", "https://picsum.photos/800/601"];
-  const products = Array.isArray(loc?.products) && loc.products.length > 0 ? loc.products : [];
+  const firstMachine = loc?.machine?.[0] || loc?.machines?.[0] || {};
+  
+  // Compile all photos from previous service history (completed stops)
+  const servicePhotos: string[] = [];
+  locationStops.forEach((stop: any) => {
+    if (stop.photos) {
+      try {
+        if (typeof stop.photos === "string") {
+          if (stop.photos.trim().startsWith("[")) {
+            const parsed = JSON.parse(stop.photos);
+            if (Array.isArray(parsed)) {
+              servicePhotos.push(...parsed);
+            }
+          } else {
+            const splitPhotos = stop.photos.split(",").map((p: string) => p.trim()).filter(Boolean);
+            servicePhotos.push(...splitPhotos);
+          }
+        } else if (Array.isArray(stop.photos)) {
+          servicePhotos.push(...stop.photos);
+        }
+      } catch (err) {
+        console.error("Failed to parse stop photos:", err);
+      }
+    }
+  });
+
+  const photoGallery = [
+    ...(loc?.imageUrl ? [loc.imageUrl] : []),
+    ...servicePhotos
+  ];
+  if (photoGallery.length === 0) {
+    // Standard beautiful default location fallbacks if zero photos uploaded
+    photoGallery.push("https://picsum.photos/800/600", "https://picsum.photos/800/601");
+  }
+  
+  // Parse products string/array correctly
+  let products: string[] = [];
+  if (loc?.products) {
+    try {
+      if (typeof loc.products === "string") {
+        if (loc.products.trim().startsWith("[")) {
+          products = JSON.parse(loc.products);
+        } else {
+          products = loc.products.split(",").map((p: string) => p.trim()).filter(Boolean);
+        }
+      } else if (Array.isArray(loc.products)) {
+        products = loc.products;
+      }
+    } catch (e) {
+      console.error("Failed to parse products:", e);
+    }
+  }
 
   // Next service countdown calculation
   const daysUntilNextService = 5; // To be computed dynamically based on schedule
@@ -173,9 +430,17 @@ export default function LocationDetailPage() {
         {activeTab === "overview" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="space-y-6 lg:col-span-2">
-              {/* Vending Specs Info */}
               <div className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-4">
-                <h3 className="font-bold text-slate-900 text-sm border-b border-border pb-3">Vending Machine Details</h3>
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <h3 className="font-bold text-slate-900 text-sm">Vending Machine Details</h3>
+                  <button
+                    onClick={() => openMachineModal(firstMachine)}
+                    className="text-xs bg-primary-50 text-primary-600 hover:bg-primary-100 font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    {firstMachine.id ? "Update Machine" : "Add Machine"}
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div className="bg-slate-50 p-3.5 rounded-xl border border-border">
                     <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Machine ID</p>
@@ -329,41 +594,97 @@ export default function LocationDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* GPS Metrics */}
             <div className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-4">
-              <h3 className="font-bold text-slate-900 text-sm border-b border-border pb-3">GPS Coordinates</h3>
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h3 className="font-bold text-slate-900 text-sm">GPS Coordinates</h3>
+                <button
+                  type="button"
+                  onClick={handleManualGpsSync}
+                  disabled={isSyncingGps}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 border border-primary-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                  title="Auto-fetch exact coordinates for this address & city"
+                >
+                  {isSyncingGps ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  Sync Map to Address
+                </button>
+              </div>
+
+              {syncMsg && (
+                <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg font-medium">
+                  {syncMsg}
+                </p>
+              )}
+
               <div className="space-y-3.5 text-xs">
                 <div>
                   <p className="text-slate-450 font-bold uppercase tracking-wider text-[9px]">Location Address</p>
-                  <p className="font-semibold text-slate-800 leading-relaxed mt-1">{loc.address}</p>
+                  <p className="font-semibold text-slate-800 leading-relaxed mt-1">
+                    {loc.address}{loc.city ? `, ${loc.city}` : ""}
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3 pt-2">
+                <div className="grid grid-cols-2 gap-3 pt-1">
                   <div className="bg-slate-50 p-3 rounded-lg border border-border">
                     <p className="text-slate-400 font-bold text-[9px]">Latitude</p>
-                    <p className="font-bold text-slate-950 font-mono text-[11px] mt-0.5">{loc.latitude}</p>
+                    <p className="font-bold text-slate-950 font-mono text-[11px] mt-0.5">{loc.latitude ?? "N/A"}</p>
                   </div>
                   <div className="bg-slate-50 p-3 rounded-lg border border-border">
                     <p className="text-slate-400 font-bold text-[9px]">Longitude</p>
-                    <p className="font-bold text-slate-950 font-mono text-[11px] mt-0.5">{loc.longitude}</p>
+                    <p className="font-bold text-slate-950 font-mono text-[11px] mt-0.5">{loc.longitude ?? "N/A"}</p>
                   </div>
                 </div>
                 <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-3 text-[10px] font-medium leading-relaxed">
                   📍 Verified geofence active within 50 meters of coordinates for automatic check-in logs.
                 </div>
+                {loc.latitude && loc.longitude && (
+                  <a
+                    href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1.5 w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Open in Google Maps
+                  </a>
+                )}
               </div>
             </div>
 
             {/* Interactive Map */}
-            <div className="lg:col-span-2 bg-card rounded-xl border border-border shadow-sm overflow-hidden h-[400px]">
+            <div className="lg:col-span-2 bg-card rounded-xl border border-border shadow-sm overflow-hidden h-[400px] relative">
               <MapContainer center={[loc.latitude || 19.076, loc.longitude || 72.877]} zoom={14} className="h-full w-full">
+                <MapFocusController center={[loc.latitude || 19.076, loc.longitude || 72.877]} zoom={15} />
+                <LocationDetailMapEvents onLocationChange={handleUpdateCoordinatesFromMap} />
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <Marker position={[loc.latitude || 19.076, loc.longitude || 72.877]}>
-                  <Popup>
-                    <div className="p-1 text-xs">
-                      <p className="font-bold text-slate-900">{customer.companyName || loc.name}</p>
-                      <p className="text-slate-500 font-mono text-[10px]">{firstMachine.machineCode || "N/A"}</p>
-                    </div>
-                  </Popup>
-                </Marker>
+                {loc.latitude && loc.longitude && (
+                  <Marker
+                    position={[loc.latitude, loc.longitude]}
+                    draggable={true}
+                    eventHandlers={{
+                      dragend: (e) => {
+                        const marker = e.target;
+                        const position = marker.getLatLng();
+                        handleUpdateCoordinatesFromMap(
+                          parseFloat(position.lat.toFixed(6)),
+                          parseFloat(position.lng.toFixed(6))
+                        );
+                      },
+                    }}
+                  >
+                    <Popup>
+                      <div className="p-1 text-xs">
+                        <p className="font-bold text-slate-900">{customer.companyName || loc.name}</p>
+                        <p className="text-slate-500 font-mono text-[10px]">{loc.address}, {loc.city}</p>
+                        <p className="text-slate-400 font-mono text-[9px] mt-1">{loc.latitude}, {loc.longitude}</p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                )}
               </MapContainer>
+              <div className="absolute bottom-2 left-3 right-3 bg-slate-900/80 backdrop-blur-xs text-white text-[11px] py-1.5 px-3 rounded-lg flex items-center justify-between pointer-events-none z-[1000] shadow">
+                <span>📍 Click anywhere on map or drag pin to adjust exact location coordinates</span>
+                <span className="font-mono text-[10px] text-emerald-300 font-bold">
+                  {loc.latitude ? `${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}` : "No pin"}
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -391,12 +712,26 @@ export default function LocationDetailPage() {
                 </button>
               </div>
 
-              <button
-                onClick={() => alert("Upload photo dialogue opened")}
-                className="text-xs bg-primary-600 hover:bg-primary-700 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
-              >
-                <Upload className="w-3.5 h-3.5" /> Upload Photo
-              </button>
+              <div>
+                <button
+                  onClick={() => document.getElementById('detail-photo-upload-input')?.click()}
+                  className="text-xs bg-primary-600 hover:bg-primary-700 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" /> Upload Photo
+                </button>
+                <input
+                  id="detail-photo-upload-input"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleUploadPhoto(file);
+                    }
+                  }}
+                />
+              </div>
             </div>
 
             {/* Gallery Grid */}
@@ -603,6 +938,88 @@ export default function LocationDetailPage() {
           </div>
         )}
       </AnimatePresence>,
+        document.body
+      )}
+      {/* Configure Vending Machine Modal */}
+      {createPortal(
+        <AnimatePresence>
+          {isMachineModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-xl border border-border shadow-2xl w-full max-w-md overflow-hidden flex flex-col"
+              >
+                <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-slate-50">
+                  <h3 className="font-bold text-slate-900 text-base">
+                    {firstMachine.id ? "Update Vending Machine" : "Configure Vending Machine"}
+                  </h3>
+                  <button onClick={() => setIsMachineModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveMachine} className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Machine Code / ID *</label>
+                    <input
+                      required
+                      disabled={!!firstMachine.id}
+                      placeholder="e.g. VEND-BKC-091"
+                      value={machineForm.machineCode}
+                      onChange={(e) => setMachineForm({ ...machineForm, machineCode: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20 disabled:bg-slate-50 disabled:text-slate-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Machine Model *</label>
+                    <input
+                      required
+                      disabled={!!firstMachine.id}
+                      placeholder="e.g. Snack & Drinks Combo Pro"
+                      value={machineForm.model}
+                      onChange={(e) => setMachineForm({ ...machineForm, model: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20 disabled:bg-slate-50 disabled:text-slate-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Current Fill Level (%) *</label>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={machineForm.fillLevel}
+                      onChange={(e) => setMachineForm({ ...machineForm, fillLevel: Number(e.target.value) })}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-border mt-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsMachineModalOpen(false)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={machineSubmitting}
+                      className="px-4 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-lg flex items-center gap-1.5"
+                    >
+                      {machineSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      Save Machine
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
         document.body
       )}
     </div>

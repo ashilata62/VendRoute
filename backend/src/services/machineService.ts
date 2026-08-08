@@ -1,4 +1,5 @@
 import { prisma } from '../config/db.js';
+import { v4 as uuidv4 } from 'uuid';
 
 export class MachineService {
   static async getAll() {
@@ -13,7 +14,16 @@ export class MachineService {
   }
 
   static async create(data: any) {
-    return await prisma.machine.create({ data });
+    return await prisma.machine.create({
+      data: {
+        id: data.id || uuidv4(),
+        locationId: data.locationId,
+        machineCode: data.machineCode,
+        model: data.model,
+        fillLevel: data.fillLevel ?? 100,
+        status: data.status || 'ACTIVE',
+      }
+    });
   }
 
   static async updateStock(id: string, fillLevel: number, status?: any) {

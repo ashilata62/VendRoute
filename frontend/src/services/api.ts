@@ -154,6 +154,11 @@ export const machinesApi = {
       method: "PUT",
       body: JSON.stringify(data),
     }),
+  updateStock: (id: string, data: { fillLevel: number; status?: string }) =>
+    apiFetch<{ success: boolean; data: any }>(`/machines/${id}/stock`, {
+      method: "PATCH",
+      body: JSON.stringify(data),
+    }),
   delete: (id: string) =>
     apiFetch<{ success: boolean; message: string }>(`/machines/${id}`, {
       method: "DELETE",

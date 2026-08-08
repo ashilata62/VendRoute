@@ -2,12 +2,13 @@ import { createPortal } from "react-dom";
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import {
   Search, Grid, List, Map as MapIcon, Plus, Eye, Edit, MapPin,
-  Wrench, X, Upload, Tag, Trash2, Loader2, AlertCircle, Check
+  Wrench, X, Upload, Tag, Trash2, Loader2, AlertCircle, Check,
+  LocateFixed, Navigation, Crosshair
 } from "lucide-react";
 
 import PageHeader from "../components/shared/PageHeader";
@@ -20,6 +21,27 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
+
+// Map Controller for smooth focusing
+function MapFocusController({ center, zoom }: { center: [number, number]; zoom?: number }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center && !isNaN(center[0]) && !isNaN(center[1])) {
+      map.flyTo(center, zoom || 14, { animate: true, duration: 1 });
+    }
+  }, [center[0], center[1], zoom, map]);
+  return null;
+}
+
+// Click event handler for map picker
+function LocationPickerMapEvents({ onLocationSelect }: { onLocationSelect: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      onLocationSelect(parseFloat(e.latlng.lat.toFixed(6)), parseFloat(e.latlng.lng.toFixed(6)));
+    },
+  });
+  return null;
+}
 
 // ─── Backend Data Shapes ───────────────────────────────────────────────────────
 interface BackendLocation {
@@ -116,6 +138,137 @@ export default function LocationsPage() {
   const inactiveCount = allMachines.filter((m) => m.status === "INACTIVE").length;
   const outOfStockCount = allMachines.filter((m) => m.status === "OUT_OF_STOCK").length;
 
+  const [isGeocoding, setIsGeocoding] = useState(false);
+  const [geocodeMessage, setGeocodeMessage] = useState<string | null>(null);
+
+  // ── Reverse Geocode (Map Click / Pin Drag -> Auto-fill Form) ──────────────
+  const reverseGeocodeLocation = async (lat: number, lng: number) => {
+    setIsGeocoding(true);
+    setGeocodeMessage("🔍 Fetching location address from map pin...");
+    try {
+      const res = await fetch(
+        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}&zoom=18&addressdetails=1`,
+        { headers: { "Accept-Language": "en" } }
+      );
+      const data = await res.json();
+      if (data && data.address) {
+        const addr = data.address;
+
+        // Extract City / Town / District
+        const detectedCity =
+          addr.city ||
+          addr.town ||
+          addr.city_district ||
+          addr.state_district ||
+          addr.county ||
+          addr.village ||
+          "";
+
+        // Extract Street / Road / Suburb / Landmark
+        const parts = [
+          addr.amenity || addr.building || addr.shop || addr.office,
+          addr.road || addr.street,
+          addr.suburb || addr.neighbourhood || addr.residential || addr.commercial,
+        ].filter(Boolean);
+
+        let detectedAddress = parts.join(", ");
+        if (!detectedAddress) {
+          detectedAddress = data.display_name?.split(",")?.slice(0, 3)?.join(",")?.trim() || "";
+        }
+
+        const landmarkName =
+          addr.amenity ||
+          addr.building ||
+          addr.shop ||
+          addr.office ||
+          addr.suburb ||
+          addr.neighbourhood ||
+          "";
+
+        setForm((prev) => ({
+          ...prev,
+          latitude: lat,
+          longitude: lng,
+          address: detectedAddress || prev.address,
+          city: detectedCity || prev.city,
+          name: prev.name.trim() ? prev.name : (landmarkName || detectedAddress || prev.name),
+        }));
+
+        setGeocodeMessage(
+          `✅ Auto-filled: ${detectedAddress || ""}${detectedCity ? `, ${detectedCity}` : ""}`
+        );
+      } else {
+        setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+        setGeocodeMessage(`📍 Coordinates set: ${lat}, ${lng}`);
+      }
+    } catch (err) {
+      setForm((prev) => ({ ...prev, latitude: lat, longitude: lng }));
+      setGeocodeMessage(`📍 Coordinates set: ${lat}, ${lng}`);
+    } finally {
+      setIsGeocoding(false);
+      setTimeout(() => setGeocodeMessage(null), 5000);
+    }
+  };
+
+  // ── Geocode Address & City (Address -> Coordinates) ─────────────────────────
+  const handleGeocodeAddress = async (customQuery?: string) => {
+    const query = customQuery || [form.address, form.city].filter(Boolean).join(", ");
+    if (!query.trim()) {
+      setGeocodeMessage("⚠️ Please enter Full Address or City first.");
+      setTimeout(() => setGeocodeMessage(null), 3500);
+      return;
+    }
+
+    setIsGeocoding(true);
+    setGeocodeMessage(null);
+    try {
+      let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+      let data = await res.json();
+      if (!data || data.length === 0) {
+        if (form.city && query !== form.city) {
+          res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(form.city)}&limit=1`);
+          data = await res.json();
+        }
+      }
+      if (data && data.length > 0) {
+        const lat = parseFloat(parseFloat(data[0].lat).toFixed(6));
+        const lon = parseFloat(parseFloat(data[0].lon).toFixed(6));
+        setForm((prev) => ({ ...prev, latitude: lat, longitude: lon }));
+        setGeocodeMessage(`📍 Coordinates found for "${query}": ${lat}, ${lon}`);
+      } else {
+        setGeocodeMessage(`⚠️ Could not auto-locate "${query}". Click on map below to set pin.`);
+      }
+    } catch (err) {
+      setGeocodeMessage("⚠️ Geocoding service busy. Click on map below to place pin.");
+    } finally {
+      setIsGeocoding(false);
+      setTimeout(() => setGeocodeMessage(null), 4000);
+    }
+  };
+
+  // ── Detect Current Device GPS ───────────────────────────────────────────────
+  const handleGetCurrentLocation = () => {
+    if (!navigator.geolocation) {
+      alert("Geolocation is not supported by your browser");
+      return;
+    }
+    setIsGeocoding(true);
+    setGeocodeMessage("📡 Detecting GPS location...");
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        const lat = parseFloat(pos.coords.latitude.toFixed(6));
+        const lng = parseFloat(pos.coords.longitude.toFixed(6));
+        reverseGeocodeLocation(lat, lng);
+      },
+      (err) => {
+        setIsGeocoding(false);
+        setGeocodeMessage("⚠️ GPS access denied or timed out. Click on map to set pin.");
+        setTimeout(() => setGeocodeMessage(null), 4000);
+      },
+      { enableHighAccuracy: true, timeout: 10000 }
+    );
+  };
+
   // ── Open modals ─────────────────────────────────────────────────────────────
   const openAddModal = () => {
     setEditingLocation(null);
@@ -128,6 +281,24 @@ export default function LocationsPage() {
   const openEditModal = (loc: BackendLocation, e: React.MouseEvent) => {
     e.stopPropagation();
     setEditingLocation(loc);
+    
+    let parsedProducts: string[] = [];
+    if (loc.products) {
+      try {
+        if (typeof loc.products === "string") {
+          if (loc.products.trim().startsWith("[")) {
+            parsedProducts = JSON.parse(loc.products);
+          } else {
+            parsedProducts = loc.products.split(",").map((p: string) => p.trim()).filter(Boolean);
+          }
+        } else if (Array.isArray(loc.products)) {
+          parsedProducts = loc.products;
+        }
+      } catch (err) {
+        console.error("Failed to parse products on edit:", err);
+      }
+    }
+
     setForm({
       name: loc.name,
       address: loc.address,
@@ -136,7 +307,7 @@ export default function LocationsPage() {
       longitude: loc.longitude,
       customerId: loc.customerId,
       productInput: "",
-      products: Array.isArray(loc.products) ? loc.products : [],
+      products: parsedProducts,
       notes: "",
       photoFiles: [],
       photoPreviews: loc.imageUrl ? [loc.imageUrl] : [],
@@ -509,31 +680,138 @@ export default function LocationsPage() {
                 <div className="grid grid-cols-2 gap-3">
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">Full Address *</label>
-                    <input required placeholder="Street, Landmark" value={form.address}
+                    <input
+                      required
+                      placeholder="Street, Landmark (e.g. Gachibowli)"
+                      value={form.address}
                       onChange={(e) => setForm({ ...form, address: e.target.value })}
-                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none" />
+                      onBlur={() => {
+                        if (form.address || form.city) {
+                          handleGeocodeAddress([form.address, form.city].filter(Boolean).join(", "));
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none"
+                    />
                   </div>
                   <div>
                     <label className="block text-xs font-semibold text-slate-700 mb-1">City *</label>
-                    <input required placeholder="e.g. Mumbai" value={form.city}
+                    <input
+                      required
+                      placeholder="e.g. Hyderabad"
+                      value={form.city}
                       onChange={(e) => setForm({ ...form, city: e.target.value })}
-                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none" />
+                      onBlur={() => {
+                        if (form.city) {
+                          handleGeocodeAddress([form.address, form.city].filter(Boolean).join(", "));
+                        }
+                      }}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none"
+                    />
                   </div>
                 </div>
 
-                {/* Coordinates */}
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Latitude</label>
-                    <input type="number" step="any" value={form.latitude}
-                      onChange={(e) => setForm({ ...form, latitude: parseFloat(e.target.value) })}
-                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none" />
+                {/* Coordinates & Interactive Map Picker */}
+                <div className="space-y-2 pt-1">
+                  <div className="flex items-center justify-between">
+                    <label className="block text-xs font-semibold text-slate-700">GPS Coordinates (Latitude & Longitude)</label>
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={handleGetCurrentLocation}
+                        disabled={isGeocoding}
+                        className="px-2.5 py-1 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Use my current GPS position"
+                      >
+                        <LocateFixed className="w-3.5 h-3.5 text-emerald-600" />
+                        Detect GPS
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => handleGeocodeAddress()}
+                        disabled={isGeocoding}
+                        className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 text-blue-700 border border-blue-200 rounded text-[11px] font-semibold flex items-center gap-1 transition-colors cursor-pointer"
+                        title="Auto locate from Address and City"
+                      >
+                        {isGeocoding ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Crosshair className="w-3.5 h-3.5 text-blue-600" />}
+                        Locate on Map
+                      </button>
+                    </div>
                   </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-slate-700 mb-1">Longitude</label>
-                    <input type="number" step="any" value={form.longitude}
-                      onChange={(e) => setForm({ ...form, longitude: parseFloat(e.target.value) })}
-                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none" />
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Latitude</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={form.latitude}
+                        onChange={(e) => setForm({ ...form, latitude: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-1.5 text-xs border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20"
+                        placeholder="e.g. 19.076"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-[10px] font-medium text-slate-500 mb-0.5">Longitude</label>
+                      <input
+                        type="number"
+                        step="any"
+                        value={form.longitude}
+                        onChange={(e) => setForm({ ...form, longitude: parseFloat(e.target.value) || 0 })}
+                        className="w-full px-3 py-1.5 text-xs border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20"
+                        placeholder="e.g. 72.8777"
+                      />
+                    </div>
+                  </div>
+
+                  {geocodeMessage && (
+                    <p className="text-[11px] text-blue-800 bg-blue-50 border border-blue-200 px-3 py-1.5 rounded-lg flex items-center gap-1.5 font-medium">
+                      {geocodeMessage}
+                    </p>
+                  )}
+
+                  {/* Interactive Map Picker */}
+                  <div className="h-44 rounded-lg overflow-hidden border border-slate-200 relative bg-slate-100 mt-2 shadow-inner">
+                    <MapContainer
+                      center={[form.latitude || 19.076, form.longitude || 72.8777]}
+                      zoom={13}
+                      className="h-full w-full"
+                    >
+                      <MapFocusController center={[form.latitude || 19.076, form.longitude || 72.8777]} zoom={14} />
+                      <LocationPickerMapEvents
+                        onLocationSelect={(lat, lng) => {
+                          reverseGeocodeLocation(lat, lng);
+                        }}
+                      />
+                      <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
+                      {form.latitude && form.longitude && !isNaN(form.latitude) && !isNaN(form.longitude) && (
+                        <Marker
+                          position={[form.latitude, form.longitude]}
+                          draggable={true}
+                          eventHandlers={{
+                            dragend: (e) => {
+                              const marker = e.target;
+                              const position = marker.getLatLng();
+                              const lat = parseFloat(position.lat.toFixed(6));
+                              const lng = parseFloat(position.lng.toFixed(6));
+                              reverseGeocodeLocation(lat, lng);
+                            },
+                          }}
+                        >
+                          <Popup>
+                            <div className="text-xs font-semibold">Pinned Location</div>
+                            <div className="text-[10px] text-slate-500 font-mono">
+                              {form.latitude}, {form.longitude}
+                            </div>
+                          </Popup>
+                        </Marker>
+                      )}
+                    </MapContainer>
+                    <div className="absolute bottom-1.5 left-2 right-2 bg-slate-900/80 backdrop-blur-xs text-white text-[10px] py-1 px-2.5 rounded-md flex items-center justify-between pointer-events-none z-[1000] shadow">
+                      <span>📍 Click map or drag pin to adjust exact location</span>
+                      <span className="font-mono text-[9px] text-emerald-300 font-bold">
+                        {form.latitude ? `${form.latitude.toFixed(4)}, ${form.longitude.toFixed(4)}` : "No pin"}
+                      </span>
+                    </div>
                   </div>
                 </div>
 
