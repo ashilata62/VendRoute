@@ -43,6 +43,23 @@ export class RouteService {
 
   static async create(payload: { driverId: string; name: string; date: string; vehicleId?: string; totalDistance?: number; estimatedTime?: number; stops: string[] }) {
     const { driverId, name, date, vehicleId, totalDistance, estimatedTime, stops } = payload;
+    
+    // Automatically assign vehicle to driver in vehicle table
+    if (vehicleId && driverId) {
+      try {
+        await prisma.vehicle.updateMany({
+          where: { assignedDriverId: driverId, id: { not: vehicleId } },
+          data: { assignedDriverId: null }
+        });
+        await prisma.vehicle.update({
+          where: { id: vehicleId },
+          data: { assignedDriverId: driverId }
+        });
+      } catch (err) {
+        console.error('Error auto-linking vehicle on route create:', err);
+      }
+    }
+
     return await prisma.route.create({
       data: { 
         id: uuidv4(),
@@ -60,7 +77,11 @@ export class RouteService {
           })),
         },
       },
-      include: { routestop: true },
+      include: { 
+        routestop: true,
+        vehicle: true,
+        user: { select: { id: true, name: true, email: true, phone: true } }
+      },
     });
   }
 
@@ -79,6 +100,25 @@ export class RouteService {
     if (name) updateData.name = name;
     if (date) updateData.date = date;
     if (status) updateData.status = status;
+
+    // Automatically link vehicle on route update
+    if (vehicleId) {
+      try {
+        const targetDriverId = driverId || (await prisma.route.findUnique({ where: { id }, select: { driverId: true } }))?.driverId;
+        if (targetDriverId) {
+          await prisma.vehicle.updateMany({
+            where: { assignedDriverId: targetDriverId, id: { not: vehicleId } },
+            data: { assignedDriverId: null }
+          });
+          await prisma.vehicle.update({
+            where: { id: vehicleId },
+            data: { assignedDriverId: targetDriverId }
+          });
+        }
+      } catch (err) {
+        console.error('Error auto-linking vehicle on route update:', err);
+      }
+    }
 
     return await prisma.route.update({
       where: { id },

@@ -56,18 +56,62 @@ export const getDashboardStats = async (req: AuthRequest, res: Response) => {
 export const getDriverPerformance = async (req: AuthRequest, res: Response) => {
   try {
     const driverId = req.params.driverId as string;
-    const routes = await prisma.route.findMany({ where: { driverId }, include: { routestop: true } });
-    let totalCash = 0; let totalStops = 0; let completedStops = 0;
+    const routes = await prisma.route.findMany({
+      where: { driverId },
+      include: { routestop: true },
+      orderBy: { date: 'asc' },
+    });
+
+    let totalCash = 0;
+    let totalStops = 0;
+    let completedStops = 0;
+    let missedStops = 0;
+
+    const dayMap: Record<string, { day: string; completed: number; missed: number; stops: number }> = {};
+
     routes.forEach((r: any) => {
-      r.routestop.forEach((s: any) => {
+      const dayStr = r.date ? new Date(r.date).toLocaleDateString("en-IN", { month: 'short', day: 'numeric' }) : 'Day';
+      if (!dayMap[dayStr]) {
+        dayMap[dayStr] = { day: dayStr, completed: 0, missed: 0, stops: 0 };
+      }
+
+      (r.routestop || []).forEach((s: any) => {
         totalStops++;
-        if (s.status === 'COMPLETED') completedStops++;
+        dayMap[dayStr].stops++;
+        if (s.status === 'COMPLETED') {
+          completedStops++;
+          dayMap[dayStr].completed++;
+        } else if (s.status === 'SKIPPED' || s.status === 'MISSED') {
+          missedStops++;
+          dayMap[dayStr].missed++;
+        }
         totalCash += (s.cashCollected || 0);
       });
     });
+
+    const completionRate = totalStops > 0 ? Math.round((completedStops / totalStops) * 100) : (routes.length > 0 ? 100 : 0);
+    const score = totalStops > 0 ? Math.min(100, Math.max(60, completionRate)) : (routes.length > 0 ? 85 : 80);
+
+    const completionRateByDay = Object.values(dayMap);
+    const stopVolumeByDay = Object.values(dayMap).map(d => ({ day: d.day, stops: d.stops }));
+
     return res.status(200).json({
       success: true,
-      data: {  totalRoutes: routes.length, totalStops, completedStops, completionRate: totalStops > 0 ? (completedStops/totalStops)*100 : 0, totalCash }
+      data: {
+        totalRoutes: routes.length,
+        totalStops,
+        completedStops,
+        missedStops,
+        completionRate,
+        score,
+        totalCash,
+        historicalData: {
+          completionRateByDay,
+          stopVolumeByDay,
+        },
+      },
     });
-  } catch (error: any) { return res.status(500).json({ success: false, message: error.message }); }
+  } catch (error: any) {
+    return res.status(500).json({ success: false, message: error.message });
+  }
 };

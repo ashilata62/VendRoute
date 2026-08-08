@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import {
   ArrowLeft, Phone, Mail, MapPin, Calendar as CalendarIcon,
-  Shield, Loader2, Pencil, Trash2, X, Check
+  Shield, Loader2, Pencil, Trash2, X, Check, Truck
 } from "lucide-react";
 
 import { usersApi, routesApi, vehiclesApi, analyticsApi, attendanceApi } from "../services/api";
@@ -23,6 +23,7 @@ export default function DriverProfilePage() {
 
   const [driver, setDriver] = useState<any>(null);
   const [vehicle, setVehicle] = useState<any>(null);
+  const [allVehicles, setAllVehicles] = useState<any[]>([]);
   const [driverRoutes, setDriverRoutes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyticsData, setAnalyticsData] = useState<any>(null);
@@ -41,6 +42,11 @@ export default function DriverProfilePage() {
   });
   const [editLoading, setEditLoading] = useState(false);
   const [editError, setEditError] = useState("");
+
+  // Change Vehicle Modal State
+  const [isChangeVehicleOpen, setIsChangeVehicleOpen] = useState(false);
+  const [selectedVehicleId, setSelectedVehicleId] = useState("");
+  const [vehicleSaving, setVehicleSaving] = useState(false);
 
   const handleOpenEdit = () => {
     if (!driver) return;
@@ -73,6 +79,41 @@ export default function DriverProfilePage() {
     }
   };
 
+  const handleSaveVehicleAssignment = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setVehicleSaving(true);
+    try {
+      if (selectedVehicleId) {
+        // Assign selected vehicle to this driver
+        await vehiclesApi.update(selectedVehicleId, { assignedDriverId: id });
+      } else if (vehicle) {
+        // Unassign current vehicle
+        await vehiclesApi.update(vehicle.id, { assignedDriverId: null });
+      }
+
+      // Refresh data
+      const [userRes, vhRes] = await Promise.all([
+        usersApi.getById(id!),
+        vehiclesApi.getAll(),
+      ]);
+      if (userRes.success) setDriver(userRes.data);
+      if (vhRes.success) {
+        setAllVehicles(vhRes.data);
+        const updatedVehicle = vhRes.data.find((v: any) =>
+          v.assignedDriverId === id ||
+          v.user?.id === id ||
+          v.id === selectedVehicleId
+        );
+        setVehicle(updatedVehicle || null);
+      }
+      setIsChangeVehicleOpen(false);
+    } catch (err: any) {
+      alert(err.message || "Failed to update assigned vehicle");
+    } finally {
+      setVehicleSaving(false);
+    }
+  };
+
   const handleDeleteDriver = async () => {
     if (!window.confirm(`Are you sure you want to delete ${driver.name}? This will also delete their assigned route records.`)) return;
     try {
@@ -99,6 +140,9 @@ export default function DriverProfilePage() {
         if (routesRes.success) {
           setDriverRoutes(routesRes.data.filter((r: any) => r.driverId === id));
         }
+        if (vhRes.success) {
+          setAllVehicles(vhRes.data);
+        }
         
         try {
           const analyticsRes = await analyticsApi.getDriverAnalytics(id);
@@ -113,9 +157,13 @@ export default function DriverProfilePage() {
         } catch (e) {
           console.error("Failed to load driver attendance", e);
         }
-        if (vhRes.success && userRes.success) {
+        if (vhRes.success) {
           const assignedVehicle = vhRes.data.find((v: any) =>
-            v.id === userRes.data.assignedVehicleId || v.driverId === id
+            v.assignedDriverId === id ||
+            v.user?.id === id ||
+            (userRes.success && userRes.data?.vehicle?.some((dv: any) => dv.id === v.id)) ||
+            (userRes.success && userRes.data?.route?.some((dr: any) => dr.vehicleId === v.id || dr.vehicle?.id === v.id)) ||
+            (routesRes.success && routesRes.data.some((r: any) => r.driverId === id && (r.vehicleId === v.id || r.vehicle?.id === v.id)))
           );
           setVehicle(assignedVehicle || null);
         }
@@ -262,7 +310,19 @@ export default function DriverProfilePage() {
 
           {/* Assigned Vehicle Card */}
           <div className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-4">
-            <h3 className="font-bold text-slate-900 text-sm border-b border-border pb-3">Assigned Vehicle</h3>
+            <div className="flex items-center justify-between border-b border-border pb-3">
+              <h3 className="font-bold text-slate-900 text-sm">Assigned Vehicle</h3>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedVehicleId(vehicle?.id || "");
+                  setIsChangeVehicleOpen(true);
+                }}
+                className="text-xs text-primary-600 hover:text-primary-700 font-semibold flex items-center gap-1 cursor-pointer transition-colors"
+              >
+                <Pencil className="w-3 h-3" /> {vehicle ? "Change" : "Assign"}
+              </button>
+            </div>
             {vehicle ? (
               <div className="space-y-3 text-xs">
                 <div className="flex items-center justify-between">
@@ -276,37 +336,50 @@ export default function DriverProfilePage() {
                 </div>
               </div>
             ) : (
-              <p className="text-xs text-slate-400">No vehicle assigned.</p>
+              <div className="text-center py-3">
+                <p className="text-xs text-slate-400 mb-2">No vehicle assigned yet.</p>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSelectedVehicleId("");
+                    setIsChangeVehicleOpen(true);
+                  }}
+                  className="px-3 py-1.5 bg-primary-50 text-primary-600 text-xs font-semibold rounded-lg hover:bg-primary-100 transition-colors inline-flex items-center gap-1.5 cursor-pointer"
+                >
+                  <Truck className="w-3.5 h-3.5" /> Assign Vehicle
+                </button>
+              </div>
             )}
-          </div>
-
-          {/* Quick Metrics */}
+          </div>          {/* Quick Metrics */}
           <div className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-4">
             <h3 className="font-bold text-slate-900 text-sm border-b border-border pb-3">Career Achievements</h3>
             <div className="grid grid-cols-2 gap-3 text-center">
               <div className="bg-blue-50 p-3 rounded-xl border border-blue-100">
                 <p className="text-xl font-bold text-blue-700">{driverRoutes.length}</p>
-                <p className="text-[10px] text-blue-500 uppercase font-semibold">Routes Finished</p>
+                <p className="text-[10px] text-blue-500 uppercase font-semibold">Total Routes</p>
               </div>
               <div className="bg-emerald-50 p-3 rounded-xl border border-emerald-100">
-                <p className="text-xl font-bold text-emerald-700">{driver.completedStops?.toLocaleString() || driverRoutes.reduce((a: number, r: any) => a + (r.stops?.filter((s: any) => s.status === 'COMPLETED').length || 0), 0)}</p>
-                <p className="text-[10px] text-emerald-500 uppercase font-semibold">Stops Visited</p>
+                <p className="text-xl font-bold text-emerald-700">
+                  {driverRoutes.reduce((a: number, r: any) => {
+                    const stops = r.routestop || r.stops || [];
+                    return a + stops.filter((s: any) => s.status === 'COMPLETED').length;
+                  }, 0)}
+                </p>
+                <p className="text-[10px] text-emerald-500 uppercase font-semibold">Stops Completed</p>
               </div>
             </div>
-            </div>
           </div>
+        </div>
         
         {/* Today's Shift */}
         {(() => {
+            const now = new Date();
+            const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
             const isToday = (r: any) => {
-              const dateToUse = r.endTime || r.date || r.createdAt;
-              if (!dateToUse) return false;
-              const d = new Date(dateToUse);
-              if (isNaN(d.getTime())) return false;
-              const today = new Date();
-              return d.getDate() === today.getDate() && 
-                     d.getMonth() === today.getMonth() && 
-                     d.getFullYear() === today.getFullYear();
+              const dateVal = r.date || r.createdAt || r.endTime;
+              if (!dateVal) return false;
+              const dateStr = typeof dateVal === 'string' ? dateVal.slice(0, 10) : new Date(dateVal).toISOString().slice(0, 10);
+              return dateStr === todayStr;
             };
             const todaysRoutes = driverRoutes.filter(isToday);
             const todaysCompleted = todaysRoutes.filter((r: any) => r.status === "COMPLETED").length;
@@ -343,29 +416,40 @@ export default function DriverProfilePage() {
       {/* TAB 2: ROUTES */}
       {activeTab === "routes" && (
         <div className="bg-card rounded-xl border border-border shadow-sm overflow-hidden">
-          <div className="p-4 border-b border-border font-bold text-slate-900 text-sm">Driver Route Records</div>
-          <table className="w-full text-xs text-left">
-            <thead className="bg-slate-50 border-b border-border text-slate-500 uppercase font-semibold">
-              <tr>
-                <th className="px-4 py-3">Route ID</th>
-                <th className="px-4 py-3">Name</th>
-                <th className="px-4 py-3">Date</th>
-                <th className="px-4 py-3">Distance</th>
-                <th className="px-4 py-3">Status</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {driverRoutes.map((r) => (
-                <tr key={r.id} className="hover:bg-slate-50">
-                  <td className="px-4 py-3 font-mono font-semibold text-slate-600">{r.id.toUpperCase()}</td>
-                  <td className="px-4 py-3 font-semibold text-slate-900">{r.name}</td>
-                  <td className="px-4 py-3 text-slate-600">{formatDate(r.date)}</td>
-                  <td className="px-4 py-3 text-slate-600">{r.totalDistance} km</td>
-                  <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
+          <div className="p-4 border-b border-border font-bold text-slate-900 text-sm">Driver Route Records ({driverRoutes.length})</div>
+          {driverRoutes.length > 0 ? (
+            <table className="w-full text-xs text-left">
+              <thead className="bg-slate-50 border-b border-border text-slate-500 uppercase font-semibold">
+                <tr>
+                  <th className="px-4 py-3">Route ID</th>
+                  <th className="px-4 py-3">Name</th>
+                  <th className="px-4 py-3">Date</th>
+                  <th className="px-4 py-3">Distance</th>
+                  <th className="px-4 py-3">Stops</th>
+                  <th className="px-4 py-3">Status</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {driverRoutes.map((r) => {
+                  const stopsList = r.routestop || r.stops || [];
+                  return (
+                    <tr key={r.id} className="hover:bg-slate-50">
+                      <td className="px-4 py-3 font-mono font-semibold text-slate-600">{r.id.slice(0, 8)}...</td>
+                      <td className="px-4 py-3 font-semibold text-slate-900">{r.name}</td>
+                      <td className="px-4 py-3 text-slate-600">{formatDate(r.date)}</td>
+                      <td className="px-4 py-3 text-slate-600">{r.totalDistance || 0} km</td>
+                      <td className="px-4 py-3 text-slate-600">{stopsList.length} stops</td>
+                      <td className="px-4 py-3"><StatusBadge status={r.status} /></td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          ) : (
+            <div className="p-8 text-center text-slate-400 text-xs font-semibold">
+              No routes assigned to this driver yet.
+            </div>
+          )}
         </div>
       )}
 
@@ -575,6 +659,86 @@ export default function DriverProfilePage() {
           </div>
         )}
       </AnimatePresence>,
+        document.body
+      )}
+
+      {/* CHANGE / ASSIGN VEHICLE MODAL */}
+      {createPortal(
+        <AnimatePresence>
+          {isChangeVehicleOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-2xl border border-slate-200 shadow-2xl w-full max-w-md overflow-hidden p-6 space-y-4"
+              >
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-lg bg-primary-50 text-primary-600 flex items-center justify-center">
+                      <Truck className="w-4 h-4" />
+                    </div>
+                    <div>
+                      <h3 className="font-bold text-slate-900 text-sm">Assign Vehicle</h3>
+                      <p className="text-[11px] text-slate-500">Driver: {driver?.name}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setIsChangeVehicleOpen(false)}
+                    className="text-slate-400 hover:text-slate-600 p-1"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveVehicleAssignment} className="space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1.5">
+                      Select Vehicle from Fleet
+                    </label>
+                    <select
+                      value={selectedVehicleId}
+                      onChange={(e) => setSelectedVehicleId(e.target.value)}
+                      className="w-full px-3 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-primary-600/20 bg-white"
+                    >
+                      <option value="">-- No Vehicle Assigned (Unassign) --</option>
+                      {allVehicles.map((v: any) => {
+                        const isCurrent = v.id === vehicle?.id;
+                        const isAssignedToOther = v.assignedDriverId && v.assignedDriverId !== id;
+                        const otherDriverName = v.user?.name ? `(Assigned to ${v.user.name})` : "(In use)";
+                        return (
+                          <option key={v.id} value={v.id}>
+                            {v.model} - {v.plateNumber} {isCurrent ? "★ Currently Assigned" : isAssignedToOther ? otherDriverName : "[Available]"}
+                          </option>
+                        );
+                      })}
+                    </select>
+                    <p className="text-[10px] text-slate-400 mt-1">
+                      Assigning a vehicle here will instantly update the driver's profile, route assignments, and fleet database.
+                    </p>
+                  </div>
+
+                  <div className="flex gap-2 pt-2 border-t border-slate-100">
+                    <button
+                      type="button"
+                      onClick={() => setIsChangeVehicleOpen(false)}
+                      className="flex-1 py-2.5 border border-slate-200 text-slate-600 rounded-xl font-bold hover:bg-slate-50 transition-colors text-xs"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={vehicleSaving}
+                      className="flex-1 py-2.5 bg-primary-600 hover:bg-primary-700 text-white rounded-xl font-bold transition-colors flex items-center justify-center gap-1.5 shadow-md shadow-primary-600/20 cursor-pointer text-xs"
+                    >
+                      {vehicleSaving ? <><Loader2 className="w-4 h-4 animate-spin" /> Saving...</> : <>Save Assignment <Check className="w-4 h-4" /></>}
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
         document.body
       )}
     </div>

@@ -171,7 +171,11 @@ export default function DriversPage() {
       {!loading && (
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {paginatedDrivers.map((driver: any) => {
-          const vehicle = allVehicles.find((v: any) => v.id === driver.assignedVehicleId || v.assignedDriverId === driver.id);
+          const vehicle =
+            allVehicles.find((v: any) => v.assignedDriverId === driver.id || v.user?.id === driver.id) ||
+            (driver.vehicle && driver.vehicle.length > 0 ? driver.vehicle[0] : null) ||
+            allVehicles.find((v: any) => v.id === driver.route?.[0]?.vehicleId) ||
+            driver.route?.[0]?.vehicle;
           const score = driver.rating ? Math.round(driver.rating * 20) : 80;
           const avatarUrl = driver.photo || driver.avatar ||
             `https://ui-avatars.com/api/?name=${encodeURIComponent(driver.name)}&background=3B82F6&color=fff&size=80`;
