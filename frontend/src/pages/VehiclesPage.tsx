@@ -25,20 +25,7 @@ L.Icon.Default.mergeOptions({
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
 
-const fuelChartData = [
-  { month: "Jan", liters: 320, cost: 28800 },
-  { month: "Feb", liters: 290, cost: 26100 },
-  { month: "Mar", liters: 350, cost: 31500 },
-  { month: "Apr", liters: 310, cost: 27900 },
-  { month: "May", liters: 380, cost: 34200 },
-  { month: "Jun", liters: 410, cost: 36900 },
-];
-
-const serviceHistoryData = [
-  { date: "2026-06-15", type: "Full Engine Oil Service", cost: 8500, notes: "Oil filter replaced, brake inspection clean." },
-  { date: "2026-04-10", type: "Tire Replacement & Alignment", cost: 14200, notes: "Replaced 2 front tires and balanced alignment." },
-  { date: "2026-02-05", type: "Brake Pad Maintenance", cost: 4800, notes: "Front brake pads replaced." },
-];
+// Dummy data removed as requested
 
 function FuelBar({ level }: { level: number }) {
   const color = level > 50 ? "bg-emerald-500" : level > 20 ? "bg-amber-500" : "bg-danger";
@@ -92,11 +79,11 @@ export default function VehiclesPage() {
   // ── Fuel & Service Expense Modals State ──
   const [isFuelModalOpen, setIsFuelModalOpen] = useState(false);
   const [fuelForm, setFuelForm] = useState({ vehicleId: "", liters: "", cost: "", month: "Jul" });
-  const [fuelLogs, setFuelLogs] = useState(fuelChartData);
+  const [fuelLogs, setFuelLogs] = useState<any[]>([]);
 
   const [isServiceModalOpen, setIsServiceModalOpen] = useState(false);
   const [serviceForm, setServiceForm] = useState({ vehicleId: "", date: new Date().toISOString().split("T")[0], type: "", cost: "", notes: "" });
-  const [serviceHistory, setServiceHistory] = useState(serviceHistoryData);
+  const [serviceHistory, setServiceHistory] = useState<any[]>([]);
 
   const fetchVehicles = () => {
     vehiclesApi.getAll().then(res => {
