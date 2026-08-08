@@ -750,7 +750,7 @@ export default function RoutesPage() {
                 <div className="h-48 rounded-lg overflow-hidden border border-border relative">
                   <MapContainer center={[19.0760, 72.8777]} zoom={11} className="h-full w-full">
                     <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                    {((detailRoute as any).routestop || detailRoute.stops)?.map((stop: any, idx) => {
+                    {((detailRoute as any).routestop || detailRoute.stops)?.map((stop: any, idx: number) => {
                       const locationId = typeof stop === 'string' ? stop : stop.locationId;
                       const loc = locations.find((l) => l.id === locationId);
                       if (!loc) return null;
@@ -776,7 +776,7 @@ export default function RoutesPage() {
                 <div className="space-y-3">
                   <h4 className="font-semibold text-slate-900 text-xs uppercase tracking-wider">Stop Sequence Timeline</h4>
                   <div className="relative pl-6 space-y-4 before:absolute before:left-2.5 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-                    {((detailRoute as any).routestop || detailRoute.stops)?.map((stop: any, idx) => {
+                    {((detailRoute as any).routestop || detailRoute.stops)?.map((stop: any, idx: number) => {
                       const locationId = typeof stop === 'string' ? stop : stop.locationId;
                       const loc = locations.find((l) => l.id === locationId);
                       if (!loc) return null;
