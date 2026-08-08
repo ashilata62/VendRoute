@@ -1,6 +1,6 @@
 import { io, Socket } from 'socket.io-client';
 
-const SOCKET_URL = 'https://marylandvendngbcknd-production.up.railway.app';
+const SOCKET_URL = process.env.EXPO_PUBLIC_SOCKET_URL || 'https://marylandvendngbcknd-production.up.railway.app';
 
 let socket: Socket | null = null;
 

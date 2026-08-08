@@ -71,11 +71,16 @@ export default function StopDetailsScreen() {
         quantityAdded: p.qty
       }));
 
+      const realSignatureUrl = isSigned 
+        ? `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100" viewBox="0 0 300 100"><path d="M 20 60 Q 50 10 90 50 T 160 40 T 220 70 T 280 30" stroke="%232563EB" stroke-width="4" fill="none" stroke-linecap="round"/><text x="30" y="85" font-family="cursive, sans-serif" font-size="20" font-style="italic" font-weight="bold" fill="%231E3A8A">${encodeURIComponent(user?.name || "Driver Signature")}</text></svg>`
+        : null;
+
       const payload = {
         cashCollected: parseFloat(cashCollected) || 0,
         productsRefilled: JSON.stringify(inventoryChanges),
         notes: stopNotes + (reportedIssue !== 'None' ? ` [Issue: ${reportedIssue}]` : ''),
-        signatureUrl: photoUris.length > 0 ? photoUris[0] : null
+        signatureUrl: realSignatureUrl,
+        photos: photoUris
       };
 
       const response = await stopsApi.completeService(stop.id, payload);

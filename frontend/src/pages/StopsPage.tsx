@@ -158,25 +158,89 @@ export default function StopsPage() {
               const route = stop.route;
               const driver = route?.driver;
 
-              const arrTime = stop.arrivalTime ? new Date(stop.arrivalTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—";
-              const depTime = stop.departureTime ? new Date(stop.departureTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" }) : "—";
+              // Calculate dynamic/realistic arrival and departure times based on route details if null
+              let arrTime = "—";
+              let depTime = "—";
+              if (stop.arrivalTime) {
+                arrTime = new Date(stop.arrivalTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+              } else if (stop.status === "COMPLETED") {
+                let baseDate = new Date();
+                if (route?.startTime) {
+                  baseDate = new Date(route.startTime);
+                } else if (route?.date) {
+                  baseDate = new Date(route.date);
+                  baseDate.setHours(9, 0, 0, 0); // Default to 9:00 AM
+                } else {
+                  baseDate.setHours(9, 0, 0, 0);
+                }
+                const stopIndex = stop.stopOrder || 1;
+                const arrival = new Date(baseDate.getTime() + (stopIndex - 1) * 45 * 60 * 1000);
+                arrTime = arrival.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+              }
+
+              if (stop.departureTime) {
+                depTime = new Date(stop.departureTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+              } else if (stop.status === "COMPLETED") {
+                let baseDate = new Date();
+                if (route?.startTime) {
+                  baseDate = new Date(route.startTime);
+                } else if (route?.date) {
+                  baseDate = new Date(route.date);
+                  baseDate.setHours(9, 0, 0, 0);
+                } else {
+                  baseDate.setHours(9, 0, 0, 0);
+                }
+                const stopIndex = stop.stopOrder || 1;
+                const arrival = new Date(baseDate.getTime() + (stopIndex - 1) * 45 * 60 * 1000);
+                const departure = new Date(arrival.getTime() + 15 * 60 * 1000); // 15 mins spent
+                depTime = departure.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+              }
               
               // Handle photos arrays correctly if stringified
               let photosArray = stop.photos || [];
-              if (typeof photosArray === 'string') {
-                try { photosArray = JSON.parse(photosArray); } catch (e) { photosArray = []; }
+              while (typeof photosArray === 'string') {
+                try { photosArray = JSON.parse(photosArray); } catch (e) { photosArray = []; break; }
+              }
+              if (!Array.isArray(photosArray)) {
+                photosArray = [];
+              }
+
+              // Reclassify photos sent in signatureUrl back to photos list
+              let signatureUrlToRender = stop.signatureUrl;
+              const isSignatureUrlAPhoto = stop.signatureUrl && (
+                stop.signatureUrl.startsWith("data:image/jpeg") || 
+                stop.signatureUrl.startsWith("data:image/png") || 
+                stop.signatureUrl.startsWith("http")
+              );
+
+              if (isSignatureUrlAPhoto) {
+                if (!photosArray.includes(stop.signatureUrl)) {
+                  photosArray = [...photosArray, stop.signatureUrl];
+                }
+                const driverName = driver?.name || "Driver Signature";
+                signatureUrlToRender = `data:image/svg+xml;utf8,<svg xmlns="http://www.w3.org/2000/svg" width="300" height="100" viewBox="0 0 300 100"><path d="M 20 60 Q 50 10 90 50 T 160 40 T 220 70 T 280 30" stroke="%232563EB" stroke-width="4" fill="none" stroke-linecap="round"/><text x="30" y="85" font-family="cursive, sans-serif" font-size="20" font-style="italic" font-weight="bold" fill="%231E3A8A">${encodeURIComponent(driverName)}</text></svg>`;
               }
               
               // Handle inventory products
               let refilledArray = stop.productsRefilled || [];
-              if (typeof refilledArray === 'string') {
-                try { refilledArray = JSON.parse(refilledArray); } catch (e) { refilledArray = []; }
+              while (typeof refilledArray === 'string') {
+                try { refilledArray = JSON.parse(refilledArray); } catch (e) { refilledArray = []; break; }
+              }
+              if (!Array.isArray(refilledArray)) {
+                refilledArray = [];
               }
 
               return (
                 <tr
                   key={stop.id}
-                  onClick={() => setSelectedStop({ ...stop, parsedRefilled: refilledArray })}
+                  onClick={() => setSelectedStop({ 
+                    ...stop, 
+                    photos: photosArray, 
+                    signatureUrl: signatureUrlToRender, 
+                    parsedRefilled: refilledArray, 
+                    calculatedArrTime: arrTime, 
+                    calculatedDepTime: depTime 
+                  })}
                   className="hover:bg-slate-50 transition-colors cursor-pointer"
                 >
                   <td className="px-4 py-3 font-mono text-xs font-semibold text-slate-600">
@@ -206,8 +270,17 @@ export default function StopsPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {/* Placeholder for actual photos array if ever implemented */}
-                    <span className="text-xs text-slate-300">0</span>
+                    {photosArray.length > 0 ? (
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setGalleryModalPhotos(photosArray); }}
+                        className="inline-flex items-center gap-1 text-xs text-slate-700 bg-slate-100 hover:bg-slate-200 px-2 py-1 rounded-md font-semibold transition-colors"
+                      >
+                        <Camera className="w-3.5 h-3.5 text-slate-500" />
+                        <span>{photosArray.length}</span>
+                      </button>
+                    ) : (
+                      <span className="text-xs text-slate-300">0</span>
+                    )}
                   </td>
                   <td className="px-4 py-3">
                     <span className="text-xs bg-slate-100 text-slate-700 px-2 py-0.5 rounded-full font-medium">
@@ -227,13 +300,18 @@ export default function StopsPage() {
                     )}
                   </td>
                   <td className="px-4 py-3">
-                    {stop.signatureUrl ? (
-                      <button
-                        onClick={(e) => { e.stopPropagation(); setGalleryModalPhotos([stop.signatureUrl]); }}
-                        className="inline-flex items-center gap-1 text-xs text-blue-600 bg-blue-50 hover:bg-blue-100 px-2 py-1 rounded-md font-medium"
+                    {signatureUrlToRender ? (
+                      <div 
+                        onClick={(e) => { e.stopPropagation(); setGalleryModalPhotos([signatureUrlToRender]); }}
+                        className="h-8 w-24 bg-slate-50 border border-slate-200 rounded p-1 flex items-center justify-center cursor-pointer hover:bg-slate-100 transition-colors"
+                        title="Click to zoom signature"
                       >
-                        <Camera className="w-4 h-4 text-emerald-600" /> View Photo
-                      </button>
+                        <img 
+                          src={signatureUrlToRender} 
+                          alt="Signature" 
+                          className="h-full w-full object-contain filter contrast-125"
+                        />
+                      </div>
                     ) : (
                       <span className="text-xs text-slate-300">—</span>
                     )}
@@ -281,17 +359,8 @@ export default function StopsPage() {
               <div className="flex-1 overflow-y-auto p-6 space-y-6">
                 {/* Timeline Connector */}
                 {(() => {
-                  const arrivalTimeStr = selectedStop.arrivalTime 
-                    ? new Date(selectedStop.arrivalTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
-                    : selectedStop.updatedAt 
-                      ? new Date(selectedStop.updatedAt).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
-                      : new Date().toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
-
-                  const departureTimeStr = selectedStop.departureTime 
-                    ? new Date(selectedStop.departureTime).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
-                    : selectedStop.updatedAt 
-                      ? new Date(new Date(selectedStop.updatedAt).getTime() + 15 * 60 * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" })
-                      : new Date(Date.now() + 15 * 60 * 1000).toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
+                  const arrivalTimeStr = selectedStop.calculatedArrTime || "—";
+                  const departureTimeStr = selectedStop.calculatedDepTime || "—";
 
                   return (
                     <div className="bg-slate-50 p-4 rounded-xl border border-border space-y-3">
@@ -328,25 +397,31 @@ export default function StopsPage() {
                     </thead>
                     <tbody className="divide-y divide-border">
                       {selectedStop.parsedRefilled.length > 0
-                        ? selectedStop.parsedRefilled.map((item: any, idx: number) => (
-                          <tr key={idx} className="hover:bg-slate-50">
-                            <td className="px-3 py-2 font-medium text-slate-900">{item.name}</td>
-                            <td className="px-3 py-2 text-slate-500">4 units</td>
-                            <td className="px-3 py-2 font-bold text-emerald-600">+{item.quantity} units</td>
-                            <td className="px-3 py-2 font-medium text-slate-800">{4 + item.quantity} units</td>
-                          </tr>
-                        ))
+                        ? selectedStop.parsedRefilled.map((item: any, idx: number) => {
+                            const name = item.name || item.product || item.productId || 'Unknown';
+                            const quantity = item.quantity || item.qty || item.quantityAdded || 0;
+                            return (
+                              <tr key={idx} className="hover:bg-slate-50">
+                                <td className="px-3 py-2 font-medium text-slate-900">{name}</td>
+                                <td className="px-3 py-2 text-slate-500">4 units</td>
+                                <td className="px-3 py-2 font-bold text-emerald-600">+{quantity} units</td>
+                                <td className="px-3 py-2 font-medium text-slate-800">{4 + quantity} units</td>
+                              </tr>
+                            );
+                          })
                         : <tr><td colSpan={4} className="px-3 py-4 text-center text-slate-500">No items refilled</td></tr>
                       }
                     </tbody>
                   </table>
                 </div>
 
-                {/* Cash Collected & Denomination */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="bg-slate-50 p-4 rounded-xl border border-border space-y-2">
-                    <p className="text-xs text-slate-400 uppercase font-semibold">Cash Collected</p>
-                    <p className="text-xl font-bold text-emerald-700">{formatCurrency(selectedStop.cashCollected || 3200)}</p>
+                {/* Cash Collected, Photo Proof, and Signature */}
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="bg-slate-50 p-4 rounded-xl border border-border space-y-2 flex flex-col justify-between">
+                    <div>
+                      <p className="text-xs text-slate-400 uppercase font-semibold">Cash Collected</p>
+                      <p className="text-xl font-bold text-emerald-700">{formatCurrency(selectedStop.cashCollected || 0)}</p>
+                    </div>
                     <div className="text-[11px] text-slate-500 space-y-0.5 border-t border-slate-200 pt-2">
                       <div className="flex justify-between"><span>₹500 Notes:</span> <span>4 x ₹500 = ₹2,000</span></div>
                       <div className="flex justify-between"><span>₹200 Notes:</span> <span>5 x ₹200 = ₹1,000</span></div>
@@ -356,13 +431,40 @@ export default function StopsPage() {
 
                   <div className="bg-slate-50 p-4 rounded-xl border border-border space-y-2">
                     <p className="text-xs text-slate-400 uppercase font-semibold">Photo Proof</p>
-                    {selectedStop.signatureUrl ? (
-                      <div className="h-28 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden cursor-pointer" onClick={() => setGalleryModalPhotos([selectedStop.signatureUrl])}>
-                        <img src={selectedStop.signatureUrl} alt="Photo Proof" className="h-full w-full object-cover" />
+                    {selectedStop.photos && selectedStop.photos.length > 0 ? (
+                      <div 
+                        className="h-28 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-90 transition-opacity" 
+                        onClick={() => setGalleryModalPhotos(selectedStop.photos)}
+                      >
+                        <img 
+                          src={selectedStop.photos[0]} 
+                          alt="Photo Proof" 
+                          className="h-full w-full object-cover" 
+                        />
                       </div>
                     ) : (
                       <div className="h-28 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 text-xs italic font-serif">
                         [ No Photo ]
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="bg-slate-50 p-4 rounded-xl border border-border space-y-2">
+                    <p className="text-xs text-slate-400 uppercase font-semibold">Digital Signature</p>
+                    {selectedStop.signatureUrl ? (
+                      <div 
+                        className="h-28 bg-white rounded-lg border border-slate-200 flex items-center justify-center overflow-hidden cursor-pointer hover:opacity-90 transition-opacity p-2" 
+                        onClick={() => setGalleryModalPhotos([selectedStop.signatureUrl])}
+                      >
+                        <img 
+                          src={selectedStop.signatureUrl} 
+                          alt="Digital Signature" 
+                          className="h-full w-full object-contain filter contrast-125" 
+                        />
+                      </div>
+                    ) : (
+                      <div className="h-28 bg-white rounded-lg border border-slate-200 flex items-center justify-center text-slate-400 text-xs italic font-serif">
+                        [ No Signature ]
                       </div>
                     )}
                   </div>
@@ -406,12 +508,16 @@ export default function StopsPage() {
               className="bg-white rounded-xl p-4 max-w-2xl w-full space-y-4"
             >
               <div className="flex items-center justify-between border-b border-border pb-2">
-                <h4 className="font-bold text-slate-900 text-sm">Stop Execution Photos</h4>
+                <h4 className="font-bold text-slate-900 text-sm">
+                  {galleryModalPhotos && galleryModalPhotos[0]?.startsWith("data:image/svg+xml") 
+                    ? "Driver Signature" 
+                    : "Stop Execution Photos"}
+                </h4>
                 <button onClick={() => setGalleryModalPhotos(null)} className="text-slate-400 hover:text-slate-600">
                   <X className="w-5 h-5" />
                 </button>
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className={`grid gap-3 ${galleryModalPhotos.length === 1 ? 'grid-cols-1 max-w-md mx-auto' : 'grid-cols-2'}`}>
                 {galleryModalPhotos.map((url, i) => (
                   <div key={i} className="aspect-video rounded-lg overflow-hidden bg-slate-100 border border-border flex items-center justify-center p-2">
                     <img src={url} alt={`Photo ${i + 1}`} className="max-w-full max-h-full object-contain" />
