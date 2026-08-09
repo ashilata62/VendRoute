@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Linking, Platform, Image } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -21,10 +21,13 @@ export default function DashboardScreen() {
   const { driverAllRoutes, stopsList, completedCount, pendingCount, currentStop } = useMemo(() => {
     const allRoutes = routesResponse?.data?.data || [];
     
-    // Flatten stops
-    const stops = allRoutes.flatMap((r: any) => 
+    // Only get stops for active (not completed) routes to match web simulator
+    const activeRoutes = allRoutes.filter((r: any) => r.status !== 'COMPLETED');
+    const stops = activeRoutes.flatMap((r: any) => 
       (r.routestop || []).map((s: any) => ({ ...s, route: r }))
     );
+    stops.sort((a: any, b: any) => (a.stopOrder || 0) - (b.stopOrder || 0));
+    
     const completed = stops.filter((s: any) => s.status === 'COMPLETED').length;
     const pending = stops.length - completed;
     
@@ -68,11 +71,23 @@ export default function DashboardScreen() {
   const todayDisplay = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   
   const todaysRoutes = useMemo(() => {
-    return driverAllRoutes.filter((r: any) => {
-      const d = new Date(r.createdAt || r.date);
-      const today = new Date();
-      return d.getDate() === today.getDate() && d.getMonth() === today.getMonth() && d.getFullYear() === today.getFullYear();
-    });
+    const isToday = (r: any) => {
+      const dateToUse = r.endTime || r.date || r.createdAt;
+      if (!dateToUse) return false;
+      
+      const nowIST = new Date(Date.now() + 19800000);
+      const todayStr = nowIST.toISOString().slice(0, 10);
+
+      if (typeof dateToUse === 'string' && dateToUse.length === 10 && dateToUse.includes('-')) {
+        return dateToUse === todayStr;
+      }
+      const d = new Date(dateToUse);
+      if (isNaN(d.getTime())) return false;
+      const istDate = new Date(d.getTime() + 19800000);
+      return istDate.toISOString().slice(0, 10) === todayStr;
+    };
+
+    return driverAllRoutes.filter(isToday);
   }, [driverAllRoutes]);
 
   const todaysRoutesCompleted = todaysRoutes.filter((r: any) => r.status === 'COMPLETED').length;
@@ -84,8 +99,11 @@ export default function DashboardScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View style={styles.logoContainer}>
-            <View style={styles.logoCircle}>
-              <Text style={styles.logoText}>MV</Text>
+            <View style={[styles.logoCircle, { overflow: 'hidden' }]}>
+              <Image 
+                source={require('../../assets/icon.png')} 
+                style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+              />
             </View>
             <Text style={styles.headerTitle}>Maryland <Text style={styles.headerTitleRed}>Driver</Text></Text>
           </View>
@@ -211,7 +229,7 @@ export default function DashboardScreen() {
                     <MapPin size={16} color="#2563eb" />
                   </View>
                   <View style={{ flex: 1 }}>
-                    <Text style={styles.nextStopName}>{currentStop.location?.name || currentStop.location?.customer?.companyName || 'Unknown'}</Text>
+                    <Text style={styles.nextStopName}>{currentStop.location?.customer?.companyName || currentStop.location?.name || 'Unknown'}</Text>
                     <Text style={styles.nextStopAddress}>{currentStop.location?.address}</Text>
                     <View style={styles.nextStopMeta}>
                       <Text style={styles.metaText}>📍 {currentStop?.route?.totalDistance ? (currentStop.route.totalDistance / Math.max(currentStop.route.routestop?.length || 1, 1)).toFixed(1) : "0"} km away</Text>

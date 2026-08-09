@@ -27,7 +27,9 @@ export default function QRScannerScreen() {
 
   const handleBarCodeScanned = ({ type, data }: { type: string, data: string }) => {
     setScanned(true);
-    // You can match data with machine ID
+    if (route.params?.setQrScanned) {
+      route.params.setQrScanned();
+    }
     Alert.alert('Machine Verified', `QR Code scanned successfully: ${data}`, [
       { text: 'OK', onPress: () => navigation.goBack() }
     ]);

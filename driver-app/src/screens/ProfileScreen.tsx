@@ -1,12 +1,26 @@
 import React from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Image, TextInput, Alert } from 'react-native';
 import { useAuthStore } from '../store/authStore';
-import { authApi } from '../services/api';
+import { authApi, stopsApi } from '../services/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LogOut, Clock } from 'lucide-react-native';
 
+const formatTime = (dateInput: string | Date): string => {
+  const utcMilliseconds = new Date(dateInput).getTime();
+  // IST offset is +5.5 hours (+19800000 milliseconds)
+  const istDate = new Date(utcMilliseconds + 19800000);
+  
+  let hours = istDate.getUTCHours();
+  const minutes = istDate.getUTCMinutes();
+  const ampm = hours >= 12 ? 'pm' : 'am';
+  hours = hours % 12;
+  hours = hours ? hours : 12;
+  const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+  return `${hours}:${minutesStr} ${ampm}`;
+};
+
 export default function ProfileScreen() {
-  const { user, logout, isOnline, toggleOnline } = useAuthStore();
+  const { user, logout, isOnline, toggleOnline, updateUser } = useAuthStore();
 
   const handleLogout = () => {
     logout();
@@ -14,6 +28,37 @@ export default function ProfileScreen() {
 
   const queryClient = useQueryClient();
   const [punching, setPunching] = React.useState(false);
+  const [isEditing, setIsEditing] = React.useState(false);
+  
+  const [editPhone, setEditPhone] = React.useState(user?.phone || '');
+  const [editEmergency, setEditEmergency] = React.useState(user?.emergencyContact || '');
+  const [editAddress, setEditAddress] = React.useState(user?.address || '');
+
+  React.useEffect(() => {
+    setEditPhone(user?.phone || '');
+    setEditEmergency(user?.emergencyContact || '');
+    setEditAddress(user?.address || '');
+  }, [user]);
+
+  // Load routes to find active vehicle plate
+  const { data: routesResponse } = useQuery({
+    queryKey: ['routes', user?.id],
+    queryFn: () => stopsApi.getDriverRoutes(user?.id!),
+    enabled: !!user?.id,
+  });
+
+  const assignedVehicle = React.useMemo(() => {
+    if ((user as any)?.vehicle && (user as any).vehicle.length > 0) {
+      return (user as any).vehicle[0].plateNumber || (user as any).vehicle[0].model;
+    }
+    if (routesResponse?.data?.data) {
+      const activeRoute = routesResponse.data.data.find((r: any) => r.vehicle);
+      if (activeRoute?.vehicle?.plateNumber) {
+        return activeRoute.vehicle.plateNumber;
+      }
+    }
+    return 'Unassigned';
+  }, [routesResponse, user]);
 
   const { data: historyRes, isLoading: historyLoading } = useQuery({
     queryKey: ['attendance', user?.id],
@@ -28,9 +73,9 @@ export default function ProfileScreen() {
     try {
       await authApi.punchIn();
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
-      alert('Punched in successfully!');
+      Alert.alert('Success', 'Punched in successfully!');
     } catch (e: any) {
-      alert(e.response?.data?.message || 'Failed to punch in');
+      Alert.alert('Error', e.response?.data?.message || 'Failed to punch in');
     } finally {
       setPunching(false);
     }
@@ -41,9 +86,36 @@ export default function ProfileScreen() {
     try {
       await authApi.punchOut();
       queryClient.invalidateQueries({ queryKey: ['attendance'] });
-      alert('Punched out successfully!');
+      Alert.alert('Success', 'Punched out successfully!');
     } catch (e: any) {
-      alert(e.response?.data?.message || 'Failed to punch out');
+      Alert.alert('Error', e.response?.data?.message || 'Failed to punch out');
+    } finally {
+      setPunching(false);
+    }
+  };
+
+  const handleSave = async () => {
+    if (!user?.id) return;
+    setPunching(true);
+    try {
+      const res = await authApi.updateProfile(user.id, {
+        phone: editPhone,
+        emergencyContact: editEmergency,
+        address: editAddress
+      });
+      if (res.data?.success) {
+        updateUser({
+          phone: editPhone,
+          emergencyContact: editEmergency,
+          address: editAddress
+        });
+        setIsEditing(false);
+        Alert.alert('Success', 'Profile updated successfully!');
+      } else {
+        Alert.alert('Error', 'Failed to update profile.');
+      }
+    } catch (e: any) {
+      Alert.alert('Error', e.message || 'Failed to update profile.');
     } finally {
       setPunching(false);
     }
@@ -55,8 +127,11 @@ export default function ProfileScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View style={styles.logoContainer}>
-            <View style={styles.logoCircle}>
-              <Text style={styles.logoText}>MV</Text>
+            <View style={[styles.logoCircle, { overflow: 'hidden' }]}>
+              <Image 
+                source={require('../../assets/icon.png')} 
+                style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+              />
             </View>
             <Text style={styles.headerTitle}>Maryland <Text style={styles.headerTitleRed}>Driver</Text></Text>
           </View>
@@ -73,7 +148,7 @@ export default function ProfileScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView style={styles.content} contentContainerStyle={{ paddingBottom: 40 }} showsVerticalScrollIndicator={false}>
         {/* Role & Vehicle Cards */}
         <View style={styles.topCardsRow}>
           <View style={styles.miniCard}>
@@ -82,32 +157,80 @@ export default function ProfileScreen() {
           </View>
           <View style={styles.miniCard}>
             <Text style={styles.miniCardLabel}>ASSIGNED VEHICLE</Text>
-            <Text style={styles.miniCardValueDark}>Unassigned</Text>
+            <Text style={styles.miniCardValueDark} numberOfLines={1}>{assignedVehicle}</Text>
           </View>
         </View>
 
         {/* Contact & Account Details */}
         <View style={styles.sectionCard}>
-          <Text style={styles.sectionTitle}>CONTACT & ACCOUNT DETAILS</Text>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
+            <Text style={[styles.sectionTitle, { marginBottom: 0 }]}>CONTACT & ACCOUNT DETAILS</Text>
+            {!isEditing ? (
+              <TouchableOpacity onPress={() => setIsEditing(true)}>
+                <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#2563eb' }}>[ Edit ]</Text>
+              </TouchableOpacity>
+            ) : (
+              <View style={{ flexDirection: 'row', gap: 8 }}>
+                <TouchableOpacity onPress={handleSave} disabled={punching}>
+                  <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#10b981' }}>[ Save ]</Text>
+                </TouchableOpacity>
+                <TouchableOpacity onPress={() => setIsEditing(false)} disabled={punching}>
+                  <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#ef4444' }}>[ Cancel ]</Text>
+                </TouchableOpacity>
+              </View>
+            )}
+          </View>
           
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Email Address</Text>
-            <Text style={styles.detailValue}>{user?.email || 'driver@vendroute.in'}</Text>
+            <Text style={styles.detailValue}>{user?.email || 'N/A'}</Text>
           </View>
           
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Phone Number</Text>
-            <Text style={styles.detailValue}>+919876500003</Text>
+            {isEditing ? (
+              <TextInput
+                style={styles.detailInput}
+                value={editPhone}
+                onChangeText={setEditPhone}
+                placeholder="Phone Number"
+                placeholderTextColor="#94a3b8"
+              />
+            ) : (
+              <Text style={styles.detailValue}>{user?.phone || 'Not Provided'}</Text>
+            )}
           </View>
           
           <View style={styles.detailRow}>
             <Text style={styles.detailLabel}>Emergency Contact</Text>
-            <Text style={styles.detailValueRed}>Not Provided</Text>
+            {isEditing ? (
+              <TextInput
+                style={styles.detailInput}
+                value={editEmergency}
+                onChangeText={setEditEmergency}
+                placeholder="Emergency Contact"
+                placeholderTextColor="#94a3b8"
+              />
+            ) : (
+              <Text style={user?.emergencyContact ? styles.detailValue : styles.detailValueRed}>
+                {user?.emergencyContact || 'Not Provided'}
+              </Text>
+            )}
           </View>
           
           <View style={[styles.detailRow, { borderBottomWidth: 0 }]}>
             <Text style={styles.detailLabel}>Residential Address</Text>
-            <Text style={styles.detailValueDark}>Not Provided</Text>
+            {isEditing ? (
+              <TextInput
+                style={styles.detailInput}
+                value={editAddress}
+                onChangeText={setEditAddress}
+                placeholder="Residential Address"
+                placeholderTextColor="#94a3b8"
+              />
+            ) : (
+              <Text style={styles.detailValueDark}>{user?.address || 'Not Provided'}</Text>
+            )}
           </View>
         </View>
 
@@ -132,8 +255,8 @@ export default function ProfileScreen() {
             <Text style={{ textAlign: 'center', marginVertical: 20, color: '#64748b' }}>No attendance history found</Text>
           ) : (
             attendanceLogs.slice(0, 5).map((log: any, index: number) => {
-              const punchInTime = new Date(log.punchIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-              const punchOutTime = log.punchOut ? new Date(log.punchOut).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : null;
+              const punchInTime = formatTime(log.punchIn);
+              const punchOutTime = log.punchOut ? formatTime(log.punchOut) : null;
               
               const dateStr = new Date(log.punchIn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
               const isToday = new Date(log.punchIn).toDateString() === new Date().toDateString();
@@ -143,14 +266,16 @@ export default function ProfileScreen() {
               
               return (
                 <View key={log.id} style={[styles.attendanceRow, index === attendanceLogs.slice(0, 5).length - 1 && { borderBottomWidth: 0 }]}>
-                  <Text style={styles.attendanceDate}>{displayDate}</Text>
-                  <View style={styles.attendanceRight}>
+                  <View style={{ flex: 1, paddingRight: 8 }}>
+                    <Text style={styles.attendanceDate}>{displayDate}</Text>
                     <Text style={styles.attendanceTime}>
                       In: {punchInTime} {punchOutTime ? `| Out: ${punchOutTime}` : ''}
                     </Text>
-                    <View style={[styles.noDutyBadge, { backgroundColor: punchOutTime ? '#f1f5f9' : '#ecfdf5', borderColor: punchOutTime ? '#e2e8f0' : '#10b981' }]}>
-                      <Text style={[styles.noDutyText, { color: punchOutTime ? '#64748b' : '#10b981' }]}>{punchOutTime ? 'Duty Ended' : 'On Duty'}</Text>
-                    </View>
+                  </View>
+                  <View style={[styles.noDutyBadge, { backgroundColor: punchOutTime ? '#f1f5f9' : '#ecfdf5', borderColor: punchOutTime ? '#e2e8f0' : '#10b981' }]}>
+                    <Text style={[styles.noDutyText, { color: punchOutTime ? '#64748b' : '#10b981' }]} numberOfLines={1}>
+                      {punchOutTime ? 'Duty Ended' : 'On Duty'}
+                    </Text>
                   </View>
                 </View>
               );
@@ -205,17 +330,29 @@ const styles = StyleSheet.create({
   },
   sectionTitle: { fontSize: 12, fontWeight: 'bold', color: '#94a3b8', marginBottom: 16 },
   
-  detailRow: { flexDirection: 'row', justifyContent: 'space-between', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
+  detailRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   detailLabel: { fontSize: 13, color: '#64748b' },
   detailValue: { fontSize: 13, fontWeight: '600', color: '#0f172a' },
   detailValueRed: { fontSize: 13, fontWeight: 'bold', color: '#ef4444' },
   detailValueDark: { fontSize: 13, fontWeight: 'bold', color: '#334155' },
+  detailInput: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0f172a',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    backgroundColor: '#f8fafc',
+    minWidth: 165,
+    textAlign: 'right',
+  },
 
   attendanceRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', paddingVertical: 12, borderBottomWidth: 1, borderBottomColor: '#f1f5f9' },
   attendanceDate: { fontSize: 13, fontWeight: 'bold', color: '#334155' },
-  attendanceRight: { flexDirection: 'row', alignItems: 'center' },
-  attendanceTime: { fontSize: 12, color: '#94a3b8', marginRight: 12 },
-  noDutyBadge: { backgroundColor: '#f1f5f9', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0' },
+  attendanceTime: { fontSize: 12, color: '#94a3b8', marginTop: 4 },
+  noDutyBadge: { backgroundColor: '#f1f5f9', paddingHorizontal: 12, paddingVertical: 6, borderRadius: 16, borderWidth: 1, borderColor: '#e2e8f0', minWidth: 95, alignItems: 'center' },
   noDutyText: { fontSize: 11, fontWeight: '600', color: '#64748b' },
 
   punchBtn: { flex: 1, flexDirection: 'row', alignItems: 'center', justifyContent: 'center', paddingVertical: 12, borderRadius: 8, marginHorizontal: 4 },

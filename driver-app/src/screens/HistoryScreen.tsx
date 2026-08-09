@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
-import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity } from 'react-native';
+import { View, Text, StyleSheet, FlatList, ActivityIndicator, RefreshControl, TouchableOpacity, Image } from 'react-native';
 import { useAuthStore } from '../store/authStore';
 import { stopsApi } from '../services/api';
 import { History, CheckCircle2, Calendar } from 'lucide-react-native';
@@ -63,8 +63,11 @@ export default function HistoryScreen() {
       <View style={styles.header}>
         <View style={styles.headerRow}>
           <View style={styles.logoContainer}>
-            <View style={styles.logoCircle}>
-              <Text style={styles.logoText}>MV</Text>
+            <View style={[styles.logoCircle, { overflow: 'hidden' }]}>
+              <Image 
+                source={require('../../assets/icon.png')} 
+                style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+              />
             </View>
             <Text style={styles.headerTitle}>Maryland <Text style={styles.headerTitleRed}>Driver</Text></Text>
           </View>

@@ -90,6 +90,7 @@ export class AuthService {
         emergencyContact: true,
         avatar: true,
         createdAt: true,
+        vehicle: true,
       },
     });
     if (!user) throw new Error('User not found');

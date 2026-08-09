@@ -34,7 +34,12 @@ export default function RouteScreen() {
 
   const stopsList = useMemo(() => {
     if (!routesResponse?.data?.data) return [];
-    return routesResponse.data.data.flatMap((r: any) => r.routestop || []);
+    // Only show stops for active (not completed) routes
+    const activeRoutes = routesResponse.data.data.filter((r: any) => r.status !== 'COMPLETED');
+    const flatStops = activeRoutes.flatMap((r: any) => 
+      (r.routestop || []).map((s: any) => ({ ...s, route: r }))
+    );
+    return flatStops.sort((a: any, b: any) => (a.stopOrder || 0) - (b.stopOrder || 0));
   }, [routesResponse]);
 
   const completedCount = useMemo(() => stopsList.filter((s: any) => s.status === 'COMPLETED').length, [stopsList]);

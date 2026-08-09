@@ -5,6 +5,11 @@ interface User {
   name: string;
   email: string;
   role: string;
+  phone?: string;
+  address?: string;
+  emergencyContact?: string;
+  licenseNumber?: string;
+  isOnline?: boolean;
 }
 
 interface AuthState {
@@ -13,6 +18,7 @@ interface AuthState {
   isOnline: boolean;
   isRouteStarted: boolean;
   setAuth: (user: User, token: string) => void;
+  updateUser: (updatedFields: Partial<User>) => void;
   toggleOnline: () => void;
   logout: () => void;
   startRoute: () => void;
@@ -23,7 +29,10 @@ export const useAuthStore = create<AuthState>()((set, get) => ({
   token: null,
   isOnline: true,
   isRouteStarted: false,
-  setAuth: (user, token) => set({ user, token }),
+  setAuth: (user, token) => set({ user, token, isOnline: user.isOnline ?? true }),
+  updateUser: (updatedFields) => set((state) => ({
+    user: state.user ? { ...state.user, ...updatedFields } : null
+  })),
   toggleOnline: async () => {
     const currentState = get();
     const newStatus = !currentState.isOnline;

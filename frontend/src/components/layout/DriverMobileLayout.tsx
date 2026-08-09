@@ -88,6 +88,45 @@ export default function DriverMobileLayout() {
   const [punching, setPunching] = useState(false);
   const [attendanceLogs, setAttendanceLogs] = useState<any[]>([]);
 
+  // Profile editing state
+  const [isEditingProfile, setIsEditingProfile] = useState(false);
+  const [editPhone, setEditPhone] = useState("");
+  const [editEmergency, setEditEmergency] = useState("");
+  const [editAddress, setEditAddress] = useState("");
+
+  // Sync edits
+  useEffect(() => {
+    if (user) {
+      setEditPhone(user.phone || "");
+      setEditEmergency(user.emergencyContact || "");
+      setEditAddress(user.address || "");
+    }
+  }, [user]);
+
+  const handleSaveProfile = async () => {
+    if (!user?.id) return;
+    try {
+      setSyncing(true);
+      const res = await usersApi.update(user.id, {
+        phone: editPhone,
+        emergencyContact: editEmergency,
+        address: editAddress
+      });
+      if (res.success) {
+        useAuthStore.getState().setAuth(
+          { ...user, phone: editPhone, emergencyContact: editEmergency, address: editAddress },
+          useAuthStore.getState().token || ""
+        );
+        setIsEditingProfile(false);
+        alert("Profile updated successfully!");
+      }
+    } catch (err) {
+      alert("Failed to update profile");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const fetchAttendance = async () => {
     if (!user?.id) return;
     try {
@@ -112,7 +151,12 @@ export default function DriverMobileLayout() {
       if (stopsRes.success) {
         const allDriverStops = stopsRes.data.filter((s: any) => s.route?.driver?.id === user?.id || s.route?.driverId === user?.id);
         const activeStops = allDriverStops.filter((s: any) => s.route?.status !== "COMPLETED");
-        setStopsList(activeStops);
+        const sortedActiveStops = [...activeStops].sort((a: any, b: any) => {
+          const dateDiff = new Date(a.route?.date || 0).getTime() - new Date(b.route?.date || 0).getTime();
+          if (dateDiff !== 0) return dateDiff;
+          return (a.stopOrder || 0) - (b.stopOrder || 0);
+        });
+        setStopsList(sortedActiveStops);
       }
 
       if (routesRes.success) {
@@ -1142,7 +1186,9 @@ export default function DriverMobileLayout() {
                     <div className="flex-1 bg-slate-50 p-2 rounded-xl border border-slate-100">
                       <p className="text-[10px] text-slate-400 font-bold">ASSIGNED VEHICLE</p>
                       <p className="font-bold text-slate-800 mt-0.5">
-                        {driverRoute?.vehicle?.plateNumber ? driverRoute.vehicle.plateNumber : (driverRoute?.vehicle?.model || "Unassigned")}
+                        {user?.vehicle && user.vehicle.length > 0
+                          ? (user.vehicle[0].plateNumber || user.vehicle[0].model)
+                          : (driverRoute?.vehicle?.plateNumber ? driverRoute.vehicle.plateNumber : (driverRoute?.vehicle?.model || "Unassigned"))}
                       </p>
                     </div>
                   </div>
@@ -1150,7 +1196,32 @@ export default function DriverMobileLayout() {
 
                 {/* Contact & Personal Information Details */}
                 <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3 text-xs">
-                  <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact & Account Details</h4>
+                  <div className="flex justify-between items-center border-b border-slate-100 pb-2">
+                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Contact & Account Details</h4>
+                    {!isEditingProfile ? (
+                      <button
+                        onClick={() => setIsEditingProfile(true)}
+                        className="text-[10px] text-blue-600 font-bold hover:underline cursor-pointer"
+                      >
+                        [ Edit ]
+                      </button>
+                    ) : (
+                      <div className="flex gap-2">
+                        <button
+                          onClick={handleSaveProfile}
+                          className="text-[10px] text-emerald-600 font-bold hover:underline cursor-pointer"
+                        >
+                          [ Save ]
+                        </button>
+                        <button
+                          onClick={() => setIsEditingProfile(false)}
+                          className="text-[10px] text-red-500 font-bold hover:underline cursor-pointer"
+                        >
+                          [ Cancel ]
+                        </button>
+                      </div>
+                    )}
+                  </div>
                   
                   <div className="space-y-2.5">
                     <div className="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100">
@@ -1160,17 +1231,46 @@ export default function DriverMobileLayout() {
 
                     <div className="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100">
                       <span className="text-slate-500 font-medium">Phone Number</span>
-                      <span className="font-bold text-slate-900">{user?.phone || "Not Provided"}</span>
+                      {isEditingProfile ? (
+                        <input
+                          type="text"
+                          value={editPhone}
+                          onChange={(e) => setEditPhone(e.target.value)}
+                          className="font-bold text-slate-900 border border-slate-200 rounded px-2 py-0.5 text-right w-40 bg-white"
+                        />
+                      ) : (
+                        <span className="font-bold text-slate-900">{user?.phone || "Not Provided"}</span>
+                      )}
                     </div>
 
                     <div className="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100">
                       <span className="text-slate-500 font-medium">Emergency Contact</span>
-                      <span className="font-bold text-red-600">{user?.emergencyContact || "Not Provided"}</span>
+                      {isEditingProfile ? (
+                        <input
+                          type="text"
+                          value={editEmergency}
+                          onChange={(e) => setEditEmergency(e.target.value)}
+                          className="font-bold text-slate-900 border border-slate-200 rounded px-2 py-0.5 text-right w-40 bg-white"
+                        />
+                      ) : (
+                        <span className={user?.emergencyContact ? "font-bold text-slate-900" : "font-bold text-red-600"}>
+                          {user?.emergencyContact || "Not Provided"}
+                        </span>
+                      )}
                     </div>
 
                     <div className="flex justify-between items-center p-2 rounded-xl bg-slate-50 border border-slate-100">
                       <span className="text-slate-500 font-medium">Residential Address</span>
-                      <span className="font-bold text-slate-800 truncate max-w-[180px]">{user?.address || "Not Provided"}</span>
+                      {isEditingProfile ? (
+                        <input
+                          type="text"
+                          value={editAddress}
+                          onChange={(e) => setEditAddress(e.target.value)}
+                          className="font-bold text-slate-900 border border-slate-200 rounded px-2 py-0.5 text-right w-40 bg-white"
+                        />
+                      ) : (
+                        <span className="font-bold text-slate-800 truncate max-w-[180px]">{user?.address || "Not Provided"}</span>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1205,8 +1305,23 @@ export default function DriverMobileLayout() {
                         const isToday = dateObj.toDateString() === new Date().toDateString();
                         const dayLabel = isToday ? `Today (${dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })})` : dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' });
                         
-                        const signIn = log.punchIn ? new Date(log.punchIn).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' }) : "--";
-                        const signOut = log.punchOut ? new Date(log.punchOut).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' }) : "--";
+                        // Custom unified time formatter function
+                        const formatTimeLocal = (dateInput: string | Date): string => {
+                          const utcMilliseconds = new Date(dateInput).getTime();
+                          // IST offset is +5.5 hours (+19800000 milliseconds)
+                          const istDate = new Date(utcMilliseconds + 19800000);
+                          
+                          let hours = istDate.getUTCHours();
+                          const minutes = istDate.getUTCMinutes();
+                          const ampm = hours >= 12 ? 'pm' : 'am';
+                          hours = hours % 12;
+                          hours = hours ? hours : 12;
+                          const minutesStr = minutes < 10 ? '0' + minutes : minutes;
+                          return `${hours}:${minutesStr} ${ampm}`;
+                        };
+                        
+                        const signIn = log.punchIn ? formatTimeLocal(log.punchIn) : "--";
+                        const signOut = log.punchOut ? formatTimeLocal(log.punchOut) : "--";
                         
                         const dutyEnded = !!log.punchOut;
 
