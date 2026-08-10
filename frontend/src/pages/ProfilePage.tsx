@@ -151,7 +151,13 @@ export default function ProfilePage() {
       : "bg-emerald-50 text-emerald-700 border-emerald-200";
 
   const currentPhotoSrc = avatar || user?.avatar;
-  const isValidPhoto = currentPhotoSrc && (currentPhotoSrc.startsWith("http") || currentPhotoSrc.startsWith("data:image"));
+  const isValidPhoto = Boolean(
+    currentPhotoSrc && 
+    (currentPhotoSrc.startsWith("http") || currentPhotoSrc.startsWith("https") || currentPhotoSrc.startsWith("data:image") || currentPhotoSrc.startsWith("/uploads"))
+  );
+  const displayPhotoUrl = currentPhotoSrc?.startsWith("/uploads")
+    ? `http://localhost:3000${currentPhotoSrc}`
+    : currentPhotoSrc;
 
   return (
     <div className="space-y-6 pb-12">
@@ -169,11 +175,11 @@ export default function ProfilePage() {
             <div className="relative group">
               {isValidPhoto ? (
                 <img
-                  src={currentPhotoSrc}
+                  src={displayPhotoUrl}
                   alt={user?.name}
                   className="w-24 h-24 rounded-2xl object-cover ring-4 ring-white shadow-lg bg-white"
                   onError={(e) => {
-                    (e.target as HTMLImageElement).style.display = "none";
+                    (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=2563EB&color=fff`;
                   }}
                 />
               ) : (

@@ -26,7 +26,9 @@ export const uploadImage = async (req: Request, res: Response) => {
     }
     
     // Fallback to local storage if Cloudinary is not configured
-    const url = `/uploads/${req.file.filename}`;
+    const protocol = req.protocol;
+    const host = req.get('host');
+    const url = `${protocol}://${host}/uploads/${req.file.filename}`;
     return res.status(200).json({ success: true, url });
   } catch (error: any) { 
     return res.status(500).json({ success: false, message: error.message }); 

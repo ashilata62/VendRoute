@@ -354,13 +354,13 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
           onClick={() => setProfileOpen(!profileOpen)}
           className="flex items-center gap-2 p-1 sm:pl-2 sm:pr-3 sm:py-1.5 rounded-xl hover:bg-slate-50 border border-transparent hover:border-slate-200 transition-all cursor-pointer"
         >
-          {user?.avatar && (user.avatar.startsWith("http") || user.avatar.startsWith("data:image")) ? (
+          {user?.avatar && (user.avatar.startsWith("http") || user.avatar.startsWith("data:image") || user.avatar.startsWith("/uploads")) ? (
             <img
-              src={user.avatar}
+              src={user.avatar.startsWith("/uploads") ? `http://localhost:3000${user.avatar}` : user.avatar}
               alt={user?.name}
               className="w-8 h-8 rounded-full object-cover ring-2 ring-slate-200 shadow-sm"
               onError={(e) => {
-                (e.target as HTMLImageElement).style.display = "none";
+                (e.target as HTMLImageElement).src = `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=2563EB&color=fff`;
               }}
             />
           ) : (
@@ -385,7 +385,7 @@ export default function Header({ collapsed, onToggleSidebar }: HeaderProps) {
               {/* User info header */}
               <div className="px-4 py-3 bg-gradient-to-br from-[#ff3b3b] to-[#4f46e5] text-white">
                 <div className="flex items-center gap-3">
-                  <img src={user?.avatar} alt="" className="w-10 h-10 rounded-full border-2 border-white/30 shadow-md" />
+                  <img src={user?.avatar?.startsWith("/uploads") ? `http://localhost:3000${user.avatar}` : (user?.avatar || `https://ui-avatars.com/api/?name=${encodeURIComponent(user?.name || 'User')}&background=2563EB&color=fff`)} alt="" className="w-10 h-10 rounded-full border-2 border-white/30 shadow-md object-cover" />
                   <div>
                     <p className="text-sm font-bold">{user?.name}</p>
                     <p className="text-[11px] opacity-80 truncate">{user?.email}</p>
