@@ -73,3 +73,77 @@ This document summarizes the current status, implemented features, important des
 * **Backend**: Node.js, Express, Socket.io, Prisma ORM, MySQL Database.
 * **Frontend**: React (Vite), Tailwind CSS, React Leaflet, Zustand.
 * **Driver Mobile App**: React Native (Expo).
+
+---
+
+## 📦 Deployment & Run Instructions
+
+- **Backend (development)**:
+	- Prereqs: Node.js >=16, npm, MySQL.
+	- Install & run:
+		- `cd backend`
+		- `npm install`
+		- copy `.env.example` to `.env` and set `DATABASE_URL`, `PORT`, `JWT_SECRET`, `SOCKET_URL`.
+		- Run migrations & seed: `npx prisma migrate dev` then `npx prisma db seed` (if seed present).
+		- Start dev server: `npm run dev` (uses `ts-node-dev` / nodemon).
+
+- **Frontend (admin dashboard)**:
+	- Prereqs: Node.js, npm.
+	- Install & run:
+		- `cd frontend`
+		- `npm install`
+		- `npm run dev`
+
+- **Driver App (Expo)**:
+	- `cd driver-app`
+	- `npm install`
+	- `expo start`
+	- Confirm `app.json` / `expo` config points to the correct backend `SOCKET_URL` and API host for dev testing.
+
+- **Database**:
+	- MySQL is used in production; local development may use a local MySQL instance or a Docker container.
+	- Prisma migrations live in `backend/prisma/migrations`.
+
+## 🔍 Code Map (Key Files & Locations)
+
+- **Backend**:
+	- Entry: `backend/src/server.ts`
+	- App config & middleware: `backend/src/app.ts`, `backend/src/config` and `backend/src/middlewares`
+	- Controllers: `backend/src/controllers/*Controller.ts`
+	- Services: `backend/src/services/*`
+	- Database schema: `backend/prisma/schema.prisma`
+
+- **Frontend (admin dashboard)**:
+	- Entry: `frontend/src/main.tsx`
+	- App shell: `frontend/src/App.tsx`
+	- Pages: `frontend/src/pages` or `frontend/src/components` (map, dashboard, settings, locations)
+	- API client: `frontend/src/services/api.ts` (or similar)
+	- State: `frontend/src/store` (Zustand stores)
+
+- **Driver App**:
+	- Entry: `driver-app/App.tsx`
+	- Screens: `driver-app/src/screens`
+	- Location & background tracking: `driver-app/src/services` (look for `location`, `geolocation`, or `background` helpers)
+
+## 👥 Contacts & Access
+
+- **Repository ownership & primary contacts**: Please fill in the maintainers and Slack/Email contacts below before handover:
+	- Maintainer: _Add name & email_
+	- Mobile/Driver app owner: _Add name & email_
+	- DevOps / DB Admin: _Add name & email_
+
+- **Access checklist**:
+	- Provide DB credentials, production `.env` or vault access.
+	- Confirm Expo account access (if publishing driver app builds).
+	- Share any third-party API keys (Mapbox, Nominatim usage notes, SMS gateways).
+
+## ✅ Next Steps & Acceptance Criteria
+
+1. Driver GPS Integration: background location updates registered and visible on the admin dashboard with <=10s delay for live mode.  
+2. Offline Sync: queued replenishment actions persist locally and reconcile when online; tests for conflict resolution included.  
+3. Digital Signatures: driver signatures stored as SVG/base64 and render in PDF reports without corruption.  
+4. Performance Scorecards: supervisor view with filters for date range and driver, accuracy validated against historic route data.  
+
+---
+
+If you'd like, I can now (a) expand any of the Pending Tasks into step-by-step implementation notes, (b) create a deploy checklist, or (c) open PR scaffolding for these docs. Which should I do next?

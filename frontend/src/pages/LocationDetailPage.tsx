@@ -13,7 +13,7 @@ import { ArrowLeft, MapPin, Phone, Package, Image as ImageIcon,
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate } from "../lib/utils";
-import { locationsApi, stopsApi, machinesApi } from "../services/api";
+import { locationsApi, stopsApi, machinesApi, uploadApi } from "../services/api";
 
 // Fix Leaflet default icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -246,20 +246,21 @@ export default function LocationDetailPage() {
 
   const handleUploadPhoto = async (file: File) => {
     if (!id || !loc) return;
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      try {
-        const base64 = reader.result as string;
-        await locationsApi.update(id, { imageUrl: base64 });
-        setLoc((prev: any) => ({ ...prev, imageUrl: base64 }));
-        setUploadMsg({ type: "success", text: "Photo uploaded successfully!" });
-        setTimeout(() => setUploadMsg(null), 4000);
-      } catch (err: any) {
-        setUploadMsg({ type: "error", text: err.message || "Failed to upload photo" });
-        setTimeout(() => setUploadMsg(null), 5000);
-      }
-    };
-    reader.readAsDataURL(file);
+    setUploadMsg(null);
+    try {
+      // Upload file to backend which forwards to Cloudinary
+      const res: any = await uploadApi.uploadFile(file);
+      const url = res?.data?.url || res?.data?.secure_url || res?.url;
+      if (!url) throw new Error("No URL returned from upload service");
+
+      await locationsApi.update(id, { imageUrl: url });
+      setLoc((prev: any) => ({ ...prev, imageUrl: url }));
+      setUploadMsg({ type: "success", text: "Photo uploaded successfully!" });
+      setTimeout(() => setUploadMsg(null), 4000);
+    } catch (err: any) {
+      setUploadMsg({ type: "error", text: err.message || "Failed to upload photo" });
+      setTimeout(() => setUploadMsg(null), 5000);
+    }
   };
 
   // Fetch location data on mount

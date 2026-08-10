@@ -291,3 +291,28 @@ export const analyticsApi = {
 export const attendanceApi = {
   getDriverHistory: (driverId: string) => apiFetch<any>(`/attendance/history?driverId=${driverId}`),
 };
+
+// ─── Upload API (files -> backend -> Cloudinary) ──────────────────────────────
+export const uploadApi = {
+  uploadFile: async (file: File) => {
+    const token = getToken();
+    const form = new FormData();
+    form.append("file", file);
+
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(`${BASE_URL}/upload`, {
+      method: "POST",
+      headers: Object.keys(headers).length ? headers : undefined,
+      body: form,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }));
+      throw new Error(err.message || `Upload failed: ${res.status}`);
+    }
+
+    return res.json();
+  },
+};
