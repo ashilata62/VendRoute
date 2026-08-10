@@ -73,16 +73,18 @@ export default function DashboardPage() {
   const navigate = useNavigate();
   const { user } = useAuthStore();
   const isSupervisor = user?.role === "supervisor";
-  const { routes } = useRouteStore();
-  const { drivers, liveLocations, seedLocationsFromDrivers } = useTrackingStore();
-  const { locations } = useLocationStore();
+  const { liveLocations, seedLocationsFromDrivers } = useTrackingStore();
   const { notifications, unreadCount, fetchNotifications, markAsRead, markAllRead } = useNotificationStore();
 
   const [mapCenter, setMapCenter] = useState<[number, number]>([19.0760, 72.8777]);
   const [movingLocations, setMovingLocations] = useState(liveLocations);
   const [mapTile, setMapTile] = useState<"standard" | "satellite">("standard");
+  const [selectedDate, setSelectedDate] = useState<string>(new Date().toISOString().split('T')[0]);
 
-  // Real stats from backend
+  // Real data state
+  const [routes, setRoutes] = useState<any[]>([]);
+  const [drivers, setDrivers] = useState<any[]>([]);
+  const [locations, setLocations] = useState<any[]>([]);
   const [dbStats, setDbStats] = useState<any>(null);
 
   if (user?.role === "driver" || user?.role === "DRIVER") {
@@ -90,27 +92,34 @@ export default function DashboardPage() {
   }
 
   useEffect(() => {
-    reportsApi.getDashboard().then((res) => {
-      if (res.success) {
-        setDbStats(res.data);
-        // Seed map pins with real driver UUIDs if available
-        if (res.data?.driverIds?.length > 0) {
-          seedLocationsFromDrivers(res.data.driverIds);
+    import("../services/api").then(({ routesApi, usersApi, locationsApi, reportsApi }) => {
+      routesApi.getAll().then(res => { if (res.success) setRoutes(res.data); }).catch(() => {});
+      usersApi.getAll("DRIVER").then(res => { 
+        if (res.success) {
+          setDrivers(res.data);
+          seedLocationsFromDrivers(res.data.map((d: any) => d.id));
         }
-      }
-    }).catch(() => {});
+      }).catch(() => {});
+      locationsApi.getAll().then(res => { if (res.success) setLocations(res.data); }).catch(() => {});
+      reportsApi.getDashboard().then((res) => {
+        if (res.success) setDbStats(res.data);
+      }).catch(() => {});
+    });
     fetchNotifications();
   }, []);
 
-  // Metrics — real DB values with fallback
-  const totalRoutesToday = dbStats?.routes?.today ?? routes.filter((r) => r.date === new Date().toISOString().split('T')[0]).length;
-  const activeDriversCount = dbStats?.drivers?.active ?? drivers.filter((d) => d.liveStatus !== "offline").length;
-  const totalDriversCount = dbStats?.drivers?.total ?? drivers.length;
-  const completedStopsCount = dbStats?.routestop?.completed ?? 0;
-  const totalStopsCount = dbStats?.routestop?.total ?? 0;
-  const missedStopsCount = 0;
-  const machineAlertsCount = dbStats?.machine?.alerts ?? 0;
-  const todayRevenue = 0;
+  // Metrics — Real calculated values from stores
+  const targetRoutes = routes.filter((r) => r.date === selectedDate || r.date?.startsWith(selectedDate));
+  const totalRoutesToday = targetRoutes.length;
+  const activeDriversCount = drivers.filter((d) => d.isOnline || d.liveStatus === "online" || d.liveStatus === "on-route").length;
+  const totalDriversCount = drivers.length;
+  
+  const completedStopsCount = targetRoutes.reduce((acc, r) => acc + (r.routestop?.filter((s:any) => s.status === 'COMPLETED').length || 0), 0);
+  const totalStopsCount = targetRoutes.reduce((acc, r) => acc + (r.routestop?.length || 0), 0);
+  const missedStopsCount = targetRoutes.reduce((acc, r) => acc + (r.routestop?.filter((s:any) => s.status === 'MISSED' || s.status === 'FAILED').length || 0), 0);
+  
+  const machineAlertsCount = locations.filter((l) => l.status === "needs-service" || l.status === "offline").length;
+  const todayRevenue = targetRoutes.reduce((acc, r) => acc + (r.routestop?.reduce((sum: number, s:any) => sum + (Number(s.cashCollected) || 0), 0) || 0), 0);
 
   // Donut chart machine status
   const machineStatusCounts = useMemo(() => {
@@ -153,10 +162,14 @@ export default function DashboardPage() {
 
   // Active Route Progress calculation
   const activeRoutesProgress = useMemo(() => {
-    return routes.slice(0, 4).map((r) => {
-      const driverName = (r as any).driver?.name || "Driver";
-      const pct = r.status === "COMPLETED" ? 100 : r.status === "IN_PROGRESS" ? 65 : 20;
-      const avatarUrl = (r as any).driver?.photo ||
+    return targetRoutes.slice(0, 4).map((r) => {
+      const driverName = (r as any).user?.name || (r as any).driver?.name || "Driver";
+      const totalStops = r.routestop?.length || 0;
+      const completed = r.routestop?.filter((s:any) => s.status === 'COMPLETED').length || 0;
+      let pct = totalStops > 0 ? Math.round((completed / totalStops) * 100) : 0;
+      if (totalStops === 0 && r.status === "COMPLETED") pct = 100;
+      
+      const avatarUrl = (r as any).user?.avatar || (r as any).driver?.photo ||
         `https://ui-avatars.com/api/?name=${encodeURIComponent(driverName)}&background=3B82F6&color=fff&size=32`;
       return {
         id: r.id,
@@ -179,7 +192,18 @@ export default function DashboardPage() {
     <div className="space-y-6 pb-8">
       <PageHeader
         title="Dashboard"
-        description="Overview of today's operations"
+        description={`Overview of operations for ${selectedDate}`}
+        action={
+          <div className="flex items-center gap-2 bg-white px-3 py-1.5 border border-slate-200 rounded-lg shadow-sm">
+            <label className="text-xs font-bold text-slate-500 uppercase">Select Date:</label>
+            <input 
+              type="date"
+              value={selectedDate}
+              onChange={(e) => setSelectedDate(e.target.value)}
+              className="text-sm font-bold text-slate-700 bg-transparent focus:outline-none cursor-pointer"
+            />
+          </div>
+        }
       />
 
       {/* TOP ROW: KPI Cards */}
@@ -193,17 +217,13 @@ export default function DashboardPage() {
           className="stat-card flex flex-col justify-between"
         >
           <div className="flex items-center justify-between">
-            <span className="text-xs text-slate-500 font-medium">Today's Routes</span>
+            <span className="text-xs text-slate-500 font-medium">Selected Date Routes</span>
             <div className="w-8 h-8 rounded-lg bg-blue-50 flex items-center justify-center text-blue-600">
               <RouteIcon className="w-4 h-4" />
             </div>
           </div>
           <div className="mt-3">
             <p className="text-2xl font-bold text-slate-900">{totalRoutesToday}</p>
-            <div className="flex items-center gap-1 mt-1 text-xs text-emerald-600 font-medium">
-              <ArrowUpRight className="w-3.5 h-3.5" />
-              <span>+12% vs yesterday</span>
-            </div>
           </div>
         </motion.div>
 
@@ -296,7 +316,7 @@ export default function DashboardPage() {
             className="stat-card flex flex-col justify-between"
           >
             <div className="flex items-center justify-between">
-              <span className="text-xs text-slate-500 font-medium">Today's Revenue</span>
+              <span className="text-xs text-slate-500 font-medium">Revenue ({selectedDate})</span>
               <div className="w-8 h-8 rounded-lg bg-amber-50 flex items-center justify-center text-amber-600">
                 <TrendingUp className="w-4 h-4" />
               </div>
@@ -386,12 +406,14 @@ export default function DashboardPage() {
                 if (!loc || typeof loc.lat !== "number" || typeof loc.lng !== "number" || isNaN(loc.lat) || isNaN(loc.lng)) {
                   return null;
                 }
-                const driverName = loc.driverName || "Driver";
+                
+                const driverMatch = drivers.find(d => d.id === loc.driverId);
+                const driverName = driverMatch?.name || loc.driverName || "Driver";
                 const vehicleModel = loc.vehicleModel || "Vehicle";
                 const vehiclePlate = loc.vehiclePlate || "";
-                const driverPhoto = loc.driverPhoto ||
+                const driverPhoto = driverMatch?.photo || loc.driverPhoto ||
                   `https://ui-avatars.com/api/?name=${encodeURIComponent(driverName)}&background=3B82F6&color=fff&size=24`;
-                const isOnline = true;
+                const isOnline = driverMatch?.isOnline || driverMatch?.liveStatus === "online" || driverMatch?.liveStatus === "on-route" || true;
 
                 return (
                   <Marker

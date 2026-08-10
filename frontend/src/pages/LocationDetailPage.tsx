@@ -71,9 +71,7 @@ export default function LocationDetailPage() {
   const [comparePos, setComparePos] = useState(50); // Slider % position
 
   // Notes state
-  const [notesList, setNotesList] = useState<any[]>([
-    { id: "n1", text: "Machine in good operational condition.", date: "31 Jul 2026", author: "Rohit Kapoor" },
-  ]);
+  const [notesList, setNotesList] = useState<any[]>([]); // Dynamically populated from backend
   const [newNoteInput, setNewNoteInput] = useState("");
 
   const [isSyncingGps, setIsSyncingGps] = useState(false);
@@ -295,6 +293,25 @@ export default function LocationDetailPage() {
     fetchData();
   }, [id]);
 
+  // Derive notes from backend location stops
+  useEffect(() => {
+    if (locationStops.length > 0) {
+      const derivedNotes = locationStops
+        .filter(stop => stop.notes || stop.machineIssues)
+        .map(stop => ({
+          id: `n_${stop.id}`,
+          text: stop.notes || stop.machineIssues || "",
+          date: formatDate(stop.updatedAt || stop.route?.date || new Date().toISOString()),
+          author: stop.route?.driver?.name || stop.driverName || "System Driver"
+        }));
+      setNotesList(prev => {
+        const existingIds = new Set(prev.map(n => n.id));
+        const newNotes = derivedNotes.filter(n => !existingIds.has(n.id));
+        return [...newNotes, ...prev];
+      });
+    }
+  }, [locationStops]);
+
   const handleAddNote = () => {
     if (newNoteInput.trim()) {
       setNotesList([
@@ -360,8 +377,42 @@ export default function LocationDetailPage() {
     }
   }
 
-  // Next service countdown calculation
-  const daysUntilNextService = 5; // To be computed dynamically based on schedule
+  // Dynamic metrics calculation
+  const completedStops = locationStops.filter(s => s.status === 'COMPLETED');
+  const totalServiceVisits = completedStops.length;
+  
+  let totalMinutes = 0;
+  if (completedStops.length > 0) {
+    completedStops.forEach(s => {
+      totalMinutes += s.route?.actualDuration || 25; // fallback to 25m if missing
+    });
+  }
+  const avgDurationStr = completedStops.length > 0 ? `${Math.round(totalMinutes / completedStops.length)}m` : "0m";
+
+  const lastCashStop = [...completedStops]
+    .sort((a, b) => new Date(b.updatedAt || b.route?.date || 0).getTime() - new Date(a.updatedAt || a.route?.date || 0).getTime())
+    .find(s => s.cashCollected > 0);
+  const lastCashCollected = lastCashStop ? lastCashStop.cashCollected : 0;
+
+  const pendingStops = locationStops
+    .filter(s => s.status === 'PENDING' && s.route?.date)
+    .sort((a, b) => new Date(a.route.date).getTime() - new Date(b.route.date).getTime());
+  
+  const nextStop = pendingStops.find(s => new Date(s.route.date) >= new Date(new Date().setHours(0,0,0,0)));
+  
+  let nextServiceDateStr = "Not Scheduled";
+  let daysUntilNextService = 0;
+  if (nextStop) {
+    nextServiceDateStr = formatDate(nextStop.route.date);
+    const diffTime = new Date(nextStop.route.date).getTime() - new Date().getTime();
+    daysUntilNextService = diffTime > 0 ? Math.ceil(diffTime / (1000 * 60 * 60 * 24)) : 0;
+  } else if (completedStops.length > 0) {
+    const lastVisit = new Date(completedStops[0].updatedAt || completedStops[0].route?.date || new Date());
+    lastVisit.setDate(lastVisit.getDate() + 7);
+    nextServiceDateStr = formatDate(lastVisit.toISOString());
+    const diffTime = lastVisit.getTime() - new Date().getTime();
+    daysUntilNextService = diffTime > 0 ? Math.ceil(diffTime / (1000 * 60 * 60 * 24)) : 0;
+  }
 
   if (loading) {
     return (
@@ -467,15 +518,15 @@ export default function LocationDetailPage() {
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div className="bg-slate-50 p-4 rounded-xl border border-border">
                     <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Service Visits</p>
-                    <p className="text-xl font-extrabold text-slate-900 mt-1">24</p>
+                    <p className="text-xl font-extrabold text-slate-900 mt-1">{totalServiceVisits}</p>
                   </div>
                   <div className="bg-slate-50 p-4 rounded-xl border border-border">
                     <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Avg Service Duration</p>
-                    <p className="text-xl font-extrabold text-slate-900 mt-1">25m</p>
+                    <p className="text-xl font-extrabold text-slate-900 mt-1">{avgDurationStr}</p>
                   </div>
                   <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
                     <p className="text-[10px] text-emerald-500 uppercase font-bold tracking-wider font-medium">Last Cash Collected</p>
-                    <p className="text-xl font-extrabold text-emerald-700 mt-1">₹3,200</p>
+                    <p className="text-xl font-extrabold text-emerald-700 mt-1">₹{lastCashCollected}</p>
                   </div>
                 </div>
               </div>
@@ -516,11 +567,13 @@ export default function LocationDetailPage() {
                   <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between">
                     <div>
                       <p className="text-[10px] text-amber-800 font-bold uppercase tracking-wider">Next Service Date</p>
-                      <p className="text-sm font-bold text-amber-950 mt-1">10 Aug 2026</p>
+                      <p className="text-sm font-bold text-amber-950 mt-1">{nextServiceDateStr}</p>
                     </div>
-                    <span className="bg-amber-500 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-full shadow-sm">
-                      In {daysUntilNextService} days
-                    </span>
+                    {daysUntilNextService > 0 && (
+                      <span className="bg-amber-500 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-full shadow-sm">
+                        In {daysUntilNextService} days
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -548,7 +601,8 @@ export default function LocationDetailPage() {
                 <tbody className="divide-y divide-slate-100">
                   {products.map((prodName: string, idx: number) => {
                     const capacity = 20;
-                    const stock = idx % 2 === 0 ? 12 : 3;
+                    const machineLevel = firstMachine.fillLevel ?? 100;
+                    const stock = Math.round((machineLevel / 100) * capacity);
                     const isLow = stock <= 5;
                     return (
                       <tr key={prodName} className="hover:bg-slate-50/50">
@@ -830,7 +884,7 @@ export default function LocationDetailPage() {
                           <span className="font-bold text-slate-900">Restock & Cash Collection</span>
                           <StatusBadge status={stop.status} />
                         </div>
-                        <span className="text-[10px] text-slate-400 font-bold">{formatDate("2026-07-28")}</span>
+                        <span className="text-[10px] text-slate-400 font-bold">{formatDate(stop.updatedAt || stop.route?.date || new Date().toISOString())}</span>
                       </div>
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[11px] text-slate-600">
@@ -840,26 +894,36 @@ export default function LocationDetailPage() {
                         </div>
                         <div>
                           <p className="text-slate-400 font-bold uppercase text-[9px]">Check-in/out</p>
-                          <p className="font-bold text-slate-800 mt-0.5">10:15 AM - 10:42 AM</p>
+                          <p className="font-bold text-slate-800 mt-0.5">
+                            {stop.status === 'COMPLETED' ? "Completed" : (stop.status === 'PENDING' ? "Pending" : "N/A")}
+                          </p>
                         </div>
                         <div>
                           <p className="text-slate-400 font-bold uppercase text-[9px]">GPS Status</p>
-                          <p className="font-bold text-emerald-600 mt-0.5">✓ GPS Verified Proximity</p>
+                          {stop.gpsVerified ? (
+                            <p className="font-bold text-emerald-600 mt-0.5">✓ Verified Proximity</p>
+                          ) : (
+                            <p className="font-bold text-amber-600 mt-0.5">Unverified</p>
+                          )}
                         </div>
                         <div>
                           <p className="text-slate-400 font-bold uppercase text-[9px]">Cash Collected</p>
-                          <p className="font-bold text-slate-800 mt-0.5">₹3,200</p>
+                          <p className="font-bold text-slate-800 mt-0.5">₹{stop.cashCollected || 0}</p>
                         </div>
                       </div>
 
                       <div className="border-t border-slate-100 pt-2 flex justify-between items-center text-[11px]">
                         <div>
                           <span className="text-slate-400 font-bold uppercase text-[9px] block">Refilled Inventory</span>
-                          <span className="font-medium text-slate-700">Coca-Cola (12), Lay's Chips (8)</span>
+                          <span className="font-medium text-slate-700">{stop.productsRefilled || "None recorded"}</span>
                         </div>
                         <div>
                           <span className="text-slate-400 font-bold uppercase text-[9px] block text-right">Signature</span>
-                          <span className="text-emerald-600 font-bold">✓ Captured digitally</span>
+                          {stop.signatureUrl ? (
+                            <span className="text-emerald-600 font-bold">✓ Captured digitally</span>
+                          ) : (
+                            <span className="text-slate-400 font-bold">Not required</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -895,13 +959,13 @@ export default function LocationDetailPage() {
                     const driverName = stop.route?.driver?.name || stop.driverName || "Driver";
                     return (
                       <tr key={stop.id} className="hover:bg-slate-50/50">
-                        <td className="px-4 py-3 font-bold text-slate-900 font-mono">#{stop.routeId || "101"}</td>
-                        <td className="px-4 py-3 text-slate-650">{formatDate("2026-07-28")}</td>
+                        <td className="px-4 py-3 font-bold text-slate-900 font-mono" title={stop.routeId}>#{stop.routeId ? stop.routeId.substring(0, 8) : "101"}</td>
+                        <td className="px-4 py-3 text-slate-650">{formatDate(stop.route?.date || stop.createdAt || new Date().toISOString())}</td>
                         <td className="px-4 py-3 font-semibold text-slate-800">{driverName}</td>
-                        <td className="px-4 py-3 text-slate-500">Stop #{stop.sequenceNumber || "2"}</td>
+                        <td className="px-4 py-3 text-slate-500">Stop #{stop.stopOrder || stop.sequenceNumber || "1"}</td>
                         <td className="px-4 py-3"><StatusBadge status={stop.status} /></td>
-                        <td className="px-4 py-3 text-slate-600 font-mono">10:15 AM</td>
-                        <td className="px-4 py-3 text-slate-600 font-mono">10:42 AM</td>
+                        <td className="px-4 py-3 text-slate-600 font-mono">-</td>
+                        <td className="px-4 py-3 text-slate-600 font-mono">-</td>
                       </tr>
                     );
                   })}
