@@ -220,6 +220,12 @@ export default function SettingsPage() {
     <div className="space-y-6 pb-12">
       <PageHeader title="Settings" description="Configure company parameters, route rules, GPS geofencing, photo sizes, and role permission matrices." />
 
+      {settingsLoading ? (
+        <div className="flex flex-col items-center justify-center py-20">
+          <Loader2 className="w-10 h-10 text-blue-600 animate-spin mb-4" />
+          <p className="text-sm font-bold text-slate-500">Loading Configuration from Server...</p>
+        </div>
+      ) : (
       <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Tab Navigation Sidebar */}
         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-2 h-fit space-y-1">
@@ -882,6 +888,7 @@ export default function SettingsPage() {
           </div>
         </div>
       </div>
+      )}
     </div>
   );
 }

@@ -13,12 +13,29 @@ export const getStops = async (req: Request, res: Response) => {
           }
         },
         location: {
-          include: { customer: true }
+          include: { 
+            customer: true,
+            machine: true
+          }
         }
       },
       orderBy: { route: { date: 'desc' } },
     });
-    return res.status(200).json({ success: true, data: stops });
+
+    const mappedStops = stops.map((s: any) => {
+      if (s.route) {
+        return {
+          ...s,
+          route: {
+            ...s.route,
+            driver: s.route.user
+          }
+        };
+      }
+      return s;
+    });
+
+    return res.status(200).json({ success: true, data: mappedStops });
   } catch (error: any) {
     return res.status(500).json({ success: false, message: error.message });
   }
@@ -44,7 +61,7 @@ export const checkInStop = async (req: Request, res: Response) => {
         notes: notes as string,
         signatureUrl: signatureUrl as string,
         machineIssues: machineIssues as string,
-        photos: photos ? JSON.stringify(photos) : null
+        photos: photos ? (typeof photos === 'string' ? photos : JSON.stringify(photos)) : null
       },
     });
 

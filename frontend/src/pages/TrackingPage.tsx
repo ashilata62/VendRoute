@@ -107,14 +107,18 @@ export default function TrackingPage() {
       licenseNumber: rd.licenseNumber || "Not Provided",
       assignedVehicleId: null,
       status: "active" as const,
-      liveStatus: (i % 3 === 0 ? "on-route" : i % 3 === 1 ? "online" : "offline") as any,
+      liveStatus: (
+        !rd.isOnline ? "offline" 
+        : realRoutes.some(r => r.driverId === rd.id && r.status === "IN_PROGRESS") ? "on-route" 
+        : "online"
+      ) as any,
       rating: 4.5,
-      totalRoutes: 8,
-      completedStops: 24,
-      joinedDate: "2026-01-15",
+      totalRoutes: realRoutes.filter(r => r.driverId === rd.id).length,
+      completedStops: 0,
+      joinedDate: rd.createdAt ? new Date(rd.createdAt).toISOString().split('T')[0] : "2026-01-15",
       address: rd.address || "Mumbai, India",
     }));
-  }, [realDrivers]);
+  }, [realDrivers, realRoutes]);
 
   const activeDrivers = useMemo(() => {
     return displayDrivers;
@@ -136,16 +140,25 @@ export default function TrackingPage() {
 
   const driverRoutes = useMemo(() => {
     return activeDrivers.map((driver) => {
-      const route = realRoutes.find((r: any) => r.driverId === driver.id && (r.status === "IN_PROGRESS" || r.status === "PENDING")) || realRoutes[0];
-      const locs = realLocations.slice(0, 4);
-      const coords: [number, number][] = locs
-        .map((l: any) => {
+      const route = realRoutes.find((r: any) => r.driverId === driver.id && (r.status === "IN_PROGRESS" || r.status === "PENDING")) || realRoutes.find((r: any) => r.driverId === driver.id);
+      
+      let locs: any[] = [];
+      let coords: [number, number][] = [];
+
+      if (route && route.routestop) {
+        locs = route.routestop.map((stop: any) => ({
+          ...stop.location,
+          stopStatus: stop.status,
+          stopId: stop.id,
+        }));
+        
+        coords = locs.map((l: any) => {
           const lat = Number(l.lat ?? l.latitude);
           const lng = Number(l.lng ?? l.longitude);
           if (isNaN(lat) || isNaN(lng) || !lat || !lng) return null;
           return [lat, lng] as [number, number];
-        })
-        .filter((c): c is [number, number] => c !== null);
+        }).filter((c): c is [number, number] => c !== null);
+      }
 
       return {
         driverId: driver.id,
@@ -155,7 +168,7 @@ export default function TrackingPage() {
         stops: locs,
       };
     });
-  }, [activeDrivers, realRoutes, realLocations]);
+  }, [activeDrivers, realRoutes]);
 
   const currentSelectedDriver = selectedDriver || activeDrivers[0] || drivers[0];
   const currentSelectedRouteInfo = driverRoutes.find((r) => r.driverId === currentSelectedDriver?.id);
@@ -196,10 +209,11 @@ export default function TrackingPage() {
               const lat = Number(stopLoc.lat || (stopLoc as any).latitude);
               const lng = Number(stopLoc.lng || (stopLoc as any).longitude);
               if (isNaN(lat) || isNaN(lng)) return null;
-              const status: "completed" | "current" | "pending" | "missed" = idx === 0 ? "completed" : idx === 1 ? "current" : "pending";
+              const dbStatus = stopLoc.stopStatus || "PENDING";
+              const status: "completed" | "current" | "pending" | "missed" = dbStatus === "COMPLETED" ? "completed" : dbStatus === "REACHED" ? "current" : "pending";
               return (
                 <Marker
-                  key={stopLoc.id}
+                  key={stopLoc.id || idx}
                   position={[lat, lng]}
                   icon={createStopIcon(status as any)}
                 >
@@ -222,10 +236,11 @@ export default function TrackingPage() {
              const lat = Number(stopLoc.lat || (stopLoc as any).latitude);
              const lng = Number(stopLoc.lng || (stopLoc as any).longitude);
              if (isNaN(lat) || isNaN(lng)) return null;
-             const status: "completed" | "current" | "pending" | "missed" = idx === 0 ? "completed" : idx === 1 ? "current" : "pending";
+             const dbStatus = stopLoc.stopStatus || "PENDING";
+             const status: "completed" | "current" | "pending" | "missed" = dbStatus === "COMPLETED" ? "completed" : dbStatus === "REACHED" ? "current" : "pending";
              return (
                <Circle
-                 key={`circle-${stopLoc.id}`}
+                 key={`circle-${stopLoc.id || idx}`}
                  center={[lat, lng]}
                  radius={50}
                  pathOptions={{ color: status === 'completed' ? '#10B981' : '#64748B', fillColor: status === 'completed' ? '#10B981' : '#64748B', fillOpacity: 0.1, weight: 1 }}
@@ -377,29 +392,30 @@ export default function TrackingPage() {
             </h4>
 
             <div className="space-y-3 relative before:absolute before:left-2 before:top-2 before:bottom-2 before:w-0.5 before:bg-slate-200">
-              {[
-                { time: "09:00 AM", name: "RCF Colony Complex", status: "completed" },
-                { time: "10:15 AM", name: "Nesco IT Park Tower B", status: "current" },
-                { time: "11:45 AM", name: "Hiranandani Business Park", status: "pending" },
-              ].map((item, idx) => (
+              {currentSelectedRouteInfo?.stops && currentSelectedRouteInfo.stops.length > 0 ? currentSelectedRouteInfo.stops.map((stopLoc: any, idx: number) => {
+                const dbStatus = stopLoc.stopStatus || "PENDING";
+                const status = dbStatus === "COMPLETED" ? "completed" : dbStatus === "REACHED" ? "current" : "pending";
+                return (
                 <div key={idx} className="flex items-start gap-3 pl-6 relative">
                   <span
                     className={`absolute left-0.5 top-1 w-3 h-3 rounded-full border-2 border-white shadow-sm ${
-                      item.status === "completed"
+                      status === "completed"
                         ? "bg-emerald-500"
-                        : item.status === "current"
+                        : status === "current"
                         ? "bg-blue-600 animate-ping"
                         : "bg-slate-300"
                     }`}
                   />
                   <div className="flex-1">
                     <div className="flex items-center justify-between text-xs">
-                      <span className="font-bold text-slate-800">{item.name}</span>
-                      <span className="text-[10px] text-slate-400">{item.time}</span>
+                      <span className="font-bold text-slate-800">{stopLoc.name || "Unknown Location"}</span>
+                      <span className="text-[10px] text-slate-400 capitalize">{status}</span>
                     </div>
                   </div>
                 </div>
-              ))}
+              )}) : (
+                <p className="text-xs text-slate-500 pl-6">No route assigned for today.</p>
+              )}
             </div>
           </div>
         )}

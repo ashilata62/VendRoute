@@ -19,7 +19,8 @@ export default function StopDetailsScreen() {
   const [reportedIssue, setReportedIssue] = useState('None');
   const [isSigned, setIsSigned] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [photoUris, setPhotoUris] = useState<string[]>([]);
+  const [beforePhotos, setBeforePhotos] = useState<string[]>([]);
+  const [afterPhotos, setAfterPhotos] = useState<string[]>([]);
   
   const [newRefillProduct, setNewRefillProduct] = useState('');
   const [newRefillQty, setNewRefillQty] = useState('5');
@@ -43,7 +44,7 @@ export default function StopDetailsScreen() {
     setRefillItems(refillItems.filter((_, i) => i !== index));
   };
 
-  const takePhoto = async () => {
+  const takeBeforePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
       Alert.alert('Permission Denied', 'Camera permission is required.');
@@ -55,7 +56,23 @@ export default function StopDetailsScreen() {
       base64: true,
     });
     if (!result.canceled) {
-      setPhotoUris([...photoUris, `data:image/jpeg;base64,${result.assets[0].base64}`]);
+      setBeforePhotos([...beforePhotos, `data:image/jpeg;base64,${result.assets[0].base64}`]);
+    }
+  };
+
+  const takeAfterPhoto = async () => {
+    const { status } = await ImagePicker.requestCameraPermissionsAsync();
+    if (status !== 'granted') {
+      Alert.alert('Permission Denied', 'Camera permission is required.');
+      return;
+    }
+    const result = await ImagePicker.launchCameraAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      quality: 0.3,
+      base64: true,
+    });
+    if (!result.canceled) {
+      setAfterPhotos([...afterPhotos, `data:image/jpeg;base64,${result.assets[0].base64}`]);
     }
   };
 
@@ -68,6 +85,7 @@ export default function StopDetailsScreen() {
       setLoading(true);
       const inventoryChanges = refillItems.map((p, idx) => ({
         productId: String(idx + 1), // Dummy ID
+        product: p.product,
         quantityAdded: p.qty
       }));
 
@@ -80,7 +98,7 @@ export default function StopDetailsScreen() {
         productsRefilled: JSON.stringify(inventoryChanges),
         notes: stopNotes + (reportedIssue !== 'None' ? ` [Issue: ${reportedIssue}]` : ''),
         signatureUrl: realSignatureUrl,
-        photos: photoUris
+        photos: { before: beforePhotos, after: afterPhotos }
       };
 
       const response = await stopsApi.completeService(stop.id, payload);
@@ -191,39 +209,43 @@ export default function StopDetailsScreen() {
 
         {activeTab === 'service' ? (
           <View style={styles.formSection}>
-            {/* Photos */}
             <View style={styles.formCard}>
-              <View style={styles.cardHeaderRow}>
-                <Text style={styles.cardTitle}>Previous Service Photos</Text>
-                <TouchableOpacity onPress={() => Alert.alert('History', 'Showing historical photos for this machine.')}>
-                  <Text style={styles.viewLinkText}>[ View ]</Text>
-                </TouchableOpacity>
-              </View>
-              <View style={{ flexDirection: 'row', gap: 8 }}>
-                <View style={[styles.photoBox, { backgroundColor: '#e2e8f0', justifyContent: 'center', alignItems: 'center' }]}>
-                  <ImageIcon size={20} color="#94a3b8" />
-                </View>
-                <View style={[styles.photoBox, styles.photoBoxDashed]}>
-                  <Text style={styles.plusCount}>+3</Text>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.formCard}>
-              <Text style={styles.cardTitle}>Service Visual Confirmation</Text>
+              <Text style={styles.cardTitle}>Previous Service Photos (Before Refill)</Text>
               <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
-                {photoUris.map((uri, idx) => (
+                {beforePhotos.map((uri, idx) => (
                   <View key={idx} style={styles.photoBox}>
                     <Image source={{ uri }} style={styles.photoImg} />
-                    <TouchableOpacity style={styles.deletePhotoBtn} onPress={() => setPhotoUris(photoUris.filter((_, i) => i !== idx))}>
+                    <TouchableOpacity style={styles.deletePhotoBtn} onPress={() => setBeforePhotos(beforePhotos.filter((_, i) => i !== idx))}>
                       <Text style={styles.deletePhotoText}>✕</Text>
                     </TouchableOpacity>
                   </View>
                 ))}
-                <TouchableOpacity style={styles.uploadBtn} onPress={takePhoto}>
-                  <Camera size={20} color="#94a3b8" />
-                  <Text style={styles.uploadText}>[ Upload ]</Text>
-                </TouchableOpacity>
+                {beforePhotos.length < 2 && (
+                  <TouchableOpacity style={styles.uploadBtn} onPress={takeBeforePhoto}>
+                    <Camera size={20} color="#94a3b8" />
+                    <Text style={styles.uploadText}>[ Upload ]</Text>
+                  </TouchableOpacity>
+                )}
+              </View>
+            </View>
+
+            <View style={styles.formCard}>
+              <Text style={styles.cardTitle}>Service Visual Confirmation (After Refill)</Text>
+              <View style={{ flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 8 }}>
+                {afterPhotos.map((uri, idx) => (
+                  <View key={idx} style={styles.photoBox}>
+                    <Image source={{ uri }} style={styles.photoImg} />
+                    <TouchableOpacity style={styles.deletePhotoBtn} onPress={() => setAfterPhotos(afterPhotos.filter((_, i) => i !== idx))}>
+                      <Text style={styles.deletePhotoText}>✕</Text>
+                    </TouchableOpacity>
+                  </View>
+                ))}
+                {afterPhotos.length < 3 && (
+                  <TouchableOpacity style={styles.uploadBtn} onPress={takeAfterPhoto}>
+                    <Camera size={20} color="#94a3b8" />
+                    <Text style={styles.uploadText}>[ Upload ]</Text>
+                  </TouchableOpacity>
+                )}
               </View>
             </View>
 
@@ -338,51 +360,65 @@ export default function StopDetailsScreen() {
             <View style={styles.formCard}>
               <Text style={styles.cardSectionLabel}>Machine Profile Specs</Text>
               
-              <View style={styles.specsGrid}>
-                <View style={styles.specBox}>
-                  <Text style={styles.specLabel}>Machine ID</Text>
-                  <Text style={styles.specValue}>{stop.location?.machineId || 'N/A'}</Text>
-                </View>
-                <View style={styles.specBox}>
-                  <Text style={styles.specLabel}>Type</Text>
-                  <Text style={styles.specValue}>{stop.location?.machineType || 'Snack & Drink'}</Text>
-                </View>
-                <View style={styles.specBox}>
-                  <Text style={styles.specLabel}>Last Visit</Text>
-                  <Text style={styles.specValue}>{stop.location?.lastServiceDate || 'N/A'}</Text>
-                </View>
-                <View style={styles.specBox}>
-                  <Text style={styles.specLabel}>Frequency</Text>
-                  <Text style={styles.specValue}>{stop.location?.visitFrequency || 'Weekly'}</Text>
-                </View>
-              </View>
+              {(() => {
+                const loc = stop.location;
+                const machine = loc?.machine?.[0] || loc?.machines?.[0];
+                const fillLevel = machine?.fillLevel ?? 100;
 
-              <View style={styles.divider} />
+                const snacksPct = Math.round(fillLevel * 0.8);
+                const beveragesPct = Math.round(fillLevel);
+                const chocolatesPct = Math.round(fillLevel * 0.9);
 
-              <Text style={styles.cardSectionLabel}>Refill Stock Levels</Text>
-              <View style={{ gap: 12, marginTop: 8 }}>
-                {[
-                  { name: 'Snacks / Chips', pct: 20, color: '#ef4444' },
-                  { name: 'Beverages / Sodas', pct: 85, color: '#10b981' },
-                  { name: 'Chocolates / Candies', pct: 45, color: '#f59e0b' }
-                ].map((s) => (
-                  <View key={s.name}>
-                    <View style={styles.stockLabelRow}>
-                      <Text style={styles.stockLabel}>{s.name}</Text>
-                      <Text style={styles.stockPct}>{s.pct}%</Text>
+                return (
+                  <>
+                    <View style={styles.specsGrid}>
+                      <View style={styles.specBox}>
+                        <Text style={styles.specLabel}>Machine Code</Text>
+                        <Text style={styles.specValue}>{machine?.machineCode || machine?.id || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.specBox}>
+                        <Text style={styles.specLabel}>Model</Text>
+                        <Text style={styles.specValue}>{machine?.model || 'N/A'}</Text>
+                      </View>
+                      <View style={styles.specBox}>
+                        <Text style={styles.specLabel}>Last Refill</Text>
+                        <Text style={styles.specValue}>{machine?.lastRefill ? new Date(machine.lastRefill).toLocaleDateString("en-IN") : 'N/A'}</Text>
+                      </View>
+                      <View style={styles.specBox}>
+                        <Text style={styles.specLabel}>Frequency</Text>
+                        <Text style={styles.specValue}>Weekly</Text>
+                      </View>
                     </View>
-                    <View style={styles.stockBg}>
-                      <View style={[styles.stockFill, { backgroundColor: s.color, width: `${s.pct}%` }]} />
+
+                    <View style={styles.divider} />
+
+                    <Text style={styles.cardSectionLabel}>Refill Stock Levels</Text>
+                    <View style={{ gap: 12, marginTop: 8 }}>
+                      {[
+                        { name: 'Snacks / Chips', pct: snacksPct, color: '#ef4444' },
+                        { name: 'Beverages / Sodas', pct: beveragesPct, color: '#10b981' },
+                        { name: 'Chocolates / Candies', pct: chocolatesPct, color: '#f59e0b' }
+                      ].map((s) => (
+                        <View key={s.name}>
+                          <View style={styles.stockLabelRow}>
+                            <Text style={styles.stockLabel}>{s.name}</Text>
+                            <Text style={styles.stockPct}>{s.pct}%</Text>
+                          </View>
+                          <View style={styles.stockBg}>
+                            <View style={[styles.stockFill, { backgroundColor: s.color, width: `${s.pct}%` }]} />
+                          </View>
+                        </View>
+                      ))}
                     </View>
-                  </View>
-                ))}
-              </View>
+                  </>
+                );
+              })()}
 
               <View style={styles.divider} />
 
               <View style={{ marginTop: 8 }}>
                 <Text style={[styles.cardTitle, { color: '#0f172a' }]}>📍 Live Navigation Coordinates</Text>
-                <Text style={styles.monoText}>LAT: {stop.location?.latitude || 'N/A'} · LNG: {stop.location?.longitude || 'N/A'}</Text>
+                <Text style={styles.monoText}>LAT: {stop.location?.latitude?.toFixed(6) || '—'} · LNG: {stop.location?.longitude?.toFixed(6) || '—'}</Text>
                 <Text style={styles.metaDescText}>ETA: {stop?.route?.estimatedTime ? Math.round(stop.route.estimatedTime / Math.max(stop.route.routestop?.length || 1, 1)) : 10} mins · Distance: {stop?.route?.totalDistance ? (stop.route.totalDistance / Math.max(stop.route.routestop?.length || 1, 1)).toFixed(1) : "0"} km to Next stop</Text>
               </View>
             </View>

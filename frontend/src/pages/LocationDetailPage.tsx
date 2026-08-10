@@ -2,17 +2,18 @@ import { createPortal } from "react-dom";
 import { useState, useEffect } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { motion, AnimatePresence } from "framer-motion";
-import { MapContainer, TileLayer, Marker, Popup } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { ArrowLeft, MapPin, Phone, Package, Image as ImageIcon,
-  Clock, Upload, ShieldCheck, X, Route as RouteIcon, Loader2, AlertCircle
+  Clock, Upload, ShieldCheck, X, Route as RouteIcon, Loader2, AlertCircle, ExternalLink, Navigation,
+  RefreshCw, Crosshair, Check
 } from "lucide-react";
 
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
-import { formatDate, formatCurrency } from "../lib/utils";
-import { locationsApi, stopsApi } from "../services/api";
+import { formatDate } from "../lib/utils";
+import { locationsApi, stopsApi, machinesApi } from "../services/api";
 
 // Fix Leaflet default icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -21,6 +22,27 @@ L.Icon.Default.mergeOptions({
   iconUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-icon.png",
   shadowUrl: "https://unpkg.com/leaflet@1.9.4/dist/images/marker-shadow.png",
 });
+
+// Map Controller for smooth focusing
+function MapFocusController({ center, zoom }: { center: [number, number]; zoom?: number }) {
+  const map = useMap();
+  useEffect(() => {
+    if (center && !isNaN(center[0]) && !isNaN(center[1])) {
+      map.flyTo(center, zoom || 15, { animate: true, duration: 1 });
+    }
+  }, [center[0], center[1], zoom, map]);
+  return null;
+}
+
+// Map Click Event Listener for picking location
+function LocationDetailMapEvents({ onLocationChange }: { onLocationChange: (lat: number, lng: number) => void }) {
+  useMapEvents({
+    click(e) {
+      onLocationChange(parseFloat(e.latlng.lat.toFixed(6)), parseFloat(e.latlng.lng.toFixed(6)));
+    },
+  });
+  return null;
+}
 
 const detailTabs = [
   { id: "overview", label: "Overview", icon: Clock },
@@ -49,10 +71,193 @@ export default function LocationDetailPage() {
   const [comparePos, setComparePos] = useState(50); // Slider % position
 
   // Notes state
-  const [notesList, setNotesList] = useState<any[]>([
-    { id: "n1", text: "Machine in good operational condition.", date: "31 Jul 2026", author: "Rohit Kapoor" },
-  ]);
+  const [notesList, setNotesList] = useState<any[]>([]); // Dynamically populated from backend
   const [newNoteInput, setNewNoteInput] = useState("");
+
+  const [isSyncingGps, setIsSyncingGps] = useState(false);
+  const [syncMsg, setSyncMsg] = useState<string | null>(null);
+
+  // Vending Machine Edit state
+  const [isMachineModalOpen, setIsMachineModalOpen] = useState(false);
+  const [machineForm, setMachineForm] = useState({ machineCode: "", model: "", fillLevel: 100 });
+  const [machineSubmitting, setMachineSubmitting] = useState(false);
+
+  const openMachineModal = (m: any) => {
+    setMachineForm({
+      machineCode: m?.machineCode || "",
+      model: m?.model || "",
+      fillLevel: m?.fillLevel ?? 100,
+    });
+    setIsMachineModalOpen(true);
+  };
+
+  const handleSaveMachine = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!id) return;
+    setMachineSubmitting(true);
+    try {
+      if (firstMachine.id) {
+        // Update stock/status
+        await machinesApi.updateStock(firstMachine.id, {
+          fillLevel: Number(machineForm.fillLevel),
+          status: machineForm.fillLevel < 20 ? 'OUT_OF_STOCK' : 'ACTIVE',
+        });
+      } else {
+        // Create new machine for this location
+        await machinesApi.create({
+          locationId: id,
+          machineCode: machineForm.machineCode,
+          model: machineForm.model,
+          fillLevel: Number(machineForm.fillLevel),
+        });
+      }
+      setIsMachineModalOpen(false);
+      // Reload location details
+      const res = await locationsApi.getById(id);
+      if (res.success) {
+        setLoc(res.data);
+      }
+      alert("Vending Machine details saved successfully!");
+    } catch (err: any) {
+      alert(err.message || "Failed to save machine details");
+    } finally {
+      setMachineSubmitting(false);
+    }
+  };
+
+  // Auto-geocode & sync if coordinates are default Mumbai or missing
+  const checkAndSyncCoordinates = async (locationData: any) => {
+    if (!locationData) return;
+    const addressQuery = [locationData.address, locationData.city].filter(Boolean).join(", ");
+    if (!addressQuery) return;
+
+    const lat = Number(locationData.latitude);
+    const lng = Number(locationData.longitude);
+
+    const isDefaultMumbai = (Math.abs(lat - 19.076) < 0.02 && Math.abs(lng - 72.8777) < 0.02);
+    const isCityNotMumbai = !locationData.city?.toLowerCase().includes("mumbai");
+
+    if ((!lat && !lng) || (isDefaultMumbai && isCityNotMumbai)) {
+      try {
+        let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}&limit=1`);
+        let data = await res.json();
+        if (!data || data.length === 0) {
+          if (locationData.city) {
+            res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(locationData.city)}&limit=1`);
+            data = await res.json();
+          }
+        }
+        if (data && data.length > 0) {
+          const newLat = parseFloat(parseFloat(data[0].lat).toFixed(6));
+          const newLng = parseFloat(parseFloat(data[0].lon).toFixed(6));
+          setLoc((prev: any) => ({ ...prev, latitude: newLat, longitude: newLng }));
+          await locationsApi.update(locationData.id, { latitude: newLat, longitude: newLng });
+          setSyncMsg(`📍 Coordinates auto-synced to "${addressQuery}": ${newLat}, ${newLng}`);
+          setTimeout(() => setSyncMsg(null), 5000);
+        }
+      } catch (err) {
+        console.warn("Auto-geocode sync failed:", err);
+      }
+    }
+  };
+
+  // Manual GPS / Map Sync
+  const handleManualGpsSync = async () => {
+    if (!loc) return;
+    const addressQuery = [loc.address, loc.city].filter(Boolean).join(", ");
+    if (!addressQuery) {
+      setSyncMsg("⚠️ Address / City missing");
+      setTimeout(() => setSyncMsg(null), 3000);
+      return;
+    }
+    setIsSyncingGps(true);
+    setSyncMsg(null);
+    try {
+      let res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(addressQuery)}&limit=1`);
+      let data = await res.json();
+      if (!data || data.length === 0) {
+        if (loc.city) {
+          res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(loc.city)}&limit=1`);
+          data = await res.json();
+        }
+      }
+      if (data && data.length > 0) {
+        const newLat = parseFloat(parseFloat(data[0].lat).toFixed(6));
+        const newLng = parseFloat(parseFloat(data[0].lon).toFixed(6));
+        setLoc((prev: any) => ({ ...prev, latitude: newLat, longitude: newLng }));
+        await locationsApi.update(loc.id, { latitude: newLat, longitude: newLng });
+        setSyncMsg(`📍 Map updated to "${addressQuery}": ${newLat}, ${newLng}`);
+      } else {
+        setSyncMsg(`⚠️ Could not auto-locate. Click on map to pinpoint.`);
+      }
+    } catch (err) {
+      setSyncMsg("⚠️ Sync failed. Click directly on map to set position.");
+    } finally {
+      setIsSyncingGps(false);
+      setTimeout(() => setSyncMsg(null), 4000);
+    }
+  };
+
+  // Update pin directly from Map click/drag + reverse geocode address
+  const handleUpdateCoordinatesFromMap = async (newLat: number, newLng: number) => {
+    if (!loc) return;
+    setLoc((prev: any) => ({ ...prev, latitude: newLat, longitude: newLng }));
+    try {
+      // Reverse geocode to get address
+      let newAddress = loc.address;
+      let newCity = loc.city;
+      try {
+        const res = await fetch(
+          `https://nominatim.openstreetmap.org/reverse?format=json&lat=${newLat}&lon=${newLng}&zoom=18&addressdetails=1`,
+          { headers: { "Accept-Language": "en" } }
+        );
+        const data = await res.json();
+        if (data && data.address) {
+          const addr = data.address;
+          const detectedCity =
+            addr.city || addr.town || addr.city_district || addr.state_district || addr.county || "";
+          const parts = [
+            addr.amenity || addr.building || addr.shop,
+            addr.road || addr.street,
+            addr.suburb || addr.neighbourhood || addr.residential,
+          ].filter(Boolean);
+          const detectedAddress = parts.join(", ") || data.display_name?.split(",")?.slice(0, 3)?.join(",");
+          if (detectedAddress) newAddress = detectedAddress;
+          if (detectedCity) newCity = detectedCity;
+        }
+      } catch (err) {
+        console.warn("Reverse geocode in detail page skipped:", err);
+      }
+
+      setLoc((prev: any) => ({ ...prev, latitude: newLat, longitude: newLng, address: newAddress, city: newCity }));
+      await locationsApi.update(loc.id, {
+        latitude: newLat,
+        longitude: newLng,
+        address: newAddress,
+        city: newCity,
+      });
+      setSyncMsg(`📍 Updated location & address: ${newAddress}${newCity ? `, ${newCity}` : ""} (${newLat}, ${newLng})`);
+      setTimeout(() => setSyncMsg(null), 4000);
+    } catch (err) {
+      console.error("Failed to save updated pin:", err);
+    }
+  };
+
+  const handleUploadPhoto = async (file: File) => {
+    if (!id || !loc) return;
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      try {
+        const base64 = reader.result as string;
+        await locationsApi.update(id, { imageUrl: base64 });
+        setLoc((prev: any) => ({ ...prev, imageUrl: base64 }));
+        alert("Photo uploaded successfully!");
+      } catch (err: any) {
+        alert(err.message || "Failed to upload photo");
+      }
+    };
+    reader.readAsDataURL(file);
+  };
 
   // Fetch location data on mount
   useEffect(() => {
@@ -63,6 +268,7 @@ export default function LocationDetailPage() {
         const res = await locationsApi.getById(id);
         if (res.success) {
           setLoc(res.data);
+          checkAndSyncCoordinates(res.data);
           // Try to get stops for this location from API
           try {
             const stopsRes = await stopsApi.getAll();
@@ -87,6 +293,25 @@ export default function LocationDetailPage() {
     fetchData();
   }, [id]);
 
+  // Derive notes from backend location stops
+  useEffect(() => {
+    if (locationStops.length > 0) {
+      const derivedNotes = locationStops
+        .filter(stop => stop.notes || stop.machineIssues)
+        .map(stop => ({
+          id: `n_${stop.id}`,
+          text: stop.notes || stop.machineIssues || "",
+          date: formatDate(stop.updatedAt || stop.route?.date || new Date().toISOString()),
+          author: stop.route?.user?.name || stop.route?.driver?.name || stop.driverName || "System Driver"
+        }));
+      setNotesList(prev => {
+        const existingIds = new Set(prev.map(n => n.id));
+        const newNotes = derivedNotes.filter(n => !existingIds.has(n.id));
+        return [...newNotes, ...prev];
+      });
+    }
+  }, [locationStops]);
+
   const handleAddNote = () => {
     if (newNoteInput.trim()) {
       setNotesList([
@@ -99,37 +324,121 @@ export default function LocationDetailPage() {
 
   // Data parsing
   const customer = loc?.customer || {};
-  const firstMachine = loc?.machine?.[0] || {};
-  const photoGallery = loc?.imageUrl ? [loc.imageUrl] : ["https://picsum.photos/800/600", "https://picsum.photos/800/601"];
+  const firstMachine = loc?.machine?.[0] || loc?.machines?.[0] || {};
   
-  // Handle products parsing if stringified JSON
-  let products = loc?.products || [];
-  while (typeof products === 'string') {
+  // Helper to filter out invalid legacy string formats like "Photo 2", "Photo 4"
+  const isValidPhoto = (url: string) => {
+    if (!url) return false;
+    return url.startsWith("data:image/") || url.startsWith("http://") || url.startsWith("https://");
+  };
+
+  const getStopPhotosParsed = (stop: any) => {
+    const before: string[] = [];
+    const after: string[] = [];
+    if (stop.photos) {
+      try {
+        let parsed = stop.photos;
+        while (typeof parsed === "string") {
+          parsed = JSON.parse(parsed);
+        }
+        if (parsed && typeof parsed === "object") {
+          if (Array.isArray(parsed)) {
+            const filtered = parsed.filter(isValidPhoto);
+            if (filtered[0]) before.push(filtered[0]);
+            if (filtered.length > 1) after.push(...filtered.slice(1));
+          } else {
+            if (Array.isArray(parsed.before)) before.push(...parsed.before.filter(isValidPhoto));
+            if (Array.isArray(parsed.after)) after.push(...parsed.after.filter(isValidPhoto));
+          }
+        }
+      } catch {
+        if (typeof stop.photos === "string") {
+          const splitPhotos = stop.photos.split(",").map((p: string) => p.trim()).filter(isValidPhoto);
+          if (splitPhotos[0]) before.push(splitPhotos[0]);
+          if (splitPhotos.length > 1) after.push(...splitPhotos.slice(1));
+        } else if (Array.isArray(stop.photos)) {
+          const filtered = stop.photos.filter(isValidPhoto);
+          if (filtered[0]) before.push(filtered[0]);
+          if (filtered.length > 1) after.push(...filtered.slice(1));
+        }
+      }
+    }
+    return { before, after };
+  };
+
+  // Compile all photos from previous service history (completed stops)
+  const beforePhotos: string[] = [];
+  const afterPhotos: string[] = [];
+  locationStops.forEach((stop: any) => {
+    const { before, after } = getStopPhotosParsed(stop);
+    beforePhotos.push(...before);
+    afterPhotos.push(...after);
+  });
+
+  const photoGallery = [
+    ...(loc?.imageUrl ? [loc.imageUrl] : []),
+    ...beforePhotos,
+    ...afterPhotos
+  ];
+  if (photoGallery.length === 0) {
+    // Standard beautiful default location fallbacks if zero photos uploaded
+    photoGallery.push("https://picsum.photos/800/600", "https://picsum.photos/800/601");
+  }
+  
+  // Parse products string/array correctly
+  let products: string[] = [];
+  if (loc?.products) {
     try {
-      products = JSON.parse(products);
+      if (typeof loc.products === "string") {
+        if (loc.products.trim().startsWith("[")) {
+          products = JSON.parse(loc.products);
+        } else {
+          products = loc.products.split(",").map((p: string) => p.trim()).filter(Boolean);
+        }
+      } else if (Array.isArray(loc.products)) {
+        products = loc.products;
+      }
     } catch (e) {
-      products = [];
-      break;
+      console.error("Failed to parse products:", e);
     }
   }
-  if (!Array.isArray(products)) {
-    products = [];
+
+  // Dynamic metrics calculation
+  const completedStops = locationStops.filter(s => s.status === 'COMPLETED');
+  const totalServiceVisits = completedStops.length;
+  
+  let totalMinutes = 0;
+  if (completedStops.length > 0) {
+    completedStops.forEach(s => {
+      totalMinutes += s.route?.actualDuration || 25; // fallback to 25m if missing
+    });
   }
+  const avgDurationStr = completedStops.length > 0 ? `${Math.round(totalMinutes / completedStops.length)}m` : "0m";
 
-  // Calculate dynamic stats from stops
-  const completedStops = locationStops.filter((s: any) => s.status === "COMPLETED");
-  const totalVisits = completedStops.length;
-  
-  const sortedStops = [...completedStops].sort((a: any, b: any) => {
-    const dateA = a.route?.date ? new Date(a.route.date).getTime() : 0;
-    const dateB = b.route?.date ? new Date(b.route.date).getTime() : 0;
-    return dateB - dateA;
-  });
-  
-  const lastCashCollected = sortedStops.length > 0 ? sortedStops[0].cashCollected : 0;
+  const lastCashStop = [...completedStops]
+    .sort((a, b) => new Date(b.updatedAt || b.route?.date || 0).getTime() - new Date(a.updatedAt || a.route?.date || 0).getTime())
+    .find(s => s.cashCollected > 0);
+  const lastCashCollected = lastCashStop ? lastCashStop.cashCollected : 0;
 
-  // Next service countdown calculation
-  const daysUntilNextService = 5; // To be computed dynamically based on schedule
+  const pendingStops = locationStops
+    .filter(s => s.status === 'PENDING' && s.route?.date)
+    .sort((a, b) => new Date(a.route.date).getTime() - new Date(b.route.date).getTime());
+  
+  const nextStop = pendingStops.find(s => new Date(s.route.date) >= new Date(new Date().setHours(0,0,0,0)));
+  
+  let nextServiceDateStr = "Not Scheduled";
+  let daysUntilNextService = 0;
+  if (nextStop) {
+    nextServiceDateStr = formatDate(nextStop.route.date);
+    const diffTime = new Date(nextStop.route.date).getTime() - new Date().getTime();
+    daysUntilNextService = diffTime > 0 ? Math.ceil(diffTime / (1000 * 60 * 60 * 24)) : 0;
+  } else if (completedStops.length > 0) {
+    const lastVisit = new Date(completedStops[0].updatedAt || completedStops[0].route?.date || new Date());
+    lastVisit.setDate(lastVisit.getDate() + 7);
+    nextServiceDateStr = formatDate(lastVisit.toISOString());
+    const diffTime = lastVisit.getTime() - new Date().getTime();
+    daysUntilNextService = diffTime > 0 ? Math.ceil(diffTime / (1000 * 60 * 60 * 24)) : 0;
+  }
 
   if (loading) {
     return (
@@ -198,9 +507,17 @@ export default function LocationDetailPage() {
         {activeTab === "overview" && (
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="space-y-6 lg:col-span-2">
-              {/* Vending Specs Info */}
               <div className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-4">
-                <h3 className="font-bold text-slate-900 text-sm border-b border-border pb-3">Vending Machine Details</h3>
+                <div className="flex items-center justify-between border-b border-border pb-3">
+                  <h3 className="font-bold text-slate-900 text-sm">Vending Machine Details</h3>
+                  <button
+                    onClick={() => openMachineModal(firstMachine)}
+                    className="text-xs bg-primary-50 text-primary-600 hover:bg-primary-100 font-bold px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    {firstMachine.id ? "Update Machine" : "Add Machine"}
+                  </button>
+                </div>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div className="bg-slate-50 p-3.5 rounded-xl border border-border">
                     <p className="text-slate-400 font-bold uppercase tracking-wider text-[10px]">Machine ID</p>
@@ -227,15 +544,15 @@ export default function LocationDetailPage() {
                 <div className="grid grid-cols-3 gap-4 text-center">
                   <div className="bg-slate-50 p-4 rounded-xl border border-border">
                     <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Total Service Visits</p>
-                    <p className="text-xl font-extrabold text-slate-900 mt-1">{totalVisits}</p>
+                    <p className="text-xl font-extrabold text-slate-900 mt-1">{totalServiceVisits}</p>
                   </div>
                   <div className="bg-slate-50 p-4 rounded-xl border border-border">
                     <p className="text-[10px] text-slate-400 uppercase font-bold tracking-wider">Avg Service Duration</p>
-                    <p className="text-xl font-extrabold text-slate-900 mt-1">15m</p>
+                    <p className="text-xl font-extrabold text-slate-900 mt-1">{avgDurationStr}</p>
                   </div>
                   <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-100">
                     <p className="text-[10px] text-emerald-500 uppercase font-bold tracking-wider font-medium">Last Cash Collected</p>
-                    <p className="text-xl font-extrabold text-emerald-700 mt-1">{formatCurrency(lastCashCollected)}</p>
+                    <p className="text-xl font-extrabold text-emerald-700 mt-1">₹{lastCashCollected}</p>
                   </div>
                 </div>
               </div>
@@ -276,11 +593,13 @@ export default function LocationDetailPage() {
                   <div className="bg-amber-50/70 border border-amber-200 rounded-xl p-3.5 flex items-center justify-between">
                     <div>
                       <p className="text-[10px] text-amber-800 font-bold uppercase tracking-wider">Next Service Date</p>
-                      <p className="text-sm font-bold text-amber-950 mt-1">10 Aug 2026</p>
+                      <p className="text-sm font-bold text-amber-950 mt-1">{nextServiceDateStr}</p>
                     </div>
-                    <span className="bg-amber-500 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-full shadow-sm">
-                      In {daysUntilNextService} days
-                    </span>
+                    {daysUntilNextService > 0 && (
+                      <span className="bg-amber-500 text-white font-extrabold text-[10px] px-2.5 py-1 rounded-full shadow-sm">
+                        In {daysUntilNextService} days
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
@@ -308,7 +627,8 @@ export default function LocationDetailPage() {
                 <tbody className="divide-y divide-slate-100">
                   {products.map((prodName: string, idx: number) => {
                     const capacity = 20;
-                    const stock = idx % 2 === 0 ? 12 : 3;
+                    const machineLevel = firstMachine.fillLevel ?? 100;
+                    const stock = Math.round((machineLevel / 100) * capacity);
                     const isLow = stock <= 5;
                     return (
                       <tr key={prodName} className="hover:bg-slate-50/50">
@@ -354,41 +674,97 @@ export default function LocationDetailPage() {
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             {/* GPS Metrics */}
             <div className="bg-card rounded-xl border border-border shadow-sm p-6 space-y-4">
-              <h3 className="font-bold text-slate-900 text-sm border-b border-border pb-3">GPS Coordinates</h3>
+              <div className="flex items-center justify-between border-b border-border pb-3">
+                <h3 className="font-bold text-slate-900 text-sm">GPS Coordinates</h3>
+                <button
+                  type="button"
+                  onClick={handleManualGpsSync}
+                  disabled={isSyncingGps}
+                  className="flex items-center gap-1 text-[11px] font-semibold text-primary-600 bg-primary-50 hover:bg-primary-100 border border-primary-200 px-2.5 py-1 rounded-lg transition-colors cursor-pointer"
+                  title="Auto-fetch exact coordinates for this address & city"
+                >
+                  {isSyncingGps ? <Loader2 className="w-3 h-3 animate-spin" /> : <RefreshCw className="w-3 h-3" />}
+                  Sync Map to Address
+                </button>
+              </div>
+
+              {syncMsg && (
+                <p className="text-xs text-blue-800 bg-blue-50 border border-blue-200 px-3 py-2 rounded-lg font-medium">
+                  {syncMsg}
+                </p>
+              )}
+
               <div className="space-y-3.5 text-xs">
                 <div>
                   <p className="text-slate-450 font-bold uppercase tracking-wider text-[9px]">Location Address</p>
-                  <p className="font-semibold text-slate-800 leading-relaxed mt-1">{loc.address}</p>
+                  <p className="font-semibold text-slate-800 leading-relaxed mt-1">
+                    {loc.address}{loc.city ? `, ${loc.city}` : ""}
+                  </p>
                 </div>
-                <div className="grid grid-cols-2 gap-3 pt-2">
+                <div className="grid grid-cols-2 gap-3 pt-1">
                   <div className="bg-slate-50 p-3 rounded-lg border border-border">
                     <p className="text-slate-400 font-bold text-[9px]">Latitude</p>
-                    <p className="font-bold text-slate-950 font-mono text-[11px] mt-0.5">{loc.latitude}</p>
+                    <p className="font-bold text-slate-950 font-mono text-[11px] mt-0.5">{loc.latitude ?? "N/A"}</p>
                   </div>
                   <div className="bg-slate-50 p-3 rounded-lg border border-border">
                     <p className="text-slate-400 font-bold text-[9px]">Longitude</p>
-                    <p className="font-bold text-slate-950 font-mono text-[11px] mt-0.5">{loc.longitude}</p>
+                    <p className="font-bold text-slate-950 font-mono text-[11px] mt-0.5">{loc.longitude ?? "N/A"}</p>
                   </div>
                 </div>
                 <div className="bg-blue-50 border border-blue-200 text-blue-800 rounded-xl p-3 text-[10px] font-medium leading-relaxed">
                   📍 Verified geofence active within 50 meters of coordinates for automatic check-in logs.
                 </div>
+                {loc.latitude && loc.longitude && (
+                  <a
+                    href={`https://www.google.com/maps?q=${loc.latitude},${loc.longitude}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center justify-center gap-1.5 w-full py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-semibold rounded-lg transition-colors"
+                  >
+                    <ExternalLink className="w-3.5 h-3.5" />
+                    Open in Google Maps
+                  </a>
+                )}
               </div>
             </div>
 
             {/* Interactive Map */}
-            <div className="lg:col-span-2 bg-card rounded-xl border border-border shadow-sm overflow-hidden h-[400px]">
+            <div className="lg:col-span-2 bg-card rounded-xl border border-border shadow-sm overflow-hidden h-[400px] relative">
               <MapContainer center={[loc.latitude || 19.076, loc.longitude || 72.877]} zoom={14} className="h-full w-full">
+                <MapFocusController center={[loc.latitude || 19.076, loc.longitude || 72.877]} zoom={15} />
+                <LocationDetailMapEvents onLocationChange={handleUpdateCoordinatesFromMap} />
                 <TileLayer url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png" />
-                <Marker position={[loc.latitude || 19.076, loc.longitude || 72.877]}>
-                  <Popup>
-                    <div className="p-1 text-xs">
-                      <p className="font-bold text-slate-900">{customer.companyName || loc.name}</p>
-                      <p className="text-slate-500 font-mono text-[10px]">{firstMachine.machineCode || "N/A"}</p>
-                    </div>
-                  </Popup>
-                </Marker>
+                {loc.latitude && loc.longitude && (
+                  <Marker
+                    position={[loc.latitude, loc.longitude]}
+                    draggable={true}
+                    eventHandlers={{
+                      dragend: (e) => {
+                        const marker = e.target;
+                        const position = marker.getLatLng();
+                        handleUpdateCoordinatesFromMap(
+                          parseFloat(position.lat.toFixed(6)),
+                          parseFloat(position.lng.toFixed(6))
+                        );
+                      },
+                    }}
+                  >
+                    <Popup>
+                      <div className="p-1 text-xs">
+                        <p className="font-bold text-slate-900">{customer.companyName || loc.name}</p>
+                        <p className="text-slate-500 font-mono text-[10px]">{loc.address}, {loc.city}</p>
+                        <p className="text-slate-400 font-mono text-[9px] mt-1">{loc.latitude}, {loc.longitude}</p>
+                      </div>
+                    </Popup>
+                  </Marker>
+                )}
               </MapContainer>
+              <div className="absolute bottom-2 left-3 right-3 bg-slate-900/80 backdrop-blur-xs text-white text-[11px] py-1.5 px-3 rounded-lg flex items-center justify-between pointer-events-none z-[1000] shadow">
+                <span>📍 Click anywhere on map or drag pin to adjust exact location coordinates</span>
+                <span className="font-mono text-[10px] text-emerald-300 font-bold">
+                  {loc.latitude ? `${loc.latitude.toFixed(4)}, ${loc.longitude.toFixed(4)}` : "No pin"}
+                </span>
+              </div>
             </div>
           </div>
         )}
@@ -416,12 +792,26 @@ export default function LocationDetailPage() {
                 </button>
               </div>
 
-              <button
-                onClick={() => alert("Upload photo dialogue opened")}
-                className="text-xs bg-primary-600 hover:bg-primary-700 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
-              >
-                <Upload className="w-3.5 h-3.5" /> Upload Photo
-              </button>
+              <div>
+                <button
+                  onClick={() => document.getElementById('detail-photo-upload-input')?.click()}
+                  className="text-xs bg-primary-600 hover:bg-primary-700 text-white font-bold px-3 py-1.5 rounded-lg flex items-center gap-1 shadow-sm transition-colors cursor-pointer"
+                >
+                  <Upload className="w-3.5 h-3.5" /> Upload Photo
+                </button>
+                <input
+                  id="detail-photo-upload-input"
+                  type="file"
+                  accept="image/*"
+                  className="hidden"
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) {
+                      handleUploadPhoto(file);
+                    }
+                  }}
+                />
+              </div>
             </div>
 
             {/* Gallery Grid */}
@@ -441,27 +831,97 @@ export default function LocationDetailPage() {
                 ))}
               </div>
             ) : (
-              /* Split handle slider */
-              <div className="space-y-3">
-                <p className="text-xs text-slate-450 font-medium">Drag slider horizontally to compare before refill vs after service</p>
-                <div className="relative h-[380px] rounded-xl overflow-hidden border border-border select-none max-w-2xl mx-auto">
-                  <img src={photoGallery[1] || photoGallery[0]} alt="After Service" className="absolute inset-0 w-full h-full object-cover" />
-                  <span className="absolute top-3 right-3 bg-emerald-600 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full shadow z-10 uppercase">AFTER REFILL</span>
+              /* Side-by-side Date-wise Compare list */
+              <div className="space-y-6">
+                {(() => {
+                  const stopsWithPhotos = locationStops.filter((stop: any) => {
+                    const { before, after } = getStopPhotosParsed(stop);
+                    return before.length > 0 || after.length > 0;
+                  });
 
-                  <div className="absolute inset-y-0 left-0 overflow-hidden border-r-2 border-white shadow-2xl" style={{ width: `${comparePos}%` }}>
-                    <img src={photoGallery[0]} alt="Before Service" className="absolute inset-0 w-full h-full object-cover" style={{ width: "672px", maxWidth: "none" }} />
-                    <span className="absolute top-3 left-3 bg-amber-600 text-white text-[9px] font-bold px-2.5 py-0.5 rounded-full shadow z-10 uppercase">BEFORE SERVICE</span>
-                  </div>
+                  const sortedStopsWithPhotos = [...stopsWithPhotos].sort((a: any, b: any) => {
+                    const dateA = new Date(a.departureTime || a.createdAt || 0).getTime();
+                    const dateB = new Date(b.departureTime || b.createdAt || 0).getTime();
+                    return dateB - dateA;
+                  });
 
-                  <input
-                    type="range"
-                    min="0"
-                    max="100"
-                    value={comparePos}
-                    onChange={(e) => setComparePos(Number(e.target.value))}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-ew-resize z-30"
-                  />
-                </div>
+                  if (sortedStopsWithPhotos.length === 0) {
+                    return (
+                      <div className="text-center py-12 bg-slate-50 border border-dashed border-slate-200 rounded-xl">
+                        <p className="text-sm text-slate-400 font-medium">No service photos uploaded yet to compare</p>
+                      </div>
+                    );
+                  }
+
+                  return sortedStopsWithPhotos.map((stop: any) => {
+                    const { before, after } = getStopPhotosParsed(stop);
+                    const formattedDate = new Date(stop.departureTime || stop.createdAt).toLocaleDateString(undefined, {
+                      year: 'numeric',
+                      month: 'long',
+                      day: 'numeric',
+                      hour: '2-digit',
+                      minute: '2-digit'
+                    });
+
+                    return (
+                      <div key={stop.id} className="bg-slate-50 border border-slate-200 rounded-xl p-4 space-y-4">
+                        <div className="flex flex-col sm:flex-row justify-between sm:items-center border-b border-slate-250 pb-2 gap-2">
+                          <span className="text-xs font-bold text-slate-500">Service Date: {formattedDate}</span>
+                          <span className="text-[10px] bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full font-mono font-bold w-fit">
+                            Stop ID: #{stop.id.slice(0, 8).toUpperCase()}
+                          </span>
+                        </div>
+                        <div className="grid grid-cols-2 gap-6">
+                          {/* Left column: Before Service */}
+                          <div className="space-y-2">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-amber-500" />
+                              <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">Before Service</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {before.length > 0 ? (
+                                before.map((imgUrl, idx) => (
+                                  <div 
+                                    key={idx} 
+                                    onClick={() => setLightboxImg(imgUrl)}
+                                    className="relative w-28 h-28 rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
+                                  >
+                                    <img src={imgUrl} alt="Before" className="w-full h-full object-cover" />
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-xs text-slate-400 italic py-2">No Before photos uploaded</div>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* Right column: After Service */}
+                          <div className="space-y-2 border-l border-slate-200 pl-6">
+                            <div className="flex items-center gap-1.5">
+                              <span className="w-2.5 h-2.5 rounded-full bg-emerald-500" />
+                              <span className="text-xs font-bold text-slate-700 uppercase tracking-wide">After Refill</span>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              {after.length > 0 ? (
+                                after.map((imgUrl, idx) => (
+                                  <div 
+                                    key={idx} 
+                                    onClick={() => setLightboxImg(imgUrl)}
+                                    className="relative w-28 h-28 rounded-lg overflow-hidden border border-slate-200 cursor-pointer hover:opacity-90 transition-opacity"
+                                  >
+                                    <img src={imgUrl} alt="After" className="w-full h-full object-cover" />
+                                  </div>
+                                ))
+                              ) : (
+                                <div className="text-xs text-slate-400 italic py-2">No After photos uploaded</div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             )}
           </div>
@@ -510,7 +970,7 @@ export default function LocationDetailPage() {
                     <p className="text-xs">No service visits recorded for this location yet.</p>
                   </div>
                                 ) : locationStops.map((stop) => {
-                  const driverName = stop.route?.driver?.name || stop.driverName || "Driver";
+                  const driverName = stop.route?.user?.name || stop.route?.driver?.name || stop.driverName || "Driver";
                   
                   // Calculate dynamic/realistic arrival and departure times based on route details if null
                   let stopArrTime = "—";
@@ -571,7 +1031,7 @@ export default function LocationDetailPage() {
                           <span className="font-bold text-slate-900">Restock & Cash Collection</span>
                           <StatusBadge status={stop.status} />
                         </div>
-                        <span className="text-[10px] text-slate-400 font-bold">{formatDate(stop.route?.date || stop.updatedAt || new Date())}</span>
+                        <span className="text-[10px] text-slate-400 font-bold">{formatDate(stop.updatedAt || stop.route?.date || new Date().toISOString())}</span>
                       </div>
 
                       <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 text-[11px] text-slate-600">
@@ -581,30 +1041,36 @@ export default function LocationDetailPage() {
                         </div>
                         <div>
                           <p className="text-slate-400 font-bold uppercase text-[9px]">Check-in/out</p>
-                          <p className="font-bold text-slate-800 mt-0.5">{stopArrTime} - {stopDepTime}</p>
-                        </div>
-                        <div>
-                          <p className="text-slate-400 font-bold uppercase text-[9px]">GPS Status</p>
-                          <p className={`font-bold mt-0.5 ${stop.gpsVerified ? "text-emerald-600" : "text-slate-500"}`}>
-                            {stop.gpsVerified ? "✓ GPS Verified Proximity" : "✗ Unverified Location"}
+                          <p className="font-bold text-slate-800 mt-0.5">
+                            {stop.status === 'COMPLETED' ? "Completed" : (stop.status === 'PENDING' ? "Pending" : "N/A")}
                           </p>
                         </div>
                         <div>
+                          <p className="text-slate-400 font-bold uppercase text-[9px]">GPS Status</p>
+                          {stop.gpsVerified ? (
+                            <p className="font-bold text-emerald-600 mt-0.5">✓ Verified Proximity</p>
+                          ) : (
+                            <p className="font-bold text-amber-600 mt-0.5">Unverified</p>
+                          )}
+                        </div>
+                        <div>
                           <p className="text-slate-400 font-bold uppercase text-[9px]">Cash Collected</p>
-                          <p className="font-bold text-slate-800 mt-0.5">{stop.cashCollected > 0 ? formatCurrency(stop.cashCollected) : "—"}</p>
+                          <p className="font-bold text-slate-800 mt-0.5">₹{stop.cashCollected || 0}</p>
                         </div>
                       </div>
 
                       <div className="border-t border-slate-100 pt-2 flex justify-between items-center text-[11px]">
                         <div>
                           <span className="text-slate-400 font-bold uppercase text-[9px] block">Refilled Inventory</span>
-                          <span className="font-medium text-slate-700">{refilledText}</span>
+                          <span className="font-medium text-slate-700">{stop.productsRefilled || "None recorded"}</span>
                         </div>
                         <div>
                           <span className="text-slate-400 font-bold uppercase text-[9px] block text-right">Signature</span>
-                          <span className={`${stop.signatureUrl ? "text-emerald-600" : "text-slate-500"} font-bold`}>
-                            {stop.signatureUrl ? "✓ Captured digitally" : "✗ No signature"}
-                          </span>
+                          {stop.signatureUrl ? (
+                            <span className="text-emerald-600 font-bold">✓ Captured digitally</span>
+                          ) : (
+                            <span className="text-slate-400 font-bold">Not required</span>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -637,7 +1103,7 @@ export default function LocationDetailPage() {
                   {locationStops.length === 0 ? (
                     <tr><td colSpan={7} className="text-center py-6 text-slate-400 text-xs">No route history found.</td></tr>
                   ) : locationStops.map((stop) => {
-                    const driverName = stop.route?.driver?.name || stop.driverName || "Driver";
+                    const driverName = stop.route?.user?.name || stop.route?.driver?.name || stop.driverName || "Driver";
 
                     // Calculate dynamic/realistic arrival and departure times based on route details if null
                     let stopArrTime = "—";
@@ -679,13 +1145,13 @@ export default function LocationDetailPage() {
 
                     return (
                       <tr key={stop.id} className="hover:bg-slate-50/50">
-                        <td className="px-4 py-3 font-bold text-slate-900 font-mono">#{stop.routeId ? stop.routeId.slice(0, 8).toUpperCase() : "—"}</td>
-                        <td className="px-4 py-3 text-slate-650">{formatDate(stop.route?.date || stop.updatedAt || new Date())}</td>
+                        <td className="px-4 py-3 font-bold text-slate-900 font-mono" title={stop.routeId}>#{stop.routeId ? stop.routeId.substring(0, 8) : "101"}</td>
+                        <td className="px-4 py-3 text-slate-650">{formatDate(stop.route?.date || stop.createdAt || new Date().toISOString())}</td>
                         <td className="px-4 py-3 font-semibold text-slate-800">{driverName}</td>
-                        <td className="px-4 py-3 text-slate-500">Stop #{stop.stopOrder || "—"}</td>
+                        <td className="px-4 py-3 text-slate-500">Stop #{stop.stopOrder || stop.sequenceNumber || "1"}</td>
                         <td className="px-4 py-3"><StatusBadge status={stop.status} /></td>
-                        <td className="px-4 py-3 text-slate-600 font-mono">{stopArrTime}</td>
-                        <td className="px-4 py-3 text-slate-600 font-mono">{stopDepTime}</td>
+                        <td className="px-4 py-3 text-slate-600 font-mono">-</td>
+                        <td className="px-4 py-3 text-slate-600 font-mono">-</td>
                       </tr>
                     );
                   })}
@@ -722,6 +1188,88 @@ export default function LocationDetailPage() {
           </div>
         )}
       </AnimatePresence>,
+        document.body
+      )}
+      {/* Configure Vending Machine Modal */}
+      {createPortal(
+        <AnimatePresence>
+          {isMachineModalOpen && (
+            <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+              <motion.div
+                initial={{ opacity: 0, scale: 0.95 }}
+                animate={{ opacity: 1, scale: 1 }}
+                exit={{ opacity: 0, scale: 0.95 }}
+                className="bg-white rounded-xl border border-border shadow-2xl w-full max-w-md overflow-hidden flex flex-col"
+              >
+                <div className="px-6 py-4 border-b border-border flex items-center justify-between bg-slate-50">
+                  <h3 className="font-bold text-slate-900 text-base">
+                    {firstMachine.id ? "Update Vending Machine" : "Configure Vending Machine"}
+                  </h3>
+                  <button onClick={() => setIsMachineModalOpen(false)} className="text-slate-400 hover:text-slate-600">
+                    <X className="w-5 h-5" />
+                  </button>
+                </div>
+
+                <form onSubmit={handleSaveMachine} className="p-6 space-y-4">
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Machine Code / ID *</label>
+                    <input
+                      required
+                      disabled={!!firstMachine.id}
+                      placeholder="e.g. VEND-BKC-091"
+                      value={machineForm.machineCode}
+                      onChange={(e) => setMachineForm({ ...machineForm, machineCode: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20 disabled:bg-slate-50 disabled:text-slate-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Machine Model *</label>
+                    <input
+                      required
+                      disabled={!!firstMachine.id}
+                      placeholder="e.g. Snack & Drinks Combo Pro"
+                      value={machineForm.model}
+                      onChange={(e) => setMachineForm({ ...machineForm, model: e.target.value })}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20 disabled:bg-slate-50 disabled:text-slate-500"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-semibold text-slate-700 mb-1">Current Fill Level (%) *</label>
+                    <input
+                      required
+                      type="number"
+                      min="0"
+                      max="100"
+                      value={machineForm.fillLevel}
+                      onChange={(e) => setMachineForm({ ...machineForm, fillLevel: Number(e.target.value) })}
+                      className="w-full px-3 py-2 text-sm border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary-600/20"
+                    />
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-2 border-t border-border mt-4">
+                    <button
+                      type="button"
+                      onClick={() => setIsMachineModalOpen(false)}
+                      className="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={machineSubmitting}
+                      className="px-4 py-2 text-xs font-semibold text-white bg-primary-600 hover:bg-primary-700 rounded-lg flex items-center gap-1.5"
+                    >
+                      {machineSubmitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                      Save Machine
+                    </button>
+                  </div>
+                </form>
+              </motion.div>
+            </div>
+          )}
+        </AnimatePresence>,
         document.body
       )}
     </div>

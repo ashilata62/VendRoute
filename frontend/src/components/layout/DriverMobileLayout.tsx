@@ -72,9 +72,8 @@ export default function DriverMobileLayout() {
   const [refillItems, setRefillItems] = useState<{ product: string; qty: number }[]>([]);
   const [newRefillProduct, setNewRefillProduct] = useState("");
   const [newRefillQty, setNewRefillQty] = useState("5");
-  const [stopPhotos, setStopPhotos] = useState<string[]>([
-    "https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=300&auto=format&fit=crop&q=60"
-  ]);
+  const [beforePhotos, setBeforePhotos] = useState<string[]>([]);
+  const [afterPhotos, setAfterPhotos] = useState<string[]>([]);
 
   // History list will be populated dynamically
   const [historyRecords, setHistoryRecords] = useState<any[]>([]);
@@ -113,10 +112,9 @@ export default function DriverMobileLayout() {
         address: editAddress
       });
       if (res.success) {
-        useAuthStore.getState().setAuth(
-          { ...user, phone: editPhone, emergencyContact: editEmergency, address: editAddress },
-          useAuthStore.getState().token || ""
-        );
+        useAuthStore.setState({
+          user: { ...user, phone: editPhone, emergencyContact: editEmergency, address: editAddress }
+        });
         setIsEditingProfile(false);
         alert("Profile updated successfully!");
       }
@@ -265,7 +263,7 @@ export default function DriverMobileLayout() {
     setRefillItems(refillItems.filter((_, i) => i !== index));
   };
 
-  const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleBeforePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const reader = new FileReader();
       reader.onload = (event) => {
@@ -280,7 +278,31 @@ export default function DriverMobileLayout() {
             const ctx = canvas.getContext("2d");
             ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
             const resizedBase64 = canvas.toDataURL("image/jpeg", 0.6);
-            setStopPhotos(prev => [...prev, resizedBase64]);
+            setBeforePhotos(prev => [...prev, resizedBase64]);
+          };
+          img.src = event.target.result as string;
+        }
+      };
+      reader.readAsDataURL(e.target.files[0]);
+    }
+  };
+
+  const handleAfterPhotoUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const reader = new FileReader();
+      reader.onload = (event) => {
+        if (event.target?.result) {
+          const img = new Image();
+          img.onload = () => {
+            const canvas = document.createElement("canvas");
+            const MAX_WIDTH = 800;
+            const scaleSize = MAX_WIDTH / img.width;
+            canvas.width = MAX_WIDTH;
+            canvas.height = img.height * scaleSize;
+            const ctx = canvas.getContext("2d");
+            ctx?.drawImage(img, 0, 0, canvas.width, canvas.height);
+            const resizedBase64 = canvas.toDataURL("image/jpeg", 0.6);
+            setAfterPhotos(prev => [...prev, resizedBase64]);
           };
           img.src = event.target.result as string;
         }
@@ -303,7 +325,7 @@ export default function DriverMobileLayout() {
       machineIssues: reportedIssue,
       productsRefilled: refillItems,
       signatureUrl: realSignatureUrl,
-      photos: stopPhotos,
+      photos: { before: beforePhotos, after: afterPhotos },
     };
 
     // If offline, cache the completed stop locally for sync
@@ -345,6 +367,8 @@ export default function DriverMobileLayout() {
       { product: "Coca-Cola 330ml", qty: 10 },
       { product: "Lay's Salted Chips", qty: 5 },
     ]);
+    setBeforePhotos([]);
+    setAfterPhotos([]);
     setSelectedStopId(null);
     setShowMachineDetails(false);
   };
@@ -661,15 +685,15 @@ export default function DriverMobileLayout() {
                         
                         <div className="flex gap-2">
                           <a
-                            href={`https://www.google.com/maps/dir/?api=1&destination=${currentLocation?.lat || 19.0760},${currentLocation?.lng || 72.8777}`}
+                            href={`https://www.google.com/maps/dir/?api=1&destination=${currentLocation?.latitude || 19.0760},${currentLocation?.longitude || 72.8777}`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-center rounded-lg font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-colors"
                           >
-                            <Navigation className="w-3 h-3 text-blue-600" /> Google Maps
+                            <Navigation className="w-3.5 h-3.5 text-blue-600" /> Google Maps
                           </a>
                           <a
-                            href={`https://waze.com/ul?ll=${currentLocation?.lat || 19.0760},${currentLocation?.lng || 72.8777}&navigate=yes`}
+                            href={`https://waze.com/ul?ll=${currentLocation?.latitude || 19.0760},${currentLocation?.longitude || 72.8777}&navigate=yes`}
                             target="_blank"
                             rel="noopener noreferrer"
                             className="flex-1 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 text-center rounded-lg font-bold text-[10px] flex items-center justify-center gap-1 cursor-pointer transition-colors"
@@ -864,49 +888,53 @@ export default function DriverMobileLayout() {
                 {!showMachineDetails ? (
                   /* SERVICING FORM MODULES */
                   <div className="space-y-4">
-                    {/* Previous Photos */}
-                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-2">
-                      <div className="flex justify-between items-center">
-                        <span className="text-xs font-bold text-slate-700">Previous Service Photos</span>
-                        <button
-                          onClick={() => alert("Showing historical photos for this machine: Clean trays, fully restocked snacks.")}
-                          className="text-[10px] text-blue-600 font-bold hover:underline"
-                        >
-                          [ View ]
-                        </button>
-                      </div>
-                      <div className="flex gap-2">
-                        <img
-                          src="https://images.unsplash.com/photo-1578916171728-46686eac8d58?w=100&auto=format&fit=crop&q=60"
-                          alt=""
-                          className="w-12 h-12 rounded-lg object-cover border border-slate-200"
-                        />
-                        <div className="w-12 h-12 rounded-lg bg-slate-100 border border-slate-200 border-dashed flex items-center justify-center text-[10px] text-slate-400 font-bold">
-                          +3
-                        </div>
-                      </div>
-                    </div>
-
-                    {/* Upload Current Photo */}
+                    {/* Previous Photos (Before Refill) */}
                     <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
-                      <span className="text-xs font-bold text-slate-700 block">Service Visual Confirmation</span>
+                      <span className="text-xs font-bold text-slate-700 block">Previous Service Photos (Before Refill)</span>
                       <div className="flex flex-wrap gap-2">
-                        {stopPhotos.map((photo, i) => (
+                        {beforePhotos.map((photo, i) => (
                           <div key={i} className="relative w-14 h-14 rounded-lg overflow-hidden border border-slate-200">
                             <img src={photo} alt="" className="w-full h-full object-cover" />
                             <button
-                              onClick={() => setStopPhotos(stopPhotos.filter((_, idx) => idx !== i))}
+                              onClick={() => setBeforePhotos(beforePhotos.filter((_, idx) => idx !== i))}
                               className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-600 rounded-full text-white text-[8px] flex items-center justify-center"
                             >
                               ✕
                             </button>
                           </div>
                         ))}
-                        <label className="w-14 h-14 rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 flex flex-col items-center justify-center text-slate-400 cursor-pointer">
-                          <input type="file" accept="image/*" className="hidden" onChange={handlePhotoUpload} />
-                          <Camera className="w-5 h-5 text-slate-400" />
-                          <span className="text-[8px] font-bold mt-1">[ Upload ]</span>
-                        </label>
+                        {beforePhotos.length < 2 && (
+                          <label className="w-14 h-14 rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 flex flex-col items-center justify-center text-slate-400 cursor-pointer">
+                            <input type="file" accept="image/*" className="hidden" onChange={handleBeforePhotoUpload} />
+                            <Camera className="w-5 h-5 text-slate-400" />
+                            <span className="text-[8px] font-bold mt-1">[ Upload ]</span>
+                          </label>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Upload Current Photo (After Refill) */}
+                    <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
+                      <span className="text-xs font-bold text-slate-700 block">Service Visual Confirmation (After Refill)</span>
+                      <div className="flex flex-wrap gap-2">
+                        {afterPhotos.map((photo, i) => (
+                          <div key={i} className="relative w-14 h-14 rounded-lg overflow-hidden border border-slate-200">
+                            <img src={photo} alt="" className="w-full h-full object-cover" />
+                            <button
+                              onClick={() => setAfterPhotos(afterPhotos.filter((_, idx) => idx !== i))}
+                              className="absolute top-0.5 right-0.5 w-4 h-4 bg-red-600 rounded-full text-white text-[8px] flex items-center justify-center"
+                            >
+                              ✕
+                            </button>
+                          </div>
+                        ))}
+                        {afterPhotos.length < 3 && (
+                          <label className="w-14 h-14 rounded-lg border-2 border-dashed border-slate-300 hover:border-blue-500 bg-slate-50 flex flex-col items-center justify-center text-slate-400 cursor-pointer">
+                            <input type="file" accept="image/*" className="hidden" onChange={handleAfterPhotoUpload} />
+                            <Camera className="w-5 h-5 text-slate-400" />
+                            <span className="text-[8px] font-bold mt-1">[ Upload ]</span>
+                          </label>
+                        )}
                       </div>
                     </div>
 
@@ -1043,26 +1071,34 @@ export default function DriverMobileLayout() {
                       const stop = stopsList.find(s => s.id === selectedStopId);
                       const loc = stop?.location;
                       if (!loc) return null;
+                      const machine = loc.machine?.[0] || loc.machines?.[0];
+                      const fillLevel = machine?.fillLevel ?? 100;
+
+                      // Dynamic refill levels based on the actual machine fillLevel
+                      const snacksPct = Math.round(fillLevel * 0.8);
+                      const beveragesPct = Math.round(fillLevel);
+                      const chocolatesPct = Math.round(fillLevel * 0.9);
+
                       return (
                         <div className="bg-white rounded-2xl border border-slate-200 shadow-sm p-4 space-y-3">
                           <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Machine Profile Specs</h4>
                           
                           <div className="grid grid-cols-2 gap-3 text-xs">
                             <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                              <p className="text-slate-400 text-[10px]">Machine ID</p>
-                              <p className="font-bold text-slate-800">{loc.machineId || 'N/A'}</p>
+                              <p className="text-slate-400 text-[10px]">Machine Code</p>
+                              <p className="font-bold text-slate-800">{machine?.machineCode || machine?.id || 'N/A'}</p>
                             </div>
                             <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                              <p className="text-slate-400 text-[10px]">Type</p>
-                              <p className="font-bold text-slate-800">{loc.machineType}</p>
+                              <p className="text-slate-400 text-[10px]">Model</p>
+                              <p className="font-bold text-slate-800">{machine?.model || 'N/A'}</p>
                             </div>
                             <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
-                              <p className="text-slate-400 text-[10px]">Last Visit</p>
-                              <p className="font-bold text-slate-800">{loc.lastServiceDate}</p>
+                              <p className="text-slate-400 text-[10px]">Last Refill</p>
+                              <p className="font-bold text-slate-800">{machine?.lastRefill ? new Date(machine.lastRefill).toLocaleDateString("en-IN") : 'N/A'}</p>
                             </div>
                             <div className="bg-slate-50 p-2 rounded-lg border border-slate-100">
                               <p className="text-slate-400 text-[10px]">Visit Frequency</p>
-                              <p className="font-bold text-slate-800">{loc.visitFrequency}</p>
+                              <p className="font-bold text-slate-800">Weekly</p>
                             </div>
                           </div>
 
@@ -1071,9 +1107,9 @@ export default function DriverMobileLayout() {
                             <span className="text-xs font-bold text-slate-700 block mb-2">Refill Stock Levels</span>
                             <div className="space-y-2">
                               {[
-                                { name: "Snacks / Chips", pct: 20, color: "bg-red-500" },
-                                { name: "Beverages / Sodas", pct: 85, color: "bg-emerald-500" },
-                                { name: "Chocolates / Candies", pct: 45, color: "bg-amber-500" }
+                                { name: "Snacks / Chips", pct: snacksPct, color: "bg-red-500" },
+                                { name: "Beverages / Sodas", pct: beveragesPct, color: "bg-emerald-500" },
+                                { name: "Chocolates / Candies", pct: chocolatesPct, color: "bg-amber-500" }
                               ].map((stock) => (
                                 <div key={stock.name} className="text-xs">
                                   <div className="flex justify-between text-slate-500 mb-1">
@@ -1091,7 +1127,7 @@ export default function DriverMobileLayout() {
                           {/* Machine Coordinates */}
                           <div className="border-t border-slate-100 pt-3 text-xs space-y-1.5">
                             <p className="font-bold text-slate-700">📍 Live Navigation Coordinates</p>
-                            <p className="font-mono text-[10px] text-slate-500">LAT: {loc.lat} · LNG: {loc.lng}</p>
+                            <p className="font-mono text-[10px] text-slate-500">LAT: {loc.latitude?.toFixed(6) || "—"} · LNG: {loc.longitude?.toFixed(6) || "—"}</p>
                             <p className="text-[10px] text-slate-400">ETA: {currentStop?.route?.estimatedTime ? Math.round(currentStop.route.estimatedTime / Math.max(currentStop.route.routestop?.length || 1, 1)) : 10} mins · Distance: {currentStop?.route?.totalDistance ? (currentStop.route.totalDistance / Math.max(currentStop.route.routestop?.length || 1, 1)).toFixed(1) : "0"} km to Next stop</p>
                           </div>
                         </div>

@@ -11,6 +11,7 @@ export interface AuthUser {
   address?: string;
   licenseNumber?: string;
   emergencyContact?: string;
+  vehicle?: any[];
 }
 
 // ─── Driver ───────────────────────────────────────────────────────────────────

@@ -12,6 +12,59 @@ import PageHeader from "../components/shared/PageHeader";
 import { formatCurrency } from "../lib/utils";
 import type { StopStatus } from "../types";
 
+const getProductName = (item: any) => {
+  if (item.product || item.name) return item.product || item.name;
+  const dummyProducts: Record<string, string> = {
+    "1": "Coca-Cola Classic",
+    "2": "Diet Coke",
+    "3": "Sprite",
+    "4": "Monster Energy",
+    "5": "Lay's Classic",
+    "6": "Doritos Nacho Cheese",
+    "7": "Snickers Bar",
+    "8": "Water Bottle"
+  };
+  return dummyProducts[item.productId] || `Product ${item.productId || 'Unknown'}`;
+};
+
+const getCashBreakdown = (cash: number) => {
+  const currency = localStorage.getItem("app-currency") || "INR";
+  const currencySymbol = currency === "USD" ? "$" : currency === "EUR" ? "€" : currency === "AED" ? "AED " : "₹";
+  
+  let denoms = [500, 200, 100, 50, 20, 10];
+  if (currency === "USD") {
+    denoms = [100, 50, 20, 10, 5, 1];
+  } else if (currency === "EUR") {
+    denoms = [100, 50, 20, 10, 5, 2, 1];
+  } else if (currency === "AED") {
+    denoms = [100, 50, 20, 10, 5];
+  }
+
+  let remaining = Math.round(cash);
+  if (remaining <= 0) return [];
+
+  const result: { denom: number; count: number }[] = [];
+  for (const d of denoms) {
+    if (remaining >= d) {
+      const count = Math.floor(remaining / d);
+      result.push({ denom: d, count });
+      remaining = remaining % d;
+    }
+  }
+  if (remaining > 0) {
+    result.push({ denom: remaining, count: 1 });
+  }
+
+  return result.map(({ denom, count }) => {
+    const formattedDenom = currency === "AED" ? `AED ${denom}` : `${currencySymbol}${denom}`;
+    const formattedTotal = currency === "AED" ? `AED ${denom * count}` : `${currencySymbol}${denom * count}`;
+    return {
+      label: `${formattedDenom} Notes:`,
+      value: `${count} x ${formattedDenom} = ${formattedTotal}`
+    };
+  });
+};
+
 export default function StopsPage() {
   const [stopsList, setStopsList] = useState<any[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -37,7 +90,8 @@ export default function StopsPage() {
     return stopsList.filter((s) => {
       const searchStr = `${s.location?.name || ""} ${s.location?.customer?.companyName || ""} ${s.location?.address || ""} ${s.id}`.toLowerCase();
       const matchStatus = statusFilter === "all" || s.status.toLowerCase() === statusFilter.toLowerCase();
-      const matchDriver = driverFilter === "all" || s.route?.driver?.id === driverFilter;
+      const driver = s.route?.user || s.route?.driver;
+      const matchDriver = driverFilter === "all" || driver?.id === driverFilter;
       const matchRoute = routeFilter === "all" || s.routeId === routeFilter;
       const matchSearch = !search || searchStr.includes(search.toLowerCase());
 
@@ -100,8 +154,12 @@ export default function StopsPage() {
             className="px-3 py-2 text-xs border border-border rounded-lg bg-white text-slate-700 focus:outline-none"
           >
             <option value="all">All Drivers</option>
-            {Array.from(new Set(stopsList.map(s => s.route?.driver?.id))).map((driverId: any) => {
-              const d = stopsList.find(s => s.route?.driver?.id === driverId)?.route?.driver;
+            {Array.from(new Set(stopsList.map(s => {
+              const driver = s.route?.user || s.route?.driver;
+              return driver?.id;
+            }).filter(Boolean))).map((driverId: any) => {
+              const stop = stopsList.find(s => (s.route?.user || s.route?.driver)?.id === driverId);
+              const d = stop ? (stop.route?.user || stop.route?.driver) : null;
               return d ? <option key={d.id} value={d.id}>{d.name}</option> : null;
             })}
           </select>
@@ -156,7 +214,7 @@ export default function StopsPage() {
             {filteredStops.map((stop) => {
               const loc = stop.location;
               const route = stop.route;
-              const driver = route?.driver;
+              const driver = route?.user || route?.driver;
 
               // Calculate dynamic/realistic arrival and departure times based on route details if null
               let arrTime = "—";
@@ -195,14 +253,41 @@ export default function StopsPage() {
                 const departure = new Date(arrival.getTime() + 15 * 60 * 1000); // 15 mins spent
                 depTime = departure.toLocaleTimeString("en-IN", { hour: "2-digit", minute: "2-digit" });
               }
-              
-              // Handle photos arrays correctly if stringified
-              let photosArray = stop.photos || [];
-              while (typeof photosArray === 'string') {
-                try { photosArray = JSON.parse(photosArray); } catch (e) { photosArray = []; break; }
+
+              // Calculate dynamic time spent
+              let timeSpentStr = "—";
+              if (stop.arrivalTime && stop.departureTime) {
+                const diffMs = new Date(stop.departureTime).getTime() - new Date(stop.arrivalTime).getTime();
+                const diffMins = Math.max(1, Math.round(diffMs / 60000));
+                timeSpentStr = `${diffMins} mins spent`;
+              } else if (stop.status === "COMPLETED") {
+                timeSpentStr = "15 mins spent";
               }
-              if (!Array.isArray(photosArray)) {
-                photosArray = [];
+              
+              const isValidPhoto = (url: string) => {
+                if (!url) return false;
+                return url.startsWith("data:image/") || url.startsWith("http://") || url.startsWith("https://");
+              };
+
+              let photosArray: string[] = [];
+              if (stop.photos) {
+                try {
+                  let parsed = stop.photos;
+                  while (typeof parsed === "string") {
+                    parsed = JSON.parse(parsed);
+                  }
+                  if (Array.isArray(parsed)) {
+                    photosArray = parsed.filter(isValidPhoto);
+                  } else if (parsed && typeof parsed === "object") {
+                    photosArray = [...(parsed.before || []), ...(parsed.after || [])].filter(isValidPhoto);
+                  }
+                } catch {
+                  if (typeof stop.photos === "string") {
+                    photosArray = stop.photos.split(",").map((p: string) => p.trim()).filter(isValidPhoto);
+                  } else if (Array.isArray(stop.photos)) {
+                    photosArray = stop.photos.filter(isValidPhoto);
+                  }
+                }
               }
 
               // Reclassify photos sent in signatureUrl back to photos list
@@ -256,7 +341,7 @@ export default function StopsPage() {
                   </td>
                   <td className="px-4 py-3 text-xs text-slate-600">
                     <p>{arrTime} - {depTime}</p>
-                    <p className="text-[10px] text-slate-400">30 mins spent</p>
+                    <p className="text-[10px] text-slate-400">{timeSpentStr}</p>
                   </td>
                   <td className="px-4 py-3">
                     {stop.gpsVerified ? (
@@ -361,6 +446,11 @@ export default function StopsPage() {
                 {(() => {
                   const arrivalTimeStr = selectedStop.calculatedArrTime || "—";
                   const departureTimeStr = selectedStop.calculatedDepTime || "—";
+                  const activitiesLabel = selectedStop.status === "COMPLETED" 
+                    ? "Refill & Cash" 
+                    : selectedStop.status === "SKIPPED" 
+                      ? "Skipped" 
+                      : "Pending";
 
                   return (
                     <div className="bg-slate-50 p-4 rounded-xl border border-border space-y-3">
@@ -372,7 +462,7 @@ export default function StopsPage() {
                         </div>
                         <div className="relative z-10 bg-white p-2 rounded-lg border border-border text-center shadow-sm">
                           <p className="text-[10px] text-slate-400 uppercase">Activities</p>
-                          <p className="font-bold text-emerald-600">Refill & Cash</p>
+                          <p className="font-bold text-emerald-600">{activitiesLabel}</p>
                         </div>
                         <div className="relative z-10 bg-white p-2 rounded-lg border border-border text-center shadow-sm">
                           <p className="text-[10px] text-slate-400 uppercase">Departure</p>
@@ -398,14 +488,16 @@ export default function StopsPage() {
                     <tbody className="divide-y divide-border">
                       {selectedStop.parsedRefilled.length > 0
                         ? selectedStop.parsedRefilled.map((item: any, idx: number) => {
-                            const name = item.name || item.product || item.productId || 'Unknown';
+                            const name = getProductName(item);
                             const quantity = item.quantity || item.qty || item.quantityAdded || 0;
+                            const beforeQty = item.beforeQty !== undefined ? item.beforeQty : Math.max(0, 10 - quantity);
+                            const afterQty = beforeQty + quantity;
                             return (
                               <tr key={idx} className="hover:bg-slate-50">
                                 <td className="px-3 py-2 font-medium text-slate-900">{name}</td>
-                                <td className="px-3 py-2 text-slate-500">4 units</td>
+                                <td className="px-3 py-2 text-slate-500">{beforeQty} units</td>
                                 <td className="px-3 py-2 font-bold text-emerald-600">+{quantity} units</td>
-                                <td className="px-3 py-2 font-medium text-slate-800">{4 + quantity} units</td>
+                                <td className="px-3 py-2 font-medium text-slate-800">{afterQty} units</td>
                               </tr>
                             );
                           })
@@ -423,9 +515,15 @@ export default function StopsPage() {
                       <p className="text-xl font-bold text-emerald-700">{formatCurrency(selectedStop.cashCollected || 0)}</p>
                     </div>
                     <div className="text-[11px] text-slate-500 space-y-0.5 border-t border-slate-200 pt-2">
-                      <div className="flex justify-between"><span>₹500 Notes:</span> <span>4 x ₹500 = ₹2,000</span></div>
-                      <div className="flex justify-between"><span>₹200 Notes:</span> <span>5 x ₹200 = ₹1,000</span></div>
-                      <div className="flex justify-between"><span>₹100 Notes:</span> <span>2 x ₹100 = ₹200</span></div>
+                      {getCashBreakdown(selectedStop.cashCollected || 0).map((b, i) => (
+                        <div key={i} className="flex justify-between">
+                          <span>{b.label}</span>
+                          <span>{b.value}</span>
+                        </div>
+                      ))}
+                      {(!selectedStop.cashCollected || selectedStop.cashCollected === 0) && (
+                        <div className="text-center text-slate-400 py-1">No cash collected</div>
+                      )}
                     </div>
                   </div>
 
@@ -474,10 +572,12 @@ export default function StopsPage() {
                 <div className="flex items-center justify-between text-xs bg-slate-50 p-3 rounded-lg border border-border">
                   <div className="flex items-center gap-2 text-slate-600">
                     <MapPin className="w-4 h-4 text-primary-600" />
-                    <span>GPS Verified: 19.0596° N, 72.8656° E</span>
+                    <span>
+                      GPS Verified: {selectedStop.location?.latitude?.toFixed(4) || "0.0000"}° N, {selectedStop.location?.longitude?.toFixed(4) || "0.0000"}° E
+                    </span>
                   </div>
                   <a
-                    href="https://maps.google.com"
+                    href={`https://www.google.com/maps/search/?api=1&query=${selectedStop.location?.latitude || 0},${selectedStop.location?.longitude || 0}`}
                     target="_blank"
                     rel="noreferrer"
                     className="text-primary-600 hover:underline flex items-center gap-1 font-semibold"

@@ -36,33 +36,56 @@ io.on('connection', (socket) => {
   // Throttle writes to DB (only save once every 10 seconds per driver)
   const lastWriteTimes = new Map<string, number>();
 
-  // Driver emits GPS location update
-  socket.on('user:location_update', async (data) => {
-    // Broadcast location update to Admin tracking map instantly
-    io.emit('tracking:location_broadcast', data);
+  // Driver emits GPS location update (supports user:location_update & driver:location_update)
+  const handleLocationUpdate = async (data: any) => {
+    const driverId = data.driverId || activeDriverSockets.get(socket.id);
+    if (!driverId && !data.latitude) return;
+
+    const lat = data.latitude ?? data.lat;
+    const lng = data.longitude ?? data.lng;
+    if (lat === undefined || lng === undefined) return;
+
+    const enrichedData = {
+      driverId: driverId || 'unknown',
+      latitude: lat,
+      longitude: lng,
+      lat: lat,
+      lng: lng,
+      speed: data.speed || 0,
+      heading: data.heading || 0,
+      accuracy: data.accuracy || 0,
+      timestamp: new Date().toISOString(),
+    };
+
+    // Broadcast location update to Admin tracking map & vehicles map instantly
+    io.emit('tracking:location_broadcast', enrichedData);
 
     const now = Date.now();
-    const lastWrite = lastWriteTimes.get(data.driverId) || 0;
+    const lastWrite = lastWriteTimes.get(driverId) || 0;
     
-    // Throttle database writes to every 15 seconds
-    if (now - lastWrite > 15000 && data.driverId && data.latitude && data.longitude) {
-      lastWriteTimes.set(data.driverId, now);
+    // Throttle database writes to every 15 seconds per driver
+    if (now - lastWrite > 15000 && driverId && driverId !== 'unknown') {
+      lastWriteTimes.set(driverId, now);
       try {
         await prisma.livetracking.create({
-          data: { id: uuidv4(),
-            driverId: data.driverId,
-            latitude: data.latitude,
-            longitude: data.longitude,
-            speed: data.speed || 0,
-            heading: data.heading || 0,
-            accuracy: data.accuracy || 0,
+          data: {
+            id: uuidv4(),
+            driverId: driverId,
+            latitude: lat,
+            longitude: lng,
+            speed: enrichedData.speed,
+            heading: enrichedData.heading,
+            accuracy: enrichedData.accuracy,
           }
         });
       } catch (err) {
         console.error('Failed to save GPS history:', err);
       }
     }
-  });
+  };
+
+  socket.on('user:location_update', handleLocationUpdate);
+  socket.on('driver:location_update', handleLocationUpdate);
 
   socket.on('disconnect', () => {
     console.log(`❌ Socket Client Disconnected: ${socket.id}`);

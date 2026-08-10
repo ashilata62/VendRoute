@@ -915,9 +915,29 @@ export default function RoutesPage() {
                                   <div className="col-span-2 mt-1">
                                     <span className="text-slate-400 block mb-1">Service Photos</span>
                                     <div className="flex gap-2 overflow-x-auto">
-                                      {JSON.parse(stop.photos).map((p: string, i: number) => (
-                                        <img key={i} src={p} className="h-12 w-12 rounded object-cover border border-slate-200" alt="Service" />
-                                      ))}
+                                      {(() => {
+                                        const isValidPhoto = (url: string) => {
+                                          if (!url) return false;
+                                          return url.startsWith("data:image/") || url.startsWith("http://") || url.startsWith("https://");
+                                        };
+                                        try {
+                                          let parsed = stop.photos;
+                                          while (typeof parsed === "string") {
+                                            parsed = JSON.parse(parsed);
+                                          }
+                                          const photos = (Array.isArray(parsed) 
+                                            ? parsed 
+                                            : [...(parsed.before || []), ...(parsed.after || [])]).filter(isValidPhoto);
+                                          return photos.map((p: string, i: number) => (
+                                            <img key={i} src={p} className="h-12 w-12 rounded object-cover border border-slate-200" alt="Service" />
+                                          ));
+                                        } catch {
+                                          const splitPhotos = stop.photos.split(",").map((p: string) => p.trim()).filter(isValidPhoto);
+                                          return splitPhotos.map((p: string, i: number) => (
+                                            <img key={i} src={p} className="h-12 w-12 rounded object-cover border border-slate-200" alt="Service" />
+                                          ));
+                                        }
+                                      })()}
                                     </div>
                                   </div>
                                 )}
