@@ -3,13 +3,35 @@ import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
 import { LinearGradient } from 'expo-linear-gradient';
-import { CheckCircle, MapPin, Navigation as NavIcon, Play } from 'lucide-react-native';
-import { stopsApi } from '../services/api';
+import { CheckCircle, MapPin, Navigation as NavIcon, Play, Bell } from 'lucide-react-native';
+import { stopsApi, authApi, notificationsApi } from '../services/api';
 import { useQuery } from '@tanstack/react-query';
+import NotificationsModal from '../components/NotificationsModal';
 
 export default function DashboardScreen() {
   const { user, isOnline, toggleOnline, isRouteStarted, startRoute } = useAuthStore();
   const navigation = useNavigation<any>();
+  const [showNotifModal, setShowNotifModal] = useState(false);
+
+  const { data: notifRes } = useQuery({
+    queryKey: ['notifications', user?.id],
+    queryFn: () => notificationsApi.getNotifications(user?.id!),
+    enabled: !!user?.id,
+    refetchInterval: 15000
+  });
+
+  const unreadCount = (notifRes?.data?.data || []).filter((n: any) => !n.read).length;
+
+  useEffect(() => {
+    if (!user?.id) return;
+    authApi.getProfile()
+      .then((res: any) => {
+        if (res.data && res.data.data) {
+          useAuthStore.setState({ user: res.data.data });
+        }
+      })
+      .catch((err: any) => console.warn('Failed to refresh profile:', err));
+  }, [user?.id]);
   
   const { data: routesResponse, isLoading: loading } = useQuery({
     queryKey: ['routes', user?.id],
@@ -46,6 +68,26 @@ export default function DashboardScreen() {
     };
   }, [routesResponse]);
 
+  const assignedVehicle = useMemo(() => {
+    if ((user as any)?.vehicle && (user as any).vehicle.length > 0) {
+      const v = (user as any).vehicle[0];
+      return v.plateNumber ? `${v.model} (${v.plateNumber})` : v.model;
+    }
+    if (currentStop?.route?.vehicle?.plateNumber || currentStop?.route?.vehicle?.model) {
+      const v = currentStop.route.vehicle;
+      return v.plateNumber ? `${v.model} (${v.plateNumber})` : v.model;
+    }
+    const routesWithVehicle = driverAllRoutes.filter((r: any) => r.vehicle);
+    if (routesWithVehicle.length > 0) {
+      const sorted = [...routesWithVehicle].sort((a: any, b: any) => {
+        return new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime();
+      });
+      const v = sorted[0].vehicle;
+      return v.plateNumber ? `${v.model} (${v.plateNumber})` : v.model;
+    }
+    return "Unassigned";
+  }, [user, currentStop, driverAllRoutes]);
+
   const handleStartRoute = () => {
     startRoute();
     if (currentStop) {
@@ -71,11 +113,13 @@ export default function DashboardScreen() {
   const todayDisplay = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
   
   const todaysRoutes = useMemo(() => {
+    const IST_OFFSET_MS = 5.5 * 60 * 60 * 1000;
     const isToday = (r: any) => {
       const dateToUse = r.endTime || r.date || r.createdAt;
       if (!dateToUse) return false;
       
-      const nowIST = new Date(Date.now() + 19800000);
+      // Get today's date in IST
+      const nowIST = new Date(Date.now() + IST_OFFSET_MS);
       const todayStr = nowIST.toISOString().slice(0, 10);
 
       if (typeof dateToUse === 'string' && dateToUse.length === 10 && dateToUse.includes('-')) {
@@ -83,7 +127,7 @@ export default function DashboardScreen() {
       }
       const d = new Date(dateToUse);
       if (isNaN(d.getTime())) return false;
-      const istDate = new Date(d.getTime() + 19800000);
+      const istDate = new Date(d.getTime() + IST_OFFSET_MS);
       return istDate.toISOString().slice(0, 10) === todayStr;
     };
 
@@ -107,16 +151,22 @@ export default function DashboardScreen() {
             </View>
             <Text style={styles.headerTitle}>Maryland <Text style={styles.headerTitleRed}>Driver</Text></Text>
           </View>
-          <TouchableOpacity 
-            style={[styles.onlineBadge, !isOnline && styles.offlineBadge]} 
-            onPress={toggleOnline}
-            activeOpacity={0.7}
-          >
-            <View style={[styles.onlineDot, !isOnline && styles.offlineDot]} />
-            <Text style={[styles.onlineText, !isOnline && styles.offlineText]}>
-              {isOnline ? 'Online' : 'Offline'}
-            </Text>
-          </TouchableOpacity>
+          <View style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+            <TouchableOpacity style={styles.bellBtn} onPress={() => setShowNotifModal(true)} activeOpacity={0.7}>
+              <Bell size={22} color="#fff" />
+              {unreadCount > 0 && <View style={styles.bellDot} />}
+            </TouchableOpacity>
+            <TouchableOpacity 
+              style={[styles.onlineBadge, !isOnline && styles.offlineBadge]} 
+              onPress={toggleOnline}
+              activeOpacity={0.7}
+            >
+              <View style={[styles.onlineDot, !isOnline && styles.offlineDot]} />
+              <Text style={[styles.onlineText, !isOnline && styles.offlineText]}>
+                {isOnline ? 'Online' : 'Offline'}
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
       </View>
 
@@ -134,7 +184,7 @@ export default function DashboardScreen() {
             </View>
             <View style={styles.greetingInfo}>
               <Text style={styles.greetingTitle}>Hello, {user?.name || 'Driver'}! 👋</Text>
-              <Text style={styles.greetingSubtitle}>Vehicle: <Text style={{fontWeight: 'bold'}}>{currentStop?.route?.vehicle?.plateNumber || 'Unassigned'}</Text></Text>
+              <Text style={styles.greetingSubtitle}>Vehicle: <Text style={{fontWeight: 'bold'}}>{assignedVehicle}</Text></Text>
             </View>
             <View style={styles.dutyBadge}>
               <View style={styles.dutyDot} />
@@ -279,6 +329,8 @@ export default function DashboardScreen() {
           </>
         )}
       </ScrollView>
+
+      <NotificationsModal visible={showNotifModal} onClose={() => setShowNotifModal(false)} />
     </View>
   );
 }
@@ -291,6 +343,8 @@ const styles = StyleSheet.create({
     paddingBottom: 20, 
     paddingHorizontal: 20 
   },
+  bellBtn: { position: 'relative', padding: 4 },
+  bellDot: { position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
   headerRow: { 
     flexDirection: 'row', 
     justifyContent: 'space-between', 

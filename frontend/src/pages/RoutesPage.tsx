@@ -13,6 +13,7 @@ import {
 
 import { useRouteStore } from "../store/routeStore";
 import { usersApi, locationsApi, vehiclesApi } from "../services/api";
+import { getSocket } from "../services/socket";
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate } from "../lib/utils";
@@ -58,10 +59,28 @@ export default function RoutesPage() {
     vehiclesApi.getAll().then((res) => {
       if (res.success) setVehicles(res.data);
     }).catch(() => {});
+
+    // 🔌 Real-time WebSocket connection for instant driver check-in sync
+    const socket = getSocket();
+    const handleUpdate = () => fetchRoutes();
+
+    socket.on("stop:updated", handleUpdate);
+    socket.on("route:updated", handleUpdate);
+    socket.on("notification:new", handleUpdate);
+
+    // ⏱️ Auto-polling every 4 seconds as a fallback
+    const interval = setInterval(fetchRoutes, 4000);
+
+    return () => {
+      socket.off("stop:updated", handleUpdate);
+      socket.off("route:updated", handleUpdate);
+      socket.off("notification:new", handleUpdate);
+      clearInterval(interval);
+    };
   }, [fetchRoutes]);
 
   // Tab State
-  const [activeTab, setActiveTab] = useState<"active" | "scheduled" | "completed" | "calendar">("active");
+  const [activeTab, setActiveTab] = useState<"active" | "scheduled" | "reached" | "completed" | "calendar">("active");
 
   // Filters State
   const [search, setSearch] = useState("");
@@ -100,8 +119,12 @@ export default function RoutesPage() {
   const filteredRoutes = useMemo(() => {
     return routes.filter((r) => {
       let matchTab = true;
+      const stops = (r as any).stops || (r as any).routestop || [];
+      const hasReachedStop = Array.isArray(stops) && stops.some((s: any) => s.status === "REACHED");
+
       if (activeTab === "active") matchTab = r.status === "IN_PROGRESS";
-      else if (activeTab === "scheduled") matchTab = r.status === "PENDING";
+      else if (activeTab === "scheduled") matchTab = r.status === "PENDING" && !hasReachedStop;
+      else if (activeTab === "reached") matchTab = r.status === "REACHED" || hasReachedStop || (r.status === "IN_PROGRESS" && hasReachedStop);
       else if (activeTab === "completed") matchTab = r.status === "COMPLETED";
 
       const matchStatus = statusFilter === "all" || r.status === statusFilter;
@@ -253,6 +276,7 @@ export default function RoutesPage() {
           {[
             { id: "active", label: "Active Routes" },
             { id: "scheduled", label: "Scheduled" },
+            // { id: "reached", label: "Reached" },
             { id: "completed", label: "Completed" },
             { id: "calendar", label: "Calendar View" },
           ].map((tab) => (
@@ -344,7 +368,9 @@ export default function RoutesPage() {
                   const routeStops = (route as any).routestop || route.stops || [];
                   const completedStops = routeStops.filter((s: any) => s.status === "COMPLETED").length;
                   const totalStops = routeStops.length;
-                  const pct = totalStops === 0 ? 0 : Math.round((completedStops / totalStops) * 100) || (route.status === "COMPLETED" ? 100 : route.status === "IN_PROGRESS" ? 60 : 0);
+                  const hasReached = routeStops.some((s: any) => s.status === "REACHED") || route.status === "REACHED";
+                  const displayStatus = route.status === "COMPLETED" ? "completed" : (hasReached ? "reached" : (route.status === "IN_PROGRESS" ? "in-progress" : route.status));
+                  const pct = totalStops === 0 ? 0 : Math.round((completedStops / totalStops) * 100) || (route.status === "COMPLETED" ? 100 : (hasReached || route.status === "IN_PROGRESS") ? 60 : 0);
 
                   return (
                     <tr key={route.id} className="hover:bg-slate-50 transition-colors">
@@ -358,7 +384,7 @@ export default function RoutesPage() {
                       <td className="px-4 py-3 w-36">
                         {(route as any).user ? (
                           <div className="flex items-center gap-2">
-                            <div className="w-6 h-6 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
+                            <div className="w-5 h-5 rounded-full bg-primary-100 text-primary-700 flex items-center justify-center text-[10px] font-bold flex-shrink-0">
                               {(route as any).user.name?.charAt(0)}
                             </div>
                             <span className="text-xs font-medium text-slate-700 truncate">{(route as any).user.name}</span>
@@ -385,7 +411,7 @@ export default function RoutesPage() {
                         </div>
                       </td>
                       <td className="px-4 py-3 w-28">
-                        <StatusBadge status={route.status} withDot />
+                        <StatusBadge status={displayStatus} withDot />
                       </td>
                       <td className="px-4 py-3 w-20 text-xs text-slate-600 whitespace-nowrap">
                         {route.estimatedTime} mins

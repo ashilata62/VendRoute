@@ -4,11 +4,14 @@ import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
 import { stopsApi } from '../services/api';
 import { useQuery } from '@tanstack/react-query';
-import { Navigation as NavIcon, Play } from 'lucide-react-native';
+import { Navigation as NavIcon, Play, Bell } from 'lucide-react-native';
+import NotificationsModal from '../components/NotificationsModal';
+import { notificationsApi } from '../services/api';
 
 export default function RouteScreen() {
   const { user, isRouteStarted, startRoute: setGlobalRouteStarted } = useAuthStore();
   const navigation = useNavigation<any>();
+  const [showNotifModal, setShowNotifModal] = useState(false);
   
   const { data: routesResponse, isLoading: loading, refetch } = useQuery({
     queryKey: ['routes', user?.id],
@@ -16,6 +19,15 @@ export default function RouteScreen() {
     enabled: !!user?.id,
     refetchInterval: 30000
   });
+
+  const { data: notifRes } = useQuery({
+    queryKey: ['notifications', user?.id],
+    queryFn: () => notificationsApi.getNotifications(user?.id!),
+    enabled: !!user?.id,
+    refetchInterval: 15000
+  });
+
+  const unreadCount = (notifRes?.data?.data || []).filter((n: any) => !n.read).length;
 
   useFocusEffect(
     React.useCallback(() => {
@@ -73,6 +85,10 @@ export default function RouteScreen() {
     <View style={styles.container}>
       <View style={styles.header}>
         <Text style={styles.headerTitle}>My Route</Text>
+        <TouchableOpacity style={styles.bellBtn} onPress={() => setShowNotifModal(true)} activeOpacity={0.7}>
+          <Bell size={22} color="#fff" />
+          {unreadCount > 0 && <View style={styles.bellDot} />}
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
@@ -161,6 +177,8 @@ export default function RouteScreen() {
         </View>
 
       </ScrollView>
+
+      <NotificationsModal visible={showNotifModal} onClose={() => setShowNotifModal(false)} />
     </View>
   );
 }
@@ -171,9 +189,14 @@ const styles = StyleSheet.create({
     backgroundColor: '#0B1536', 
     paddingTop: 60, 
     paddingBottom: 20, 
-    paddingHorizontal: 20 
+    paddingHorizontal: 20,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
   },
   headerTitle: { fontSize: 20, fontWeight: 'bold', color: '#fff' },
+  bellBtn: { position: 'relative', padding: 4 },
+  bellDot: { position: 'absolute', top: 2, right: 2, width: 8, height: 8, borderRadius: 4, backgroundColor: '#ef4444' },
   
   content: { flex: 1, padding: 16 },
   

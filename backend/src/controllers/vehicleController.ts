@@ -168,6 +168,15 @@ export const updateVehicle = async (req: Request, res: Response) => {
       include: { user: { select: { id: true, name: true } } },
     });
 
+    if (assignedDriverId) {
+      await createNotification({
+        userId: assignedDriverId,
+        title: 'Vehicle Assigned',
+        message: `Vehicle ${vehicle.model} (${vehicle.plateNumber}) has been assigned to you.`,
+        type: 'info',
+      }, io);
+    }
+
     // Auto-trigger Low Fuel notification if fuel drops below 20%
     if (req.body.currentFuelLevel !== undefined && req.body.currentFuelLevel < 20) {
       await createNotification({

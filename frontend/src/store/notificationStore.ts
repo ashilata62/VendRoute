@@ -17,11 +17,27 @@ export const useNotificationStore = create<NotificationState>((set, get) => {
   // Listen for real-time notifications via WebSocket
   const socket = getSocket();
 
-  socket.on("notification:new", (notif: AppNotification) => {
-    set((s) => ({
-      notifications: [{ ...notif, read: false }, ...s.notifications],
-      unreadCount: s.unreadCount + 1,
-    }));
+  socket.on("notification:new", (notif: any) => {
+    if (!notif) return;
+    const formatted: AppNotification = {
+      id: notif.id,
+      title: notif.title,
+      message: notif.message,
+      type: notif.type,
+      read: notif.read || false,
+      timestamp: notif.timestamp || notif.createdAt || new Date().toISOString(),
+    };
+
+    set((s) => {
+      // Prevent duplicates in state
+      if (s.notifications.some((existing) => existing.id === formatted.id || (existing.title === formatted.title && existing.message === formatted.message))) {
+        return s;
+      }
+      return {
+        notifications: [formatted, ...s.notifications],
+        unreadCount: s.unreadCount + 1,
+      };
+    });
   });
 
   return {

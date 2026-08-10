@@ -14,7 +14,7 @@ export const createNotification = async (req: AuthRequest, res: Response) => {
 
 export const getNotifications = async (req: AuthRequest, res: Response) => {
   try {
-    const userId = req.user?.id;
+    const userId = (req.query.userId as string) || req.user?.id;
     const notifications = await prisma.notification.findMany({
       where: { userId },
       orderBy: { createdAt: 'desc' },

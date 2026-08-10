@@ -23,6 +23,7 @@ const statusConfig: Record<string, { label: string; className: string }> = {
   cancelled: { label: "Cancelled", className: "bg-red-50 text-red-700 border-red-200" },
   pending: { label: "Pending", className: "bg-amber-50 text-amber-700 border-amber-200" },
   "in-progress": { label: "In Progress", className: "bg-blue-50 text-blue-700 border-blue-200" },
+  reached: { label: "REACHED", className: "bg-purple-50 text-purple-700 border-purple-200" },
   missed: { label: "Missed", className: "bg-red-50 text-red-700 border-red-200" },
   available: { label: "Available", className: "bg-emerald-50 text-emerald-700 border-emerald-200" },
   "in-use": { label: "In Use", className: "bg-blue-50 text-blue-700 border-blue-200" },
@@ -49,6 +50,7 @@ export default function StatusBadge({ status, withDot = false, className }: Stat
           normalizedStatus === "operational" || normalizedStatus === "active" || normalizedStatus === "online" || normalizedStatus === "completed" || normalizedStatus === "available" ? "bg-emerald-500" :
           normalizedStatus === "needs-service" || normalizedStatus === "pending" || normalizedStatus === "maintenance" ? "bg-amber-500" :
           normalizedStatus === "offline" || normalizedStatus === "inactive" || normalizedStatus === "cancelled" || normalizedStatus === "missed" ? "bg-red-500" :
+          normalizedStatus === "reached" ? "bg-purple-500" :
           "bg-blue-500"
         )} />
       )}

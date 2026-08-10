@@ -39,11 +39,17 @@ export const routesApi = {
 };
 
 export const authApi = {
+  getProfile: () => api.get('/auth/me'),
   punchIn: () => api.post('/attendance/punch-in'),
   punchOut: () => api.post('/attendance/punch-out'),
   getHistory: () => api.get('/attendance/history'),
   updateStatus: (userId: string, isOnline: boolean) => api.put(`/users/${userId}`, { isOnline }),
   updateProfile: (userId: string, data: any) => api.put(`/users/${userId}`, data),
+};
+
+export const notificationsApi = {
+  getNotifications: (userId?: string) => api.get(`/notifications${userId ? `?userId=${userId}` : ''}`),
+  markAsRead: (id: string) => api.patch(`/notifications/${id}/read`),
 };
 
 export default api;

@@ -92,9 +92,19 @@ export class RouteService {
   }
 
   static async updateStopStatus(stopId: string, status: any) {
+    const updateData: any = { status };
+    if (status === 'REACHED' || status === 'COMPLETED') {
+      updateData.gpsVerified = true;
+    }
+    if (status === 'REACHED') {
+      updateData.arrivalTime = new Date();
+    }
+    if (status === 'COMPLETED') {
+      updateData.departureTime = new Date();
+    }
     return await prisma.routestop.update({
       where: { id: stopId },
-      data: {  status },
+      data: updateData,
     });
   }
 

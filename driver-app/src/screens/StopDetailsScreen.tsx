@@ -5,15 +5,17 @@ import { Camera, QrCode, Trash2, MapPin, ShieldCheck, FileText, Image as ImageIc
 import * as ImagePicker from 'expo-image-picker';
 import { stopsApi, routesApi } from '../services/api';
 import { useAuthStore } from '../store/authStore';
+import { useQueryClient } from '@tanstack/react-query';
 
 export default function StopDetailsScreen() {
   const route = useRoute<any>();
   const navigation = useNavigation<any>();
+  const queryClient = useQueryClient();
   const { user } = useAuthStore();
   const stop = route.params?.stop;
   
   const [activeTab, setActiveTab] = useState<'service' | 'machine'>('service');
-  const [isCheckedIn, setIsCheckedIn] = useState(false);
+  const [isCheckedIn, setIsCheckedIn] = useState(stop.status === 'REACHED' || stop.status === 'COMPLETED');
   const [cashCollected, setCashCollected] = useState('');
   const [stopNotes, setStopNotes] = useState('');
   const [reportedIssue, setReportedIssue] = useState('None');
@@ -51,11 +53,11 @@ export default function StopDetailsScreen() {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.3,
+      mediaTypes: ['images'],
+      quality: 0.2,
       base64: true,
     });
-    if (!result.canceled) {
+    if (!result.canceled && result.assets[0].base64) {
       setBeforePhotos([...beforePhotos, `data:image/jpeg;base64,${result.assets[0].base64}`]);
     }
   };
@@ -67,12 +69,28 @@ export default function StopDetailsScreen() {
       return;
     }
     const result = await ImagePicker.launchCameraAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      quality: 0.3,
+      mediaTypes: ['images'],
+      quality: 0.2,
       base64: true,
     });
-    if (!result.canceled) {
+    if (!result.canceled && result.assets[0].base64) {
       setAfterPhotos([...afterPhotos, `data:image/jpeg;base64,${result.assets[0].base64}`]);
+    }
+  };
+
+  const handleCheckIn = async () => {
+    try {
+      setLoading(true);
+      const response = await routesApi.updateStopStatus(stop.id, "REACHED", stop.route?.name, stop.location?.name);
+      if (response.data?.success) {
+        setIsCheckedIn(true);
+      } else {
+        Alert.alert('Error', 'Failed to check in.');
+      }
+    } catch (err) {
+      Alert.alert('Error', 'Failed to check in.');
+    } finally {
+      setLoading(false);
     }
   };
 
@@ -103,11 +121,14 @@ export default function StopDetailsScreen() {
 
       const response = await stopsApi.completeService(stop.id, payload);
       
-      if (response.data.success) {
+      if (response.data?.success) {
+        await queryClient.invalidateQueries({ queryKey: ['routes'] });
+        await queryClient.invalidateQueries({ queryKey: ['stops'] });
+        await queryClient.invalidateQueries({ queryKey: ['attendance'] });
         Alert.alert('Success', 'Stop completed successfully!');
         navigation.goBack();
       } else {
-        Alert.alert('Error', response.data.message || 'Failed to complete service.');
+        Alert.alert('Error', response.data?.message || 'Failed to complete service.');
       }
     } catch (error: any) {
       console.log('API Error:', error.response?.data || error.message);
@@ -172,11 +193,11 @@ export default function StopDetailsScreen() {
             {!isCheckedIn ? (
               <View style={styles.checkInActionsRow}>
                 <Text style={styles.notCheckedText}>Not Checked In</Text>
-                <View style={{ flexDirection: 'row', gap: 8 }}>
-                  <TouchableOpacity style={styles.checkInBtn} onPress={() => setIsCheckedIn(true)}>
+                 <View style={{ flexDirection: 'row', gap: 8 }}>
+                  <TouchableOpacity style={styles.checkInBtn} onPress={handleCheckIn}>
                     <Text style={styles.checkInBtnText}>[ Check In ]</Text>
                   </TouchableOpacity>
-                  <TouchableOpacity style={styles.scanBtn} onPress={() => navigation.navigate('QRScanner', { setQrScanned: () => setIsCheckedIn(true) })}>
+                  <TouchableOpacity style={styles.scanBtn} onPress={() => navigation.navigate('QRScanner', { setQrScanned: handleCheckIn })}>
                     <QrCode size={14} color="#2563eb" />
                     <Text style={styles.scanBtnText}>[ Scan QR ]</Text>
                   </TouchableOpacity>

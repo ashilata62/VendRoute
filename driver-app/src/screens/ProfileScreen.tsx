@@ -4,20 +4,7 @@ import { useAuthStore } from '../store/authStore';
 import { authApi, stopsApi } from '../services/api';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { LogOut, Clock } from 'lucide-react-native';
-
-const formatTime = (dateInput: string | Date): string => {
-  const utcMilliseconds = new Date(dateInput).getTime();
-  // IST offset is +5.5 hours (+19800000 milliseconds)
-  const istDate = new Date(utcMilliseconds + 19800000);
-  
-  let hours = istDate.getUTCHours();
-  const minutes = istDate.getUTCMinutes();
-  const ampm = hours >= 12 ? 'pm' : 'am';
-  hours = hours % 12;
-  hours = hours ? hours : 12;
-  const minutesStr = minutes < 10 ? '0' + minutes : minutes;
-  return `${hours}:${minutesStr} ${ampm}`;
-};
+import { formatAttendanceTime } from '../utils/attendanceTimeFormatter';
 
 export default function ProfileScreen() {
   const { user, logout, isOnline, toggleOnline, updateUser } = useAuthStore();
@@ -40,6 +27,17 @@ export default function ProfileScreen() {
     setEditAddress(user?.address || '');
   }, [user]);
 
+  React.useEffect(() => {
+    if (!user?.id) return;
+    authApi.getProfile()
+      .then((res: any) => {
+        if (res.data && res.data.data) {
+          useAuthStore.setState({ user: res.data.data });
+        }
+      })
+      .catch((err: any) => console.warn('Failed to refresh profile:', err));
+  }, [user?.id]);
+
   // Load routes to find active vehicle plate
   const { data: routesResponse } = useQuery({
     queryKey: ['routes', user?.id],
@@ -49,12 +47,17 @@ export default function ProfileScreen() {
 
   const assignedVehicle = React.useMemo(() => {
     if ((user as any)?.vehicle && (user as any).vehicle.length > 0) {
-      return (user as any).vehicle[0].plateNumber || (user as any).vehicle[0].model;
+      const v = (user as any).vehicle[0];
+      return v.plateNumber ? `${v.model} (${v.plateNumber})` : v.model;
     }
     if (routesResponse?.data?.data) {
-      const activeRoute = routesResponse.data.data.find((r: any) => r.vehicle);
-      if (activeRoute?.vehicle?.plateNumber) {
-        return activeRoute.vehicle.plateNumber;
+      const routesWithVehicle = routesResponse.data.data.filter((r: any) => r.vehicle);
+      if (routesWithVehicle.length > 0) {
+        const sorted = [...routesWithVehicle].sort((a: any, b: any) => {
+          return new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime();
+        });
+        const v = sorted[0].vehicle;
+        return v.plateNumber ? `${v.model} (${v.plateNumber})` : v.model;
       }
     }
     return 'Unassigned';
@@ -255,8 +258,8 @@ export default function ProfileScreen() {
             <Text style={{ textAlign: 'center', marginVertical: 20, color: '#64748b' }}>No attendance history found</Text>
           ) : (
             attendanceLogs.slice(0, 5).map((log: any, index: number) => {
-              const punchInTime = formatTime(log.punchIn);
-              const punchOutTime = log.punchOut ? formatTime(log.punchOut) : null;
+              const punchInTime = formatAttendanceTime(log.punchIn);
+              const punchOutTime = log.punchOut ? formatAttendanceTime(log.punchOut) : null;
               
               const dateStr = new Date(log.punchIn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
               const isToday = new Date(log.punchIn).toDateString() === new Date().toDateString();

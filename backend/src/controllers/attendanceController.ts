@@ -1,16 +1,26 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/db.js';
 import { AuthRequest } from '../middlewares/authMiddleware.js';
+import { createNotification } from '../services/notificationService.js';
+import { io } from '../server.js';
 
 export const punchIn = async (req: AuthRequest, res: Response) => {
   try {
     const driverId = req.user?.id;
+    const driverName = (req.user as any)?.name || 'Driver';
     const d = new Date();
     const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     if (!driverId) return res.status(401).json({ success: false, message: 'Unauthorized' });
     const existing = await prisma.attendance.findFirst({ where: { driverId, date } });
     if (existing) return res.status(400).json({ success: false, message: 'Already punched in' });
     const attendance = await prisma.attendance.create({ data: {  driverId, date, punchIn: new Date(), status: 'PRESENT' } });
+
+    await createNotification({
+      title: 'Driver Punched-In',
+      message: `${driverName} has punched in for duty.`,
+      type: 'info'
+    }, io);
+
     return res.status(201).json({ success: true, data: attendance });
   } catch (error: any) { return res.status(500).json({ success: false, message: error.message }); }
 };
@@ -18,6 +28,7 @@ export const punchIn = async (req: AuthRequest, res: Response) => {
 export const punchOut = async (req: AuthRequest, res: Response) => {
   try {
     const driverId = req.user?.id;
+    const driverName = (req.user as any)?.name || 'Driver';
     const d = new Date();
     const date = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
     const attendance = await prisma.attendance.findFirst({ where: { driverId, date } });
@@ -26,6 +37,13 @@ export const punchOut = async (req: AuthRequest, res: Response) => {
     const punchOutTime = new Date();
     const workingHours = (punchOutTime.getTime() - attendance.punchIn.getTime()) / (1000 * 60 * 60);
     const updated = await prisma.attendance.update({ where: { id: attendance.id }, data: {  punchOut: punchOutTime, workingHours } });
+
+    await createNotification({
+      title: 'Driver Punched-Out',
+      message: `${driverName} has punched out. Duty completed.`,
+      type: 'info'
+    }, io);
+
     return res.status(200).json({ success: true, data: updated });
   } catch (error: any) { return res.status(500).json({ success: false, message: error.message }); }
 };

@@ -122,6 +122,8 @@ model routestop {
   machineIssues    String?
   photos           String?          @db.LongText
   notes            String?
+  arrivalTime      DateTime?
+  departureTime    DateTime?
   location         location         @relation(fields: [locationId], references: [id], map: "RouteStop_locationId_fkey")
   route            route            @relation(fields: [routeId], references: [id], onDelete: Cascade, map: "RouteStop_routeId_fkey")
   inventorylog     inventorylog[]

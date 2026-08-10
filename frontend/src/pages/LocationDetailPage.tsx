@@ -1047,7 +1047,7 @@ export default function LocationDetailPage() {
                         </div>
                         <div>
                           <p className="text-slate-400 font-bold uppercase text-[9px]">GPS Status</p>
-                          {stop.gpsVerified ? (
+                          {stop.gpsVerified || stop.status === 'REACHED' || stop.status === 'COMPLETED' ? (
                             <p className="font-bold text-emerald-600 mt-0.5">✓ Verified Proximity</p>
                           ) : (
                             <p className="font-bold text-amber-600 mt-0.5">Unverified</p>

@@ -12,12 +12,17 @@ const typeConfig: Record<NotificationType, { icon: typeof Info; color: string; b
   error: { icon: XCircle, color: "text-danger", bg: "bg-red-50" },
 };
 
-function timeAgo(ts: string): string {
-  const diff = Date.now() - new Date(ts).getTime();
+function timeAgo(ts?: string): string {
+  if (!ts) return "Just now";
+  const date = new Date(ts);
+  const time = date.getTime();
+  if (isNaN(time)) return "Just now";
+  const diff = Math.max(0, Date.now() - time);
   const hours = Math.floor(diff / 3600000);
   const mins = Math.floor(diff / 60000);
-  if (hours > 24) return `${Math.floor(hours / 24)}d ago`;
+  if (hours >= 24) return `${Math.floor(hours / 24)}d ago`;
   if (hours > 0) return `${hours}h ago`;
+  if (mins < 1) return "Just now";
   return `${mins}m ago`;
 }
 

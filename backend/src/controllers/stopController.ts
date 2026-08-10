@@ -1,5 +1,7 @@
 import { Request, Response } from 'express';
 import { prisma } from '../config/db.js';
+import { io } from '../server.js';
+import { createNotification } from '../services/notificationService.js';
 
 // GET /stops — list all stops (for admin StopsPage)
 export const getStops = async (req: Request, res: Response) => {
@@ -51,25 +53,54 @@ export const checkInStop = async (req: Request, res: Response) => {
     const existingStop = await prisma.routestop.findUnique({ where: { id } });
     if (!existingStop) throw new Error('Stop not found');
 
-    const updatedStop = await prisma.routestop.update({
-      where: { id },
-      data: { 
-        status: 'COMPLETED',
-        gpsVerified: Boolean(gpsVerified),
-        cashCollected: parseFloat((cashCollected as string) || '0'),
-        productsRefilled: productsRefilled ? JSON.stringify(productsRefilled) : null,
-        notes: notes as string,
-        signatureUrl: signatureUrl as string,
-        machineIssues: machineIssues as string,
-        photos: photos ? (typeof photos === 'string' ? photos : JSON.stringify(photos)) : null
-      },
-    });
+    const now = new Date();
+    const stopData = { 
+      status: 'COMPLETED' as const,
+      gpsVerified: gpsVerified !== undefined ? Boolean(gpsVerified) : true,
+      cashCollected: parseFloat((cashCollected as string) || '0'),
+      productsRefilled: productsRefilled ? (typeof productsRefilled === 'string' ? productsRefilled : JSON.stringify(productsRefilled)) : null,
+      notes: notes ? String(notes) : null,
+      signatureUrl: signatureUrl ? String(signatureUrl) : null,
+      machineIssues: machineIssues ? String(machineIssues) : null,
+      photos: photos ? (typeof photos === 'string' ? photos : JSON.stringify(photos)) : null,
+      arrivalTime: (existingStop as any).arrivalTime || now,
+      departureTime: now,
+    };
+
+    let updatedStop;
+    try {
+      updatedStop = await prisma.routestop.update({
+        where: { id },
+        data: stopData,
+      });
+    } catch (dbErr: any) {
+      console.warn('Prisma update error, reconnecting...', dbErr.message);
+      await prisma.$connect().catch(() => {});
+      updatedStop = await prisma.routestop.update({
+        where: { id },
+        data: stopData,
+      });
+    }
 
     // ✅ Auto-complete Route if ALL its stops are now COMPLETED or SKIPPED
     const allStopsOfRoute = await prisma.routestop.findMany({
       where: { routeId: existingStop.routeId },
     });
     const allFinished = allStopsOfRoute.every(s => s.id === id || s.status === 'COMPLETED' || s.status === 'SKIPPED');
+
+    const stopWithLoc = await prisma.routestop.findUnique({
+      where: { id },
+      include: { location: true, route: true }
+    });
+    const locName = stopWithLoc?.location?.name || 'Stop';
+    const rName = stopWithLoc?.route?.name || 'Route';
+
+    // Send Notification to Admin & Supervisor
+    await createNotification({
+      title: 'Stop Completed',
+      message: `${locName} was completed on ${rName}.`,
+      type: 'success',
+    }, io);
 
     if (allFinished) {
       await prisma.route.update({
@@ -79,6 +110,12 @@ export const checkInStop = async (req: Request, res: Response) => {
           endTime: new Date(),
         },
       });
+
+      await createNotification({
+        title: 'Route Completed',
+        message: `All stops on route "${rName}" have been completed!`,
+        type: 'success',
+      }, io);
     } else {
       // Set route to IN_PROGRESS if not already
       await prisma.route.update({
@@ -86,6 +123,8 @@ export const checkInStop = async (req: Request, res: Response) => {
         data: {  status: 'IN_PROGRESS' },
       });
     }
+
+    if (io) io.emit('stop:updated', updatedStop);
 
     return res.status(200).json({ success: true, data: updatedStop });
   } catch (error: any) {

@@ -173,16 +173,60 @@ export default function DriverMobileLayout() {
     }
   };
 
+  const fetchProfile = async () => {
+    if (!user?.id) return;
+    try {
+      const res = await authApi.me();
+      if (res.success && res.data) {
+        useAuthStore.setState({ user: res.data });
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  };
+
   useEffect(() => {
+    fetchProfile();
     fetchStops();
     fetchAttendance();
-  }, [user]);
+  }, [user?.id]);
 
   const completedCount = stopsList.filter(s => s.status === "COMPLETED").length;
   const pendingCount = stopsList.length - completedCount;
   const currentStop = stopsList.find(s => s.status === "PENDING" || s.status === "REACHED" || s.status === "in-progress") || (stopsList.length > 0 && pendingCount > 0 ? stopsList[stopsList.length - 1] : undefined);
   const currentLocation = currentStop?.location;
   const driverRoute = currentStop?.route || (stopsList.length > 0 ? stopsList[0].route : null) || { name: "No Active Route" };
+
+  useEffect(() => {
+    if (currentStop) {
+      const checked = currentStop.status === "REACHED" || currentStop.status === "COMPLETED";
+      setIsCheckedIn(checked);
+      setGpsVerified(checked);
+    } else {
+      setIsCheckedIn(false);
+      setGpsVerified(false);
+    }
+  }, [currentStop?.id, currentStop?.status]);
+
+  const getAssignedVehicleName = () => {
+    if (user?.vehicle && user.vehicle.length > 0) {
+      const v = user.vehicle[0];
+      return v.plateNumber ? `${v.model} (${v.plateNumber})` : v.model;
+    }
+    if (driverRoute?.vehicle?.plateNumber || driverRoute?.vehicle?.model) {
+      const v = driverRoute.vehicle;
+      return v.plateNumber ? `${v.model} (${v.plateNumber})` : v.model;
+    }
+    const routesWithVehicle = driverAllRoutes.filter((r: any) => r.vehicle);
+    if (routesWithVehicle.length > 0) {
+      const sorted = [...routesWithVehicle].sort((a: any, b: any) => {
+        return new Date(b.date || b.createdAt || 0).getTime() - new Date(a.date || a.createdAt || 0).getTime();
+      });
+      const v = sorted[0].vehicle;
+      return v.plateNumber ? `${v.model} (${v.plateNumber})` : v.model;
+    }
+    return "Unassigned";
+  };
 
   const handleStartRoute = async () => {
     setIsRouteStarted(true);
@@ -248,9 +292,26 @@ export default function DriverMobileLayout() {
     };
   }, [trackingActive, user?.id]);
 
+  const checkInCurrentStop = async () => {
+    if (!currentStop) return;
+    try {
+      setSyncing(true);
+      const res = await routesApi.updateStopStatus(currentStop.id, "REACHED", currentStop.route?.name, currentStop.location?.name);
+      if (res.success) {
+        setIsCheckedIn(true);
+        setGpsVerified(true);
+        await fetchStops();
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Failed to check in stop");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
   const handleCheckIn = () => {
-    setIsCheckedIn(true);
-    setGpsVerified(true);
+    checkInCurrentStop();
   };
 
   const handleAddRefill = () => {
@@ -537,7 +598,7 @@ export default function DriverMobileLayout() {
                     <div>
                       <h3 className="font-extrabold text-sm">Hello, {user?.name || "Driver"}! 👋</h3>
                       <p className="text-[10px] opacity-90 font-medium mt-0.5">
-                        Vehicle: <span className="font-bold">{driverRoute?.vehicle?.plateNumber ? driverRoute.vehicle.plateNumber : (driverRoute?.vehicle?.model || "Unassigned")}</span>
+                        Vehicle: <span className="font-bold">{getAssignedVehicleName()}</span>
                       </p>
                     </div>
                   </div>
@@ -1222,9 +1283,7 @@ export default function DriverMobileLayout() {
                     <div className="flex-1 bg-slate-50 p-2 rounded-xl border border-slate-100">
                       <p className="text-[10px] text-slate-400 font-bold">ASSIGNED VEHICLE</p>
                       <p className="font-bold text-slate-800 mt-0.5">
-                        {user?.vehicle && user.vehicle.length > 0
-                          ? (user.vehicle[0].plateNumber || user.vehicle[0].model)
-                          : (driverRoute?.vehicle?.plateNumber ? driverRoute.vehicle.plateNumber : (driverRoute?.vehicle?.model || "Unassigned"))}
+                        {getAssignedVehicleName()}
                       </p>
                     </div>
                   </div>
@@ -1341,19 +1400,18 @@ export default function DriverMobileLayout() {
                         const isToday = dateObj.toDateString() === new Date().toDateString();
                         const dayLabel = isToday ? `Today (${dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })})` : dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' });
                         
-                        // Custom unified time formatter function
                         const formatTimeLocal = (dateInput: string | Date): string => {
-                          const utcMilliseconds = new Date(dateInput).getTime();
-                          // IST offset is +5.5 hours (+19800000 milliseconds)
-                          const istDate = new Date(utcMilliseconds + 19800000);
-                          
-                          let hours = istDate.getUTCHours();
-                          const minutes = istDate.getUTCMinutes();
-                          const ampm = hours >= 12 ? 'pm' : 'am';
-                          hours = hours % 12;
-                          hours = hours ? hours : 12;
-                          const minutesStr = minutes < 10 ? '0' + minutes : minutes;
-                          return `${hours}:${minutesStr} ${ampm}`;
+                          try {
+                            const date = new Date(dateInput);
+                            if (isNaN(date.getTime())) return "--";
+                            let hours = date.getHours();
+                            const minutes = date.getMinutes();
+                            const ampm = hours >= 12 ? 'pm' : 'am';
+                            hours = hours % 12 || 12;
+                            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                          } catch {
+                            return "--";
+                          }
                         };
                         
                         const signIn = log.punchIn ? formatTimeLocal(log.punchIn) : "--";
@@ -1465,9 +1523,8 @@ export default function DriverMobileLayout() {
                   type="button"
                   onClick={() => {
                     setIsScanning(false);
-                    setTimeout(() => {
-                      setIsCheckedIn(true);
-                      setGpsVerified(true);
+                    setTimeout(async () => {
+                      await checkInCurrentStop();
                       setShowScanner(false);
                       alert(`Successfully Scanned QR Code! Machine ${currentLocation?.machineId || "VM-102"} verified successfully.`);
                     }, 1200);
