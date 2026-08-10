@@ -266,6 +266,21 @@ export const settingsApi = {
     }),
 };
 
+// ─── Integration Configuration APIs ────────────────────────────────────────────
+export const integrationApi = {
+  getAll: () =>
+    apiFetch<{ success: boolean; data: any[] }>("/settings/integrations"),
+  save: (provider: string, data: any) =>
+    apiFetch<{ success: boolean; data: any }>(`/settings/integrations/${provider}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  test: (provider: string) =>
+    apiFetch<{ success: boolean; message: string }>(`/settings/integrations/${provider}/test`, {
+      method: "POST",
+    }),
+};
+
 // ─── Analytics APIs ────────────────────────────────────────────────────────────
 export const analyticsApi = {
   getDriverAnalytics: (driverId: string) =>

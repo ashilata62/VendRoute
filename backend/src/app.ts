@@ -44,3 +44,4 @@ app.use('/api/v1', apiRouter);
 app.use(globalErrorHandler);
 
 export default app;
+// Backend server started

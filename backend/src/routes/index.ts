@@ -15,6 +15,7 @@ import inventoryRoutes from './inventoryRoutes.js';
 import uploadRoutes from './uploadRoutes.js';
 import analyticsRoutes from './analyticsRoutes.js';
 import syncRoutes from './syncRoutes.js';
+import integrationRoutes from './integrationRoutes.js';
 const apiRouter = Router();
 
 apiRouter.use('/auth', authRoutes);
@@ -27,6 +28,7 @@ apiRouter.use('/reports', reportRoutes);
 apiRouter.use('/vehicles', vehicleRoutes);
 apiRouter.use('/stops', stopRoutes);
 apiRouter.use('/notifications', notificationRoutes);
+apiRouter.use('/settings/integrations', integrationRoutes);
 apiRouter.use('/settings', settingsRoutes);
 apiRouter.use('/attendance', attendanceRoutes);
 apiRouter.use('/inventory', inventoryRoutes);

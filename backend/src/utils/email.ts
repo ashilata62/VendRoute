@@ -1,8 +1,22 @@
 import nodemailer from 'nodemailer';
+import { IntegrationConfigService } from '../services/integrationConfigService.js';
 
 // Configure Email Transporter
-// Supports Gmail SMTP, Ethereal test account, or custom SMTP from environment variables
+// Supports DB Integration Settings, Gmail SMTP, Ethereal test account, or custom SMTP from environment variables
 const createTransporter = async () => {
+  const dbConfig = await IntegrationConfigService.getDecryptedConfig('smtp');
+  if (dbConfig && dbConfig.host && dbConfig.user && dbConfig.password) {
+     return nodemailer.createTransport({
+       host: dbConfig.host,
+       port: Number(dbConfig.port || 587),
+       secure: dbConfig.secure === true || dbConfig.secure === 'true',
+       auth: {
+         user: dbConfig.user,
+         pass: dbConfig.password,
+       },
+     });
+  }
+
   // If SMTP environment variables exist, use them (e.g. Gmail App Password or SendGrid)
   if (process.env.SMTP_HOST && process.env.SMTP_USER && process.env.SMTP_PASS) {
     return nodemailer.createTransport({
