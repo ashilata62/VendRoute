@@ -92,6 +92,12 @@ export const authApi = {
       method: "POST",
       body: JSON.stringify({ email, otp, newPassword }),
     }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiFetch<{ success: boolean; message: string }>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
+    }),
   punchIn: () => apiFetch<{ success: boolean }>("/attendance/punch-in", { method: "POST" }),
   punchOut: () => apiFetch<{ success: boolean }>("/attendance/punch-out", { method: "POST" }),
 };

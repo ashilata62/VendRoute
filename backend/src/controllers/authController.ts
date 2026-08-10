@@ -66,3 +66,20 @@ export const resetPasswordController = async (req: Request, res: Response) => {
     return res.status(400).json({ success: false, message: error.message });
   }
 };
+
+export const changePasswordController = async (req: AuthRequest, res: Response) => {
+  try {
+    const userId = req.user?.id;
+    if (!userId) {
+      return res.status(401).json({ success: false, message: 'Unauthorized' });
+    }
+    const { currentPassword, newPassword } = req.body;
+    if (!currentPassword || !newPassword) {
+      return res.status(400).json({ success: false, message: 'Current password and new password are required' });
+    }
+    const result = await AuthService.changePassword(userId, currentPassword, newPassword);
+    return res.status(200).json(result);
+  } catch (error: any) {
+    return res.status(400).json({ success: false, message: error.message });
+  }
+};

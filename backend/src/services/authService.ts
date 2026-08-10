@@ -12,12 +12,7 @@ export class AuthService {
     }
 
     let isMatch = await comparePassword(pass, user.password);
-    if (!isMatch) {
-      // Fallback check for common demo passwords (Admin@123, Driver@123, password123)
-      if (pass === 'Admin@123' || pass === 'Driver@123' || pass === 'Manager@123' || pass === 'password123') {
-        isMatch = true;
-      }
-    }
+    // Removed hardcoded fallback password checks for security
     if (!isMatch) {
       throw new Error('Invalid email or password');
     }
@@ -161,5 +156,27 @@ export class AuthService {
     });
 
     return { success: true, message: 'Password has been reset successfully. You can now login.' };
+  }
+
+  // 4. Change Password (Authenticated)
+  static async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await (prisma.user as any).findUnique({ where: { id: userId } });
+    if (!user) {
+      throw new Error('User not found');
+    }
+
+    const isValid = await comparePassword(currentPassword, user.password);
+    if (!isValid) {
+      throw new Error('Current password is incorrect');
+    }
+
+    const hashedPassword = await hashPassword(newPassword);
+
+    await (prisma.user as any).update({
+      where: { id: userId },
+      data: { password: hashedPassword },
+    });
+
+    return { success: true, message: 'Password changed successfully' };
   }
 }
