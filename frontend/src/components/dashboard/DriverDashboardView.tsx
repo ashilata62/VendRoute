@@ -304,9 +304,9 @@ export default function DriverDashboardView() {
                 <p className="text-sm text-slate-500 text-center py-4">No recent attendance found.</p>
               ) : (
                 attendanceLogs.slice(0, 5).map((log: any) => {
-                  const punchInTime = new Date(log.punchIn).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' });
-                  const punchOutTime = log.punchOut ? new Date(log.punchOut).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : null;
-                  const dateStr = new Date(log.punchIn).toLocaleDateString('en-GB', { day: 'numeric', month: 'short' });
+                  const punchInTime = new Date(log.punchIn).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+                  const punchOutTime = log.punchOut ? new Date(log.punchOut).toLocaleTimeString('en-IN', { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase() : null;
+                  const dateStr = new Date(log.punchIn || log.date).toLocaleDateString('en-IN', { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' });
                   
                   return (
                     <div key={log.id} className="flex justify-between items-center p-3 rounded-lg bg-slate-50 border border-slate-100">

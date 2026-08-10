@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Linking, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Linking, Platform, Image, Alert } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -100,14 +100,76 @@ export default function DashboardScreen() {
     }
   };
 
-  const openNavigation = (lat: number, lng: number, label: string) => {
-    const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
-    const latLng = `${lat},${lng}`;
-    const url = Platform.select({
-      ios: `${scheme}${label}@${latLng}`,
-      android: `${scheme}${latLng}(${label})`
+  const openGoogleMaps = (stop: any) => {
+    if (!stop?.location) {
+      Alert.alert('Location Required', 'Stop location information is not available');
+      return;
+    }
+    const lat = stop.location.latitude;
+    const lng = stop.location.longitude;
+    const address = stop.location.address || stop.location.name || '';
+
+    let url = '';
+    if (lat && lng) {
+      const scheme = Platform.select({ ios: 'maps:0,0?q=', android: 'geo:0,0?q=' });
+      const latLng = `${lat},${lng}`;
+      url = Platform.select({
+        ios: `${scheme}${encodeURIComponent(address)}@${latLng}`,
+        android: `google.navigation:q=${latLng}`
+      }) || `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`;
+    } else if (address) {
+      url = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+    }
+
+    if (url) {
+      Linking.canOpenURL(url).then((supported) => {
+        if (supported) {
+          Linking.openURL(url);
+        } else {
+          const webUrl = lat && lng 
+            ? `https://www.google.com/maps/search/?api=1&query=${lat},${lng}`
+            : `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`;
+          Linking.openURL(webUrl);
+        }
+      }).catch(() => {
+        const webUrl = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address || 'location')}`;
+        Linking.openURL(webUrl);
+      });
+    }
+  };
+
+  const openWaze = (stop: any) => {
+    if (!stop?.location) {
+      Alert.alert('Location Required', 'Stop location information is not available');
+      return;
+    }
+    const lat = stop.location.latitude;
+    const lng = stop.location.longitude;
+    const address = stop.location.address || stop.location.name || '';
+
+    let wazeAppUrl = '';
+    let wazeWebUrl = '';
+
+    if (lat && lng) {
+      wazeAppUrl = `waze://?ll=${lat},${lng}&navigate=yes`;
+      wazeWebUrl = `https://waze.com/ul?ll=${lat},${lng}&navigate=yes`;
+    } else if (address) {
+      wazeAppUrl = `waze://?q=${encodeURIComponent(address)}&navigate=yes`;
+      wazeWebUrl = `https://waze.com/ul?q=${encodeURIComponent(address)}&navigate=yes`;
+    } else {
+      Alert.alert('Error', 'No location coordinates or address available for Waze navigation');
+      return;
+    }
+
+    Linking.canOpenURL(wazeAppUrl).then((supported) => {
+      if (supported) {
+        Linking.openURL(wazeAppUrl);
+      } else {
+        Linking.openURL(wazeWebUrl);
+      }
+    }).catch(() => {
+      Linking.openURL(wazeWebUrl);
     });
-    if (url) Linking.openURL(url);
   };
 
   const todayDisplay = new Date().toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
@@ -311,12 +373,17 @@ export default function DashboardScreen() {
                     <View style={styles.navButtonsRow}>
                       <TouchableOpacity 
                         style={styles.navBtn} 
-                        onPress={() => openNavigation(currentStop.location?.latitude || 0, currentStop.location?.longitude || 0, currentStop.location?.name)}
+                        onPress={() => openGoogleMaps(currentStop)}
+                        activeOpacity={0.7}
                       >
                         <NavIcon size={12} color="#2563eb" />
                         <Text style={styles.navBtnText}>Google Maps</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity style={styles.navBtn} onPress={() => {}}>
+                      <TouchableOpacity 
+                        style={styles.navBtn} 
+                        onPress={() => openWaze(currentStop)}
+                        activeOpacity={0.7}
+                      >
                         <Text style={styles.navBtnText}>🚙 Navigate Waze</Text>
                       </TouchableOpacity>
                     </View>

@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "driver-app",
+    "name": "Maryland Driver",
     "slug": "driver-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,15 +12,13 @@
     "android": {
       "package": "com.vendroute.driver",
       "adaptiveIcon": {
-        "backgroundColor": "#E6F4FE",
-        "foregroundImage": "./assets/android-icon-foreground.png",
-        "backgroundImage": "./assets/android-icon-background.png",
-        "monochromeImage": "./assets/android-icon-monochrome.png"
+        "backgroundColor": "#FFFFFF",
+        "foregroundImage": "./assets/icon.png"
       },
       "predictiveBackGestureEnabled": false
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./assets/icon.png"
     },
     "extra": {
       "eas": {

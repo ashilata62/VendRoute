@@ -459,24 +459,30 @@ export default function DriverProfilePage() {
           <h3 className="font-bold text-slate-900 text-sm border-b border-border pb-3">Monthly Attendance Log</h3>
           {attendanceData && attendanceData.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {attendanceData.map((log: any) => (
-                <div key={log.id} className="p-4 rounded-lg border border-border bg-slate-50 flex flex-col gap-2">
-                  <div className="flex justify-between items-center border-b border-border pb-2">
-                    <span className="font-bold text-slate-900 text-sm">{new Date(log.punchIn).toLocaleDateString("en-IN", { day: 'numeric', month: 'short', year: 'numeric' })}</span>
-                    <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${log.punchOut ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-700'}`}>
-                      {log.punchOut ? 'Duty Ended' : 'On Duty'}
-                    </span>
+              {attendanceData.map((log: any) => {
+                const dateStr = new Date(log.punchIn).toLocaleDateString("en-IN", { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short', year: 'numeric' });
+                const punchInTime = new Date(log.punchIn).toLocaleTimeString("en-IN", { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase();
+                const punchOutTime = log.punchOut ? new Date(log.punchOut).toLocaleTimeString("en-IN", { timeZone: 'Asia/Kolkata', hour: '2-digit', minute: '2-digit', hour12: true }).toLowerCase() : '--';
+
+                return (
+                  <div key={log.id} className="p-4 rounded-lg border border-border bg-slate-50 flex flex-col gap-2">
+                    <div className="flex justify-between items-center border-b border-border pb-2">
+                      <span className="font-bold text-slate-900 text-sm">{dateStr}</span>
+                      <span className={`text-[10px] font-bold px-2 py-1 rounded-md ${log.punchOut ? 'bg-slate-200 text-slate-700' : 'bg-emerald-100 text-emerald-700'}`}>
+                        {log.punchOut ? 'Duty Ended' : 'On Duty'}
+                      </span>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-600 font-medium">
+                      <span>Punch In:</span>
+                      <span>{punchInTime}</span>
+                    </div>
+                    <div className="flex justify-between text-xs text-slate-600 font-medium">
+                      <span>Punch Out:</span>
+                      <span>{punchOutTime}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between text-xs text-slate-600 font-medium">
-                    <span>Punch In:</span>
-                    <span>{new Date(log.punchIn).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' })}</span>
-                  </div>
-                  <div className="flex justify-between text-xs text-slate-600 font-medium">
-                    <span>Punch Out:</span>
-                    <span>{log.punchOut ? new Date(log.punchOut).toLocaleTimeString("en-IN", { hour: '2-digit', minute: '2-digit' }) : '--'}</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : (
             <p className="text-slate-500 text-sm text-center py-6">No attendance records found for this driver.</p>

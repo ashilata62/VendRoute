@@ -1396,19 +1396,21 @@ export default function DriverMobileLayout() {
                       <div className="text-center p-4 text-slate-400 text-xs">No recent logs</div>
                     ) : (
                       attendanceLogs.slice(0, 5).map((log, idx) => {
-                        const dateObj = new Date(log.date);
-                        const isToday = dateObj.toDateString() === new Date().toDateString();
-                        const dayLabel = isToday ? `Today (${dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' })})` : dateObj.toLocaleDateString("en-IN", { day: 'numeric', month: 'short' });
+                        const punchDate = log.punchIn ? new Date(log.punchIn) : new Date(log.date);
+                        const isToday = punchDate.toLocaleDateString("en-IN", { timeZone: 'Asia/Kolkata' }) === new Date().toLocaleDateString("en-IN", { timeZone: 'Asia/Kolkata' });
+                        const dateFormatted = punchDate.toLocaleDateString("en-IN", { timeZone: 'Asia/Kolkata', day: 'numeric', month: 'short' });
+                        const dayLabel = isToday ? `Today (${dateFormatted})` : dateFormatted;
                         
                         const formatTimeLocal = (dateInput: string | Date): string => {
                           try {
-                            const date = new Date(dateInput);
+                            const date = typeof dateInput === 'string' ? new Date(dateInput) : dateInput;
                             if (isNaN(date.getTime())) return "--";
-                            let hours = date.getHours();
-                            const minutes = date.getMinutes();
-                            const ampm = hours >= 12 ? 'pm' : 'am';
-                            hours = hours % 12 || 12;
-                            return `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')} ${ampm}`;
+                            return new Intl.DateTimeFormat('en-IN', {
+                              timeZone: 'Asia/Kolkata',
+                              hour: '2-digit',
+                              minute: '2-digit',
+                              hour12: true,
+                            }).format(date).toLowerCase();
                           } catch {
                             return "--";
                           }
