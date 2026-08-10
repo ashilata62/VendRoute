@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform } from 'react-native';
+import { View, Text, TextInput, TouchableOpacity, StyleSheet, ActivityIndicator, Alert, Image, KeyboardAvoidingView, Platform, ScrollView } from 'react-native';
 import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 import { Eye, EyeOff } from 'lucide-react-native';
@@ -67,51 +67,58 @@ export default function LoginScreen() {
   return (
     <KeyboardAvoidingView 
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : undefined}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
     >
-      <View style={styles.formBox}>
-        <Image 
-          source={require('../../assets/icon.png')} 
-          style={styles.logo} 
-          resizeMode="contain" 
-        />
-        <Text style={styles.subtitle}>Sign in to start your route</Text>
-
-        <TextInput
-          style={styles.input}
-          placeholder="Email Address"
-          placeholderTextColor="#94a3b8"
-          value={email}
-          onChangeText={setEmail}
-          autoCapitalize="none"
-          keyboardType="email-address"
-        />
-        
-        <View style={styles.passwordContainer}>
-          <TextInput
-            style={styles.passwordInput}
-            placeholder="Password"
-            placeholderTextColor="#94a3b8"
-            value={password}
-            onChangeText={setPassword}
-            secureTextEntry={!showPassword}
+      <ScrollView
+        contentContainerStyle={styles.scrollContainer}
+        keyboardShouldPersistTaps="handled"
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.formBox}>
+          <Image 
+            source={require('../../assets/icon.png')} 
+            style={styles.logo} 
+            resizeMode="contain" 
           />
-          <TouchableOpacity 
-            style={styles.eyeIcon} 
-            onPress={() => setShowPassword(!showPassword)}
-          >
-            {showPassword ? <EyeOff size={24} color="#64748b" /> : <Eye size={24} color="#64748b" />}
+          <Text style={styles.subtitle}>Sign in to start your route</Text>
+
+          <TextInput
+            style={styles.input}
+            placeholder="Email Address"
+            placeholderTextColor="#94a3b8"
+            value={email}
+            onChangeText={setEmail}
+            autoCapitalize="none"
+            keyboardType="email-address"
+          />
+          
+          <View style={styles.passwordContainer}>
+            <TextInput
+              style={styles.passwordInput}
+              placeholder="Password"
+              placeholderTextColor="#94a3b8"
+              value={password}
+              onChangeText={setPassword}
+              secureTextEntry={!showPassword}
+            />
+            <TouchableOpacity 
+              style={styles.eyeIcon} 
+              onPress={() => setShowPassword(!showPassword)}
+            >
+              {showPassword ? <EyeOff size={24} color="#64748b" /> : <Eye size={24} color="#64748b" />}
+            </TouchableOpacity>
+          </View>
+
+          <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
+            {loading ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <Text style={styles.buttonText}>Sign In</Text>
+            )}
           </TouchableOpacity>
         </View>
-
-        <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
-          {loading ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <Text style={styles.buttonText}>Sign In</Text>
-          )}
-        </TouchableOpacity>
-      </View>
+      </ScrollView>
     </KeyboardAvoidingView>
   );
 }
@@ -119,9 +126,12 @@ export default function LoginScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    padding: 24,
-    justifyContent: 'center',
     backgroundColor: '#f1f5f9', // Light gray background to make the box pop
+  },
+  scrollContainer: {
+    flexGrow: 1,
+    justifyContent: 'center',
+    padding: 24,
   },
   formBox: {
     backgroundColor: '#fff',
