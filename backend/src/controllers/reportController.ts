@@ -4,7 +4,10 @@ import { prisma } from '../config/db.js';
 // GET /reports/dashboard — returns all stats for dashboard cards
 export const getDashboardStats = async (req: Request, res: Response) => {
   try {
-    const today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    let today = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
+    if (req.query.date && typeof req.query.date === 'string') {
+      today = req.query.date;
+    }
 
     const [
       totalRoutes,
@@ -19,6 +22,11 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       completedStops,
       allDrivers,
       activeDriversCountDB,
+      revenueAgg,
+      todayMissedStops,
+      opMachines,
+      nsMachines,
+      offMachines,
     ] = await Promise.all([
       prisma.route.count(),
       prisma.route.count({ where: { date: today } }),
@@ -32,6 +40,17 @@ export const getDashboardStats = async (req: Request, res: Response) => {
       prisma.routestop.count({ where: { status: 'COMPLETED' } }),
       prisma.user.findMany({ where: { role: 'DRIVER' }, select: { id: true } }),
       (prisma.user as any).count({ where: { role: 'DRIVER', isOnline: true } }),
+      // New Metrics
+      prisma.routestop.aggregate({
+        _sum: { cashCollected: true },
+        where: { route: { date: today } }
+      }),
+      prisma.routestop.count({
+        where: { status: 'SKIPPED', route: { date: today } }
+      }),
+      prisma.machine.count({ where: { status: 'ACTIVE' } }),
+      prisma.machine.count({ where: { status: 'NEEDS_MAINTENANCE' } }),
+      prisma.machine.count({ where: { status: { in: ['INACTIVE', 'OUT_OF_STOCK'] } } }),
     ]);
 
     return res.status(200).json({
@@ -56,13 +75,22 @@ export const getDashboardStats = async (req: Request, res: Response) => {
         machine: {
           total: totalMachines,
           alerts: machineAlerts,
+          statusCounts: [
+            { name: "Operational", value: opMachines, color: "#10B981" },
+            { name: "Needs Service", value: nsMachines, color: "#F59E0B" },
+            { name: "Offline", value: offMachines, color: "#EF4444" },
+          ]
         },
         routestop: {
           total: totalStops,
           completed: completedStops,
           pending: totalStops - completedStops,
           completionRate: totalStops > 0 ? Math.round((completedStops / totalStops) * 100) : 0,
+          missedToday: todayMissedStops,
         },
+        revenue: {
+          today: revenueAgg._sum.cashCollected || 0
+        }
       },
     });
   } catch (error: any) {

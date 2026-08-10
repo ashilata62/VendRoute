@@ -308,9 +308,9 @@ function RoutesTab({ routes, drivers }: { routes: any[]; drivers: any[] }) {
 
 // ─── Stops Tab (Real Backend Data) ───────────────────────────────────────────
 function StopsTab({ stats }: { stats: any }) {
-  const totalCompleted = stats?.stops?.completed ?? 0;
-  const totalAll = stats?.stops?.total ?? 0;
-  const totalPending = stats?.stops?.pending ?? 0;
+  const totalCompleted = stats?.routestop?.completed ?? 0;
+  const totalAll = stats?.routestop?.total ?? 0;
+  const totalPending = stats?.routestop?.pending ?? 0;
   const totalMissed = 0; // skipped stops - not tracked separately yet
   const completionRate = totalAll > 0 ? ((totalCompleted / totalAll) * 100).toFixed(1) : "0";
 
@@ -813,7 +813,7 @@ export default function ReportsPage() {
           <div className="w-px h-10 bg-amber-900/20" />
           <div className="text-right">
             <p className="text-2xl font-bold">
-              {activeTab === "revenue" && formatCurrency(2049000)}
+              {activeTab === "revenue" && formatCurrency(stops.reduce((s, stop) => s + (stop.cashCollected || 0), 0))}
               {activeTab === "routes"  && `${routes.length} Routes`}
               {activeTab === "stops"   && "Live Stops"}
               {activeTab === "drivers" && `${drivers.length} Drivers`}

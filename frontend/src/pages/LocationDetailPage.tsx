@@ -75,6 +75,7 @@ export default function LocationDetailPage() {
   const [newNoteInput, setNewNoteInput] = useState("");
 
   const [isEditing, setIsEditing] = useState(false);
+  const [isSyncingGps, setIsSyncingGps] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
   const [uploadMsg, setUploadMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
@@ -246,15 +247,15 @@ export default function LocationDetailPage() {
 
   const handleUploadPhoto = async (file: File) => {
     if (!id || !loc) return;
-    setUploadMsg(null);
     try {
-      // Upload file to backend which forwards to Cloudinary
-      const res: any = await uploadApi.uploadFile(file);
-      const url = res?.data?.url || res?.data?.secure_url || res?.url;
-      if (!url) throw new Error("No URL returned from upload service");
+      // 1. Upload file to backend / Cloudinary
+      const uploadRes = await uploadApi.uploadFile(file);
+      const url = uploadRes.url;
 
+      // 2. Save the resulting URL to the location
       await locationsApi.update(id, { imageUrl: url });
       setLoc((prev: any) => ({ ...prev, imageUrl: url }));
+      
       setUploadMsg({ type: "success", text: "Photo uploaded successfully!" });
       setTimeout(() => setUploadMsg(null), 4000);
     } catch (err: any) {

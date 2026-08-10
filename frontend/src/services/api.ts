@@ -36,6 +36,11 @@ async function apiFetch<T>(
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
+  // Let browser set Content-Type for FormData (includes boundaries)
+  if (options.body instanceof FormData) {
+    delete headers["Content-Type"];
+  }
+
   const res = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
 
   if (!res.ok) {
@@ -235,8 +240,8 @@ export const vehiclesApi = {
 
 // ─── Reports APIs ──────────────────────────────────────────────────────────────
 export const reportsApi = {
-  getDashboard: () =>
-    apiFetch<{ success: boolean; data: any }>("/reports/dashboard"),
+  getDashboard: (date?: string) =>
+    apiFetch<{ success: boolean; data: any }>(date ? `/reports/dashboard?date=${date}` : "/reports/dashboard"),
 };
 
 // ─── Notifications APIs ────────────────────────────────────────────────────────
@@ -265,6 +270,7 @@ export const settingsApi = {
       body: JSON.stringify(data),
     }),
 };
+
 
 // ─── Integration Configuration APIs ────────────────────────────────────────────
 export const integrationApi = {
@@ -297,7 +303,7 @@ export const uploadApi = {
   uploadFile: async (file: File) => {
     const token = getToken();
     const form = new FormData();
-    form.append("file", file);
+    form.append("image", file);
 
     const headers: Record<string, string> = {};
     if (token) headers["Authorization"] = `Bearer ${token}`;
