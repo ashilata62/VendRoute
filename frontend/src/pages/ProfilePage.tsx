@@ -6,7 +6,7 @@ import {
 } from "lucide-react";
 import PageHeader from "../components/shared/PageHeader";
 import { useAuthStore } from "../store/authStore";
-import { authApi, usersApi } from "../services/api";
+import { authApi, usersApi, uploadApi } from "../services/api";
 
 export default function ProfilePage() {
   const { user, fetchMe } = useAuthStore();
@@ -30,14 +30,28 @@ export default function ProfilePage() {
   const [passSuccess, setPassSuccess] = useState("");
   const [passError, setPassError] = useState("");
 
-  const handleAvatarChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleAvatarChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (file) {
-      const reader = new FileReader();
-      reader.onloadend = () => {
-        setAvatar(reader.result as string);
-      };
-      reader.readAsDataURL(file);
+      setInfoLoading(true);
+      setInfoError("");
+      try {
+        const uploadRes = await uploadApi.uploadFile(file);
+        if (uploadRes && uploadRes.url) {
+          setAvatar(uploadRes.url);
+          if (user?.id) {
+            await usersApi.update(user.id, { avatar: uploadRes.url });
+            await fetchMe();
+            setInfoSuccess("Profile photo updated successfully!");
+          } else {
+            setInfoSuccess("Photo uploaded! Click 'Save Profile Changes' to update your profile.");
+          }
+        }
+      } catch (err: any) {
+        setInfoError(err.message || "Failed to upload photo");
+      } finally {
+        setInfoLoading(false);
+      }
     }
   };
 
@@ -100,10 +114,15 @@ export default function ProfilePage() {
       return;
     }
 
+    if (!currentPassword) {
+      setPassError("Current password is required.");
+      return;
+    }
+
     setPassLoading(true);
     try {
-      // Reset password API
-      const res = await authApi.resetPassword(email, "", newPassword);
+      // Use new change-password API
+      const res = await authApi.changePassword(currentPassword, newPassword);
       if (res.success) {
         setPassSuccess("Password changed successfully! Next time login with your new password.");
         setCurrentPassword("");
@@ -331,6 +350,21 @@ export default function ProfilePage() {
           )}
 
           <form onSubmit={handleChangePassword} className="space-y-4 text-xs">
+            <div>
+              <label className="block font-semibold text-slate-700 mb-1.5">Current Password *</label>
+              <div className="relative">
+                <Key className="absolute left-3 top-3 w-4 h-4 text-slate-400" />
+                <input
+                  type="password"
+                  required
+                  value={currentPassword}
+                  onChange={(e) => setCurrentPassword(e.target.value)}
+                  placeholder="Enter current password"
+                  className="w-full pl-9 pr-3 py-2.5 border border-slate-200 rounded-xl text-xs font-semibold focus:outline-none focus:ring-2 focus:ring-indigo-600/20 focus:border-indigo-600"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block font-semibold text-slate-700 mb-1.5">New Password *</label>
               <div className="relative">

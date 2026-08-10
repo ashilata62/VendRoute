@@ -5,7 +5,8 @@ import {
   getProfileController,
   forgotPasswordController,
   verifyOtpController,
-  resetPasswordController
+  resetPasswordController,
+  changePasswordController
 } from '../controllers/authController.js';
 import { validateRequest } from '../middlewares/validateMiddleware.js';
 import { loginSchema, registerSchema } from '../validators/authValidator.js';
@@ -20,5 +21,6 @@ router.get('/me', authenticateJWT, getProfileController);
 router.post('/forgot-password', forgotPasswordController);
 router.post('/verify-otp', verifyOtpController);
 router.post('/reset-password', resetPasswordController);
+router.post('/change-password', authenticateJWT, changePasswordController);
 
 export default router;

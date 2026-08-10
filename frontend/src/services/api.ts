@@ -36,6 +36,11 @@ async function apiFetch<T>(
   };
   if (token) headers["Authorization"] = `Bearer ${token}`;
 
+  // Let browser set Content-Type for FormData (includes boundaries)
+  if (options.body instanceof FormData) {
+    delete headers["Content-Type"];
+  }
+
   const res = await fetch(`${BASE_URL}${endpoint}`, { ...options, headers });
 
   if (!res.ok) {
@@ -86,6 +91,12 @@ export const authApi = {
     apiFetch<{ success: boolean; message: string }>("/auth/reset-password", {
       method: "POST",
       body: JSON.stringify({ email, otp, newPassword }),
+    }),
+
+  changePassword: (currentPassword: string, newPassword: string) =>
+    apiFetch<{ success: boolean; message: string }>("/auth/change-password", {
+      method: "POST",
+      body: JSON.stringify({ currentPassword, newPassword }),
     }),
   punchIn: () => apiFetch<{ success: boolean }>("/attendance/punch-in", { method: "POST" }),
   punchOut: () => apiFetch<{ success: boolean }>("/attendance/punch-out", { method: "POST" }),
@@ -235,8 +246,8 @@ export const vehiclesApi = {
 
 // ─── Reports APIs ──────────────────────────────────────────────────────────────
 export const reportsApi = {
-  getDashboard: () =>
-    apiFetch<{ success: boolean; data: any }>("/reports/dashboard"),
+  getDashboard: (date?: string) =>
+    apiFetch<{ success: boolean; data: any }>(date ? `/reports/dashboard?date=${date}` : "/reports/dashboard"),
 };
 
 // ─── Notifications APIs ────────────────────────────────────────────────────────
@@ -266,6 +277,22 @@ export const settingsApi = {
     }),
 };
 
+
+// ─── Integration Configuration APIs ────────────────────────────────────────────
+export const integrationApi = {
+  getAll: () =>
+    apiFetch<{ success: boolean; data: any[] }>("/settings/integrations"),
+  save: (provider: string, data: any) =>
+    apiFetch<{ success: boolean; data: any }>(`/settings/integrations/${provider}`, {
+      method: "POST",
+      body: JSON.stringify(data),
+    }),
+  test: (provider: string) =>
+    apiFetch<{ success: boolean; message: string }>(`/settings/integrations/${provider}/test`, {
+      method: "POST",
+    }),
+};
+
 // ─── Analytics APIs ────────────────────────────────────────────────────────────
 export const analyticsApi = {
   getDriverAnalytics: (driverId: string) =>
@@ -275,4 +302,29 @@ export const analyticsApi = {
 // ─── Attendance APIs ────────────────────────────────────────────────────────────
 export const attendanceApi = {
   getDriverHistory: (driverId: string) => apiFetch<any>(`/attendance/history?driverId=${driverId}`),
+};
+
+// ─── Upload API (files -> backend -> Cloudinary) ──────────────────────────────
+export const uploadApi = {
+  uploadFile: async (file: File) => {
+    const token = getToken();
+    const form = new FormData();
+    form.append("image", file);
+
+    const headers: Record<string, string> = {};
+    if (token) headers["Authorization"] = `Bearer ${token}`;
+
+    const res = await fetch(`${BASE_URL}/upload`, {
+      method: "POST",
+      headers: Object.keys(headers).length ? headers : undefined,
+      body: form,
+    });
+
+    if (!res.ok) {
+      const err = await res.json().catch(() => ({ message: res.statusText }));
+      throw new Error(err.message || `Upload failed: ${res.status}`);
+    }
+
+    return res.json();
+  },
 };

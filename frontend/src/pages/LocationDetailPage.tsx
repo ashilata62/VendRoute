@@ -13,7 +13,7 @@ import { ArrowLeft, MapPin, Phone, Package, Image as ImageIcon,
 import StatusBadge from "../components/shared/StatusBadge";
 import PageHeader from "../components/shared/PageHeader";
 import { formatDate } from "../lib/utils";
-import { locationsApi, stopsApi, machinesApi } from "../services/api";
+import { locationsApi, stopsApi, machinesApi, uploadApi } from "../services/api";
 
 // Fix Leaflet default icon
 delete (L.Icon.Default.prototype as any)._getIconUrl;
@@ -74,8 +74,10 @@ export default function LocationDetailPage() {
   const [notesList, setNotesList] = useState<any[]>([]); // Dynamically populated from backend
   const [newNoteInput, setNewNoteInput] = useState("");
 
+  const [isEditing, setIsEditing] = useState(false);
   const [isSyncingGps, setIsSyncingGps] = useState(false);
   const [syncMsg, setSyncMsg] = useState<string | null>(null);
+  const [uploadMsg, setUploadMsg] = useState<{ type: "success" | "error"; text: string } | null>(null);
 
   // Vending Machine Edit state
   const [isMachineModalOpen, setIsMachineModalOpen] = useState(false);
@@ -245,18 +247,21 @@ export default function LocationDetailPage() {
 
   const handleUploadPhoto = async (file: File) => {
     if (!id || !loc) return;
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      try {
-        const base64 = reader.result as string;
-        await locationsApi.update(id, { imageUrl: base64 });
-        setLoc((prev: any) => ({ ...prev, imageUrl: base64 }));
-        alert("Photo uploaded successfully!");
-      } catch (err: any) {
-        alert(err.message || "Failed to upload photo");
-      }
-    };
-    reader.readAsDataURL(file);
+    try {
+      // 1. Upload file to backend / Cloudinary
+      const uploadRes = await uploadApi.uploadFile(file);
+      const url = uploadRes.url;
+
+      // 2. Save the resulting URL to the location
+      await locationsApi.update(id, { imageUrl: url });
+      setLoc((prev: any) => ({ ...prev, imageUrl: url }));
+      
+      setUploadMsg({ type: "success", text: "Photo uploaded successfully!" });
+      setTimeout(() => setUploadMsg(null), 4000);
+    } catch (err: any) {
+      setUploadMsg({ type: "error", text: err.message || "Failed to upload photo" });
+      setTimeout(() => setUploadMsg(null), 5000);
+    }
   };
 
   // Fetch location data on mount
@@ -807,10 +812,19 @@ export default function LocationDetailPage() {
                   onChange={(e) => {
                     const file = e.target.files?.[0];
                     if (file) {
+                      setUploadMsg(null);
                       handleUploadPhoto(file);
                     }
                   }}
                 />
+                
+                {uploadMsg && (
+                  <div className={`mt-3 px-3 py-2 text-[11px] font-bold rounded-lg animate-in fade-in slide-in-from-top-1 ${
+                    uploadMsg.type === "success" ? "bg-emerald-50 text-emerald-700 border border-emerald-100" : "bg-red-50 text-red-600 border border-red-100"
+                  }`}>
+                    {uploadMsg.text}
+                  </div>
+                )}
               </div>
             </div>
 

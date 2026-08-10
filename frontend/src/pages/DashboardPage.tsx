@@ -101,12 +101,17 @@ export default function DashboardPage() {
         }
       }).catch(() => {});
       locationsApi.getAll().then(res => { if (res.success) setLocations(res.data); }).catch(() => {});
-      reportsApi.getDashboard().then((res) => {
-        if (res.success) setDbStats(res.data);
-      }).catch(() => {});
     });
     fetchNotifications();
   }, []);
+
+  useEffect(() => {
+    import("../services/api").then(({ reportsApi }) => {
+      reportsApi.getDashboard(selectedDate).then((res) => {
+        if (res.success) setDbStats(res.data);
+      }).catch(() => {});
+    });
+  }, [selectedDate]);
 
   // Metrics — Real calculated values from stores
   const targetRoutes = routes.filter((r) => r.date === selectedDate || r.date?.startsWith(selectedDate));
@@ -116,14 +121,18 @@ export default function DashboardPage() {
   
   const completedStopsCount = targetRoutes.reduce((acc, r) => acc + (r.routestop?.filter((s:any) => s.status === 'COMPLETED').length || 0), 0);
   const totalStopsCount = targetRoutes.reduce((acc, r) => acc + (r.routestop?.length || 0), 0);
-  const missedStopsCount = targetRoutes.reduce((acc, r) => acc + (r.routestop?.filter((s:any) => s.status === 'SKIPPED').length || 0), 0);
+  const missedStopsCount = dbStats?.routestop?.missedToday || 0;
   
   const allMachines = useMemo(() => locations.flatMap((l) => l.machine || []), [locations]);
-  const machineAlertsCount = allMachines.filter((m) => m.status === "NEEDS_MAINTENANCE" || m.status === "OUT_OF_STOCK" || m.status === "INACTIVE").length;
-  const todayRevenue = targetRoutes.reduce((acc, r) => acc + (r.routestop?.reduce((sum: number, s:any) => sum + (Number(s.cashCollected) || 0), 0) || 0), 0);
+  const machineAlertsCount = dbStats?.machine?.alerts || 0;
+  const todayRevenue = dbStats?.revenue?.today || 0;
 
 
   const machineStatusCounts = useMemo(() => {
+    if (dbStats?.machine?.statusCounts) {
+      return dbStats.machine.statusCounts;
+    }
+    // Fallback if backend hasn't loaded yet
     const op = allMachines.filter((m) => m.status === "ACTIVE").length;
     const ns = allMachines.filter((m) => m.status === "NEEDS_MAINTENANCE").length;
     const off = allMachines.filter((m) => m.status === "INACTIVE" || m.status === "OUT_OF_STOCK").length;
@@ -132,7 +141,7 @@ export default function DashboardPage() {
       { name: "Needs Service", value: ns, color: "#F59E0B" },
       { name: "Offline", value: off, color: "#EF4444" },
     ];
-  }, [allMachines]);
+  }, [allMachines, dbStats]);
 
   useEffect(() => {
     setMovingLocations(liveLocations);

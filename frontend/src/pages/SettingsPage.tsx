@@ -4,6 +4,7 @@ import { Save, Globe, CheckCircle2, Sliders, Clock, Camera, Key, Loader2 } from 
 import PageHeader from "../components/shared/PageHeader";
 import { useAuthStore } from "../store/authStore";
 import { settingsApi } from "../services/api";
+import IntegrationManager from "../components/settings/IntegrationManager";
 
 const tabs = [
   { id: "company", label: "General & Company", icon: Globe },
@@ -761,79 +762,14 @@ export default function SettingsPage() {
           {/* TAB 5: APIS & ROLE PERMISSIONS MATRIX */}
           {activeTab === "api_matrix" && (
             <div className="space-y-6">
-              <h3 className="font-extrabold text-slate-900 text-sm border-b border-slate-100 pb-3">API SDK Credentials</h3>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Google Maps Web SDK Key</label>
-                  <input
-                    type="password"
-                    value={apiForm.googleMapsKey}
-                    onChange={(e) => setApiForm({ ...apiForm, googleMapsKey: e.target.value })}
-                    className="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 font-mono"
-                  />
-                </div>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Firebase Database Config JSON</label>
-                    <textarea
-                      rows={3}
-                      value={apiForm.firebaseConfig}
-                      onChange={(e) => setApiForm({ ...apiForm, firebaseConfig: e.target.value })}
-                      className="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 font-mono"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Cloud Storage Bucket URI</label>
-                    <input
-                      type="text"
-                      value={apiForm.storageBucket}
-                      onChange={(e) => setApiForm({ ...apiForm, storageBucket: e.target.value })}
-                      className="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl bg-slate-50 font-mono"
-                    />
-                  </div>
-                </div>
-              </div>
+              <h3 className="font-extrabold text-slate-900 text-sm border-b border-slate-100 pb-3">Client API & Integration Configuration</h3>
+              <p className="text-xs text-slate-500 pb-4">
+                Manage your third-party API keys and integrations here. Credentials are encrypted in the database.
+              </p>
+              
+              <IntegrationManager />
 
-              <h3 className="font-extrabold text-slate-900 text-sm border-b border-slate-100 pt-2 pb-3">Dynamic Notification Dispatches</h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="space-y-2 mt-2">
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={apiForm.enablePush}
-                      onChange={(e) => setApiForm({ ...apiForm, enablePush: e.target.checked })}
-                    />
-                    Enable FCM Push Notifications
-                  </label>
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={apiForm.enableEmail}
-                      onChange={(e) => setApiForm({ ...apiForm, enableEmail: e.target.checked })}
-                    />
-                    Enable Automated Email Dispatches
-                  </label>
-                  <label className="flex items-center gap-1.5 text-xs font-bold text-slate-700 cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={apiForm.enableSMS}
-                      onChange={(e) => setApiForm({ ...apiForm, enableSMS: e.target.checked })}
-                    />
-                    Enable Twilio SMS Alert Notifications
-                  </label>
-                </div>
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-wider mb-1.5">Notification Alert Recipients</label>
-                  <input
-                    type="text"
-                    value={apiForm.recipients}
-                    onChange={(e) => setApiForm({ ...apiForm, recipients: e.target.value })}
-                    className="w-full px-3 py-2.5 text-xs border border-slate-200 rounded-xl focus:outline-none text-slate-600"
-                  />
-                </div>
-              </div>
-
-              <h3 className="font-extrabold text-slate-900 text-sm border-b border-slate-100 pt-2 pb-3">Configure Role Permissions Matrix</h3>
+              <h3 className="font-extrabold text-slate-900 text-sm border-b border-slate-100 pt-6 pb-3">Configure Role Permissions Matrix</h3>
               <div className="overflow-x-auto">
                 <table className="w-full text-left text-xs border-collapse">
                   <thead>
