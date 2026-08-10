@@ -35,7 +35,13 @@ export const updateLocation = async (req: Request, res: Response) => {
     const location = await LocationService.update(id, req.body);
     return res.status(200).json({ success: true, data: location });
   } catch (error: any) {
-    return res.status(400).json({ success: false, message: error.message });
+    let msg = error.message;
+    if (msg && msg.includes('Server has closed the connection')) {
+      msg = "Image size is too large to save. Please upload a smaller image.";
+    } else if (msg && msg.includes('prisma')) {
+      msg = "Database error occurred while saving details. Please try again.";
+    }
+    return res.status(400).json({ success: false, message: msg });
   }
 };
 

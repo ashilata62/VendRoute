@@ -43,7 +43,11 @@ This document summarizes the current status, implemented features, important des
 * **Loading State UX**: Added a proper loading spinner (`Loading Configuration from Server...`) in `SettingsPage.tsx` using the existing `settingsLoading` state. This prevents the brief flash of hardcoded dummy defaults on mount, ensuring users visually confirm that settings are actively pulled from the live database.
 
 ### 9. Live Tracking Page Backend Connectivity Fixes
-* **Removed Dummy Driver Status**: Replaced hardcoded cycling driver statuses (online/offline/on-route) with real `isOnline` and route progress checks from the backend.
+* **Removed Final Dashboard Dummy Texts**: Removed "Total 25 machines" and "Simulated updates every 5s" strings.
+* **Made Machine Status Dynamic**: The Machine Status donut chart now pulls from the actual machine records nested inside the locations data from the backend, correctly calculating ACTIVE, NEEDS_MAINTENANCE, and INACTIVE/OUT_OF_STOCK.
+* **Fixed Machine Alerts Count**: The "Machine Alerts" summary card now accurately counts machines needing maintenance or out of stock, replacing the old dummy location-status logic.
+* **Fixed Overall Route Progress Calculation**: The Route Completion Progress now calculates across all active routes for the selected date instead of just the sliced top 4 routes.
+* **UX Fix for Location Updates**: Replaced raw Prisma database error traces on the frontend with user-friendly error messages (e.g., advising smaller image uploads if the payload is too large and the database closes the connection).
 * **Dynamic Route Polylines & Markers**: Connected the map rendering to actual `routestop` locations for the assigned routes, replacing the hardcoded slice of the first 4 generic locations.
 * **Live Route Timeline Panel**: Swapped out the mocked "RCF Colony Complex", "Nesco IT Park" timeline entries for real database stops and their actual backend check-in statuses (COMPLETED, REACHED, PENDING).
 

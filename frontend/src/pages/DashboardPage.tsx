@@ -116,22 +116,23 @@ export default function DashboardPage() {
   
   const completedStopsCount = targetRoutes.reduce((acc, r) => acc + (r.routestop?.filter((s:any) => s.status === 'COMPLETED').length || 0), 0);
   const totalStopsCount = targetRoutes.reduce((acc, r) => acc + (r.routestop?.length || 0), 0);
-  const missedStopsCount = targetRoutes.reduce((acc, r) => acc + (r.routestop?.filter((s:any) => s.status === 'MISSED' || s.status === 'FAILED').length || 0), 0);
+  const missedStopsCount = targetRoutes.reduce((acc, r) => acc + (r.routestop?.filter((s:any) => s.status === 'SKIPPED').length || 0), 0);
   
-  const machineAlertsCount = locations.filter((l) => l.status === "needs-service" || l.status === "offline").length;
+  const allMachines = useMemo(() => locations.flatMap((l) => l.machine || []), [locations]);
+  const machineAlertsCount = allMachines.filter((m) => m.status === "NEEDS_MAINTENANCE" || m.status === "OUT_OF_STOCK" || m.status === "INACTIVE").length;
   const todayRevenue = targetRoutes.reduce((acc, r) => acc + (r.routestop?.reduce((sum: number, s:any) => sum + (Number(s.cashCollected) || 0), 0) || 0), 0);
 
-  // Donut chart machine status
+
   const machineStatusCounts = useMemo(() => {
-    const op = locations.filter((l) => l.status === "operational").length;
-    const ns = locations.filter((l) => l.status === "needs-service").length;
-    const off = locations.filter((l) => l.status === "offline").length;
+    const op = allMachines.filter((m) => m.status === "ACTIVE").length;
+    const ns = allMachines.filter((m) => m.status === "NEEDS_MAINTENANCE").length;
+    const off = allMachines.filter((m) => m.status === "INACTIVE" || m.status === "OUT_OF_STOCK").length;
     return [
       { name: "Operational", value: op, color: "#10B981" },
       { name: "Needs Service", value: ns, color: "#F59E0B" },
       { name: "Offline", value: off, color: "#EF4444" },
     ];
-  }, [locations]);
+  }, [allMachines]);
 
   useEffect(() => {
     setMovingLocations(liveLocations);
@@ -184,9 +185,16 @@ export default function DashboardPage() {
   }, [routes]);
 
 
-  const totalProgressPct = Math.round(
-    activeRoutesProgress.reduce((acc, r) => acc + r.percentage, 0) / (activeRoutesProgress.length || 1)
-  );
+  const totalProgressPct = targetRoutes.length > 0
+    ? Math.round(
+        targetRoutes.reduce((acc, r) => {
+          const totalStops = r.routestop?.length || 0;
+          const completedStops = r.routestop?.filter((s:any) => s.status === 'COMPLETED').length || 0;
+          const pct = totalStops > 0 ? (completedStops / totalStops) * 100 : 0;
+          return acc + pct;
+        }, 0) / targetRoutes.length
+      )
+    : 0;
 
   return (
     <div className="space-y-6 pb-8">
@@ -365,7 +373,7 @@ export default function DashboardPage() {
           <div className="p-4 border-b border-border flex items-center justify-between bg-white z-10">
             <div>
               <h3 className="font-semibold text-slate-900 text-sm">Live Vehicles Map</h3>
-              <p className="text-xs text-slate-400">Real-time fleet movement (Simulated updates every 5s)</p>
+              <p className="text-xs text-slate-400">Real-time fleet movement</p>
             </div>
             <div className="flex items-center gap-2">
               <button
@@ -539,7 +547,7 @@ export default function DashboardPage() {
         <div className="bg-card rounded-lg border border-border shadow-sm p-6 flex flex-col justify-between">
           <div className="flex items-center justify-between mb-2">
             <h3 className="font-semibold text-slate-900 text-sm">Machine Status</h3>
-            <span className="text-xs text-slate-400">Total 25 machines</span>
+            <span className="text-xs text-slate-400">Total {allMachines.length} machines</span>
           </div>
 
           <div className="relative h-44 flex items-center justify-center">
@@ -569,7 +577,7 @@ export default function DashboardPage() {
             )}
             {/* Donut Center Overlay */}
             <div className="absolute flex flex-col items-center justify-center">
-              <span className="text-xl font-bold text-slate-900">{locations.length}</span>
+              <span className="text-xl font-bold text-slate-900">{allMachines.length}</span>
               <span className="text-[10px] text-slate-400">Total</span>
             </div>
           </div>
@@ -582,7 +590,7 @@ export default function DashboardPage() {
                   <span className="text-xs text-slate-500 font-medium">{item.name}</span>
                 </div>
                 <span className="text-sm font-bold text-slate-900 mt-0.5">
-                  {item.value} ({locations.length > 0 ? Math.round((item.value / locations.length) * 100) : 0}%)
+                  {item.value} ({allMachines.length > 0 ? Math.round((item.value / allMachines.length) * 100) : 0}%)
                 </span>
               </div>
             ))}
