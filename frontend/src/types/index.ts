@@ -106,7 +106,7 @@ export interface Stop {
 }
 
 // ─── Route ────────────────────────────────────────────────────────────────────
-export type RouteStatus = "PENDING" | "IN_PROGRESS" | "COMPLETED" | "CANCELLED";
+export type RouteStatus = "PENDING" | "IN_PROGRESS" | "REACHED" | "COMPLETED" | "CANCELLED";
 
 export interface Route {
   id: string;

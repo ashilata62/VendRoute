@@ -4,7 +4,15 @@ import axios from 'axios';
 import { useAuthStore } from '../store/authStore';
 import { Eye, EyeOff } from 'lucide-react-native';
 
-const API_URL = 'https://marylandvendngbcknd-production.up.railway.app/api/v1';
+import api from '../services/api';
+
+const ENV_API_URL = process.env.EXPO_PUBLIC_API_URL || 'https://marylandvendngbcknd-production.up.railway.app/api/v1';
+
+const ENDPOINTS = Array.from(new Set([
+  ENV_API_URL,
+  'http://192.168.1.50:3000/api/v1',
+  'https://marylandvendngbcknd-production.up.railway.app/api/v1'
+]));
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('driver@vendroute.com');
@@ -20,28 +28,40 @@ export default function LoginScreen() {
     }
     
     setLoading(true);
-    try {
-      const response = await axios.post(`${API_URL}/auth/login`, {
-        email,
-        password,
-      });
+    let response: any = null;
+    let lastError: any = null;
 
-      if (response.data.success) {
-        if (response.data.user.role.toLowerCase() !== 'driver') {
-          Alert.alert('Access Denied', 'This app is only for drivers.');
-        } else {
-          setAuth(response.data.user, response.data.token);
+    for (const url of ENDPOINTS) {
+      try {
+        const res = await axios.post(`${url}/auth/login`, {
+          email: email.trim(),
+          password: password.trim(),
+        }, { timeout: 8000 });
+
+        if (res.data?.success) {
+          response = res;
+          api.defaults.baseURL = url;
+          break;
         }
+      } catch (err: any) {
+        lastError = err;
       }
-    } catch (error: any) {
-      console.log('Login Error:', error);
+    }
+
+    if (response?.data?.success) {
+      if (response.data.user.role.toLowerCase() !== 'driver') {
+        Alert.alert('Access Denied', 'This app is only for drivers.');
+      } else {
+        setAuth(response.data.user, response.data.token);
+      }
+    } else {
+      console.log('Login Error:', lastError);
       Alert.alert(
         'Login Failed', 
-        error.response?.data?.message || error.message || JSON.stringify(error) || 'Network error'
+        lastError?.response?.data?.message || lastError?.message || 'Invalid email or password'
       );
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
 
   return (
