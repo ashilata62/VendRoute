@@ -19,13 +19,24 @@ export default function LoginScreen() {
   const [password, setPassword] = useState('password123');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
   const setAuth = useAuthStore((state) => state.setAuth);
 
   const handleLogin = async () => {
-    if (!email || !password) {
-      Alert.alert('Error', 'Please enter email and password');
-      return;
+    setEmailError('');
+    setPasswordError('');
+
+    let hasError = false;
+    if (!email) {
+      setEmailError('Email is required');
+      hasError = true;
     }
+    if (!password) {
+      setPasswordError('Password is required');
+      hasError = true;
+    }
+    if (hasError) return;
     
     setLoading(true);
     let response: any = null;
@@ -56,10 +67,17 @@ export default function LoginScreen() {
       }
     } else {
       console.log('Login Error:', lastError);
-      Alert.alert(
-        'Login Failed', 
-        lastError?.response?.data?.message || lastError?.message || 'Invalid email or password'
-      );
+      const errMsg = lastError?.response?.data?.message || lastError?.message || '';
+      if (errMsg.toLowerCase().includes('email')) {
+        setEmailError('Invalid email address');
+      } else if (errMsg.toLowerCase().includes('password')) {
+        setPasswordError('Incorrect password');
+      } else {
+        Alert.alert(
+          'Login Failed', 
+          errMsg || 'Invalid email or password'
+        );
+      }
     }
     setLoading(false);
   };
@@ -84,22 +102,23 @@ export default function LoginScreen() {
           <Text style={styles.subtitle}>Sign in to start your route</Text>
 
           <TextInput
-            style={styles.input}
+            style={[styles.input, { marginBottom: emailError ? 8 : 16 }, emailError ? styles.inputError : null]}
             placeholder="Email Address"
             placeholderTextColor="#94a3b8"
             value={email}
-            onChangeText={setEmail}
+            onChangeText={(text) => { setEmail(text); setEmailError(''); }}
             autoCapitalize="none"
             keyboardType="email-address"
           />
+          {emailError ? <Text style={styles.errorText}>{emailError}</Text> : null}
           
-          <View style={styles.passwordContainer}>
+          <View style={[styles.passwordContainer, { marginBottom: passwordError ? 8 : 24 }, passwordError ? styles.inputError : null]}>
             <TextInput
               style={styles.passwordInput}
               placeholder="Password"
               placeholderTextColor="#94a3b8"
               value={password}
-              onChangeText={setPassword}
+              onChangeText={(text) => { setPassword(text); setPasswordError(''); }}
               secureTextEntry={!showPassword}
             />
             <TouchableOpacity 
@@ -109,6 +128,7 @@ export default function LoginScreen() {
               {showPassword ? <EyeOff size={24} color="#64748b" /> : <Eye size={24} color="#64748b" />}
             </TouchableOpacity>
           </View>
+          {passwordError ? <Text style={styles.errorText}>{passwordError}</Text> : null}
 
           <TouchableOpacity style={styles.button} onPress={handleLogin} disabled={loading}>
             {loading ? (
@@ -160,7 +180,6 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
     borderRadius: 8,
     padding: 16,
-    marginBottom: 16,
     fontSize: 16,
     backgroundColor: '#f8fafc',
     color: '#0f172a',
@@ -171,7 +190,6 @@ const styles = StyleSheet.create({
     borderWidth: 1,
     borderColor: '#e2e8f0',
     borderRadius: 8,
-    marginBottom: 24,
     backgroundColor: '#f8fafc',
   },
   passwordInput: {
@@ -193,5 +211,15 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: 'bold',
+  },
+  inputError: {
+    borderColor: '#dc2626',
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 12,
+    marginTop: -4,
+    marginBottom: 16,
+    paddingLeft: 4,
   },
 });

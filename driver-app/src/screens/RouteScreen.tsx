@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ScrollView, ActivityIndicator, Alert, Linking, Platform, RefreshControl } from 'react-native';
 import { useNavigation, useFocusEffect } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
 import { stopsApi } from '../services/api';
@@ -12,6 +12,15 @@ export default function RouteScreen() {
   const { user, isRouteStarted, startRoute: setGlobalRouteStarted } = useAuthStore();
   const navigation = useNavigation<any>();
   const [showNotifModal, setShowNotifModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await refetch();
+    } catch (e) {}
+    setRefreshing(false);
+  };
   
   const { data: routesResponse, isLoading: loading, refetch } = useQuery({
     queryKey: ['routes', user?.id],
@@ -91,7 +100,14 @@ export default function RouteScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false} contentContainerStyle={{ paddingBottom: 40 }}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ paddingBottom: 40 }}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563eb']} />
+        }
+      >
         
         <View style={styles.topRow}>
           <Text style={styles.sectionTitle}>Assigned Route Stop Sequence</Text>

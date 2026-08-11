@@ -126,7 +126,7 @@ export default function StopDetailsScreen() {
         await queryClient.invalidateQueries({ queryKey: ['stops'] });
         await queryClient.invalidateQueries({ queryKey: ['attendance'] });
         Alert.alert('Success', 'Stop completed successfully!');
-        navigation.goBack();
+        navigation.navigate('DashboardList');
       } else {
         Alert.alert('Error', response.data?.message || 'Failed to complete service.');
       }
@@ -154,7 +154,7 @@ export default function StopDetailsScreen() {
               const response = await routesApi.updateStopStatus(stop.id, "SKIPPED", stop.route?.name, stop.location?.name);
               if (response.data?.success) {
                 Alert.alert('Stop Skipped', 'You have skipped this stop.');
-                navigation.goBack();
+                navigation.navigate('DashboardList');
               }
             } catch (err: any) {
               Alert.alert('Error', 'Failed to skip stop.');
@@ -170,7 +170,7 @@ export default function StopDetailsScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <TouchableOpacity onPress={() => navigation.goBack()}>
+        <TouchableOpacity onPress={() => navigation.navigate('DashboardList')}>
           <Text style={styles.backBtnText}>← Back to Route Sequence</Text>
         </TouchableOpacity>
       </View>

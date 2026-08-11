@@ -21,7 +21,7 @@ interface TrackingState {
   startTracking: () => void;
   stopTracking: () => void;
   updateLocation: (loc: LiveLocation) => void;
-  seedLocationsFromDrivers: (driverIds: string[]) => void;
+  seedLocationsFromDrivers: (driverIds: (string | { id: string; startLat?: number; startLng?: number })[]) => void;
 }
 
 // Default city center for seeding demo pins (Mumbai)
@@ -66,8 +66,8 @@ export const useTrackingStore = create<TrackingState>((set) => {
           l.driverId === loc.driverId ? { ...l, ...loc } : l
         ),
       })),
-    // Seeds demo GPS pins using real driver UUIDs from DB (spread around Mumbai area)
-    seedLocationsFromDrivers: (driverIds: string[]) => {
+    // Seeds demo GPS pins using real driver UUIDs from DB
+    seedLocationsFromDrivers: (driversData: (string | { id: string; startLat?: number; startLng?: number })[]) => {
       const offsets = [
         { lat: -0.015, lng: -0.021 },
         { lat:  0.040, lng:  0.027 },
@@ -77,19 +77,51 @@ export const useTrackingStore = create<TrackingState>((set) => {
         { lat:  0.060, lng: -0.040 },
       ];
       set((s) => {
-        // Only seed if no real GPS data exists for these drivers
-        const existingIds = new Set(s.liveLocations.map(l => l.driverId));
-        const newLocs: LiveLocation[] = driverIds
-          .filter(id => !existingIds.has(id))
-          .map((id, i) => ({
-            driverId: id,
-            lat: MUMBAI_CENTER.lat + (offsets[i % offsets.length]?.lat ?? 0),
-            lng: MUMBAI_CENTER.lng + (offsets[i % offsets.length]?.lng ?? 0),
-            speed: Math.floor(Math.random() * 40) + 10,
-            heading: Math.floor(Math.random() * 360),
-            timestamp: new Date().toISOString(),
-          }));
-        return { liveLocations: [...s.liveLocations, ...newLocs] };
+        // Map driver data format to structured items
+        const items = driversData.map((item) => {
+          if (typeof item === "string") {
+            return { id: item, startLat: undefined, startLng: undefined };
+          }
+          return item;
+        });
+
+        // 1. Update any existing locations if they were seeded near Mumbai but now have customized coordinates
+        const updatedLocations = s.liveLocations.map((loc) => {
+          const matchingItem = items.find(item => item.id === loc.driverId);
+          if (matchingItem) {
+            const hasCustomCoords = matchingItem.startLat !== undefined && matchingItem.startLng !== undefined && matchingItem.startLat !== null && matchingItem.startLng !== null;
+            const isNearMumbai = Math.abs(loc.lat - MUMBAI_CENTER.lat) < 0.2 && Math.abs(loc.lng - MUMBAI_CENTER.lng) < 0.2;
+            if (hasCustomCoords && isNearMumbai) {
+              return {
+                ...loc,
+                lat: Number(matchingItem.startLat),
+                lng: Number(matchingItem.startLng),
+                timestamp: new Date().toISOString(),
+              };
+            }
+          }
+          return loc;
+        });
+
+        // 2. Create new locations for drivers that are not already tracked
+        const existingIds = new Set(updatedLocations.map(l => l.driverId));
+        const newLocs: LiveLocation[] = items
+          .filter(item => !existingIds.has(item.id))
+          .map((item, i) => {
+            const hasCustomCoords = item.startLat !== undefined && item.startLng !== undefined && item.startLat !== null && item.startLng !== null;
+            const baseLat = hasCustomCoords ? Number(item.startLat) : MUMBAI_CENTER.lat;
+            const baseLng = hasCustomCoords ? Number(item.startLng) : MUMBAI_CENTER.lng;
+            return {
+              driverId: item.id,
+              lat: baseLat + (hasCustomCoords ? 0 : (offsets[i % offsets.length]?.lat ?? 0)),
+              lng: baseLng + (hasCustomCoords ? 0 : (offsets[i % offsets.length]?.lng ?? 0)),
+              speed: Math.floor(Math.random() * 40) + 10,
+              heading: Math.floor(Math.random() * 360),
+              timestamp: new Date().toISOString(),
+            };
+          });
+
+        return { liveLocations: [...updatedLocations, ...newLocs] };
       });
     },
   };

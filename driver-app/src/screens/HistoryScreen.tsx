@@ -66,7 +66,7 @@ export default function HistoryScreen() {
             <View style={[styles.logoCircle, { overflow: 'hidden' }]}>
               <Image 
                 source={require('../../assets/icon.png')} 
-                style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+                style={{ width: '75%', height: '75%', resizeMode: 'contain' }} 
               />
             </View>
             <Text style={styles.headerTitle}>Maryland <Text style={styles.headerTitleRed}>Driver</Text></Text>

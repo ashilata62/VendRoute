@@ -1,17 +1,29 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Linking, Platform, Image, Alert } from 'react-native';
+import { View, Text, StyleSheet, Dimensions, ActivityIndicator, TouchableOpacity, ScrollView, Linking, Platform, Image, Alert, RefreshControl } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
 import { useAuthStore } from '../store/authStore';
 import { LinearGradient } from 'expo-linear-gradient';
 import { CheckCircle, MapPin, Navigation as NavIcon, Play, Bell } from 'lucide-react-native';
 import { stopsApi, authApi, notificationsApi } from '../services/api';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import NotificationsModal from '../components/NotificationsModal';
 
 export default function DashboardScreen() {
   const { user, isOnline, toggleOnline, isRouteStarted, startRoute } = useAuthStore();
   const navigation = useNavigation<any>();
   const [showNotifModal, setShowNotifModal] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const queryClient = useQueryClient();
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    try {
+      await queryClient.invalidateQueries({ queryKey: ['routes', user?.id] });
+      await queryClient.refetchQueries({ queryKey: ['routes', user?.id] });
+      await queryClient.refetchQueries({ queryKey: ['notifications', user?.id] });
+    } catch (e) {}
+    setRefreshing(false);
+  };
 
   const { data: notifRes } = useQuery({
     queryKey: ['notifications', user?.id],
@@ -208,7 +220,7 @@ export default function DashboardScreen() {
             <View style={[styles.logoCircle, { overflow: 'hidden' }]}>
               <Image 
                 source={require('../../assets/icon.png')} 
-                style={{ width: '100%', height: '100%', resizeMode: 'cover' }} 
+                style={{ width: '75%', height: '75%', resizeMode: 'contain' }} 
               />
             </View>
             <Text style={styles.headerTitle}>Maryland <Text style={styles.headerTitleRed}>Driver</Text></Text>
@@ -232,7 +244,13 @@ export default function DashboardScreen() {
         </View>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+      <ScrollView
+        style={styles.content}
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} colors={['#2563eb']} />
+        }
+      >
         {/* Driver Greeting Card */}
         <LinearGradient 
           colors={['#2563eb', '#4f46e5', '#0f172a']} 

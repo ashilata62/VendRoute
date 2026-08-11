@@ -8,13 +8,13 @@ export class AuthService {
   static async login(email: string, pass: string) {
     const user = await prisma.user.findUnique({ where: { email } });
     if (!user) {
-      throw new Error('Invalid email or password');
+      throw new Error('Invalid email');
     }
 
     let isMatch = await comparePassword(pass, user.password);
     // Removed hardcoded fallback password checks for security
     if (!isMatch) {
-      throw new Error('Invalid email or password');
+      throw new Error('Invalid password');
     }
 
     const token = generateToken({ id: user.id, role: user.role });

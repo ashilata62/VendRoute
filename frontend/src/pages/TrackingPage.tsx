@@ -90,11 +90,44 @@ export default function TrackingPage() {
     usersApi.getAll("DRIVER").then(res => {
       if (res.success && res.data.length > 0) {
         setRealDrivers(res.data);
-        // Seed map pins using REAL driver UUIDs from DB
-        seedLocationsFromDrivers(res.data.map((d: any) => d.id));
       }
     }).catch(() => {});
   }, []);
+
+  // Seed driver locations using their assigned route's stops
+  useEffect(() => {
+    if (realDrivers.length > 0) {
+      const driversData = realDrivers.map((d) => {
+        const route = realRoutes.find(
+          (r: any) => r.driverId === d.id && (r.status === "IN_PROGRESS" || r.status === "PENDING")
+        ) || realRoutes.find((r: any) => r.driverId === d.id);
+        
+        let startLat = undefined;
+        let startLng = undefined;
+        
+        if (route && route.routestop && route.routestop.length > 0) {
+          const sortedStops = [...route.routestop].sort(
+            (a: any, b: any) => (a.stopOrder || 0) - (b.stopOrder || 0)
+          );
+          // Find first stop that is not completed
+          const activeStop = sortedStops.find((s: any) => s.status !== "COMPLETED") || sortedStops[0];
+          
+          if (activeStop && activeStop.location) {
+            startLat = Number(activeStop.location.lat ?? activeStop.location.latitude);
+            startLng = Number(activeStop.location.lng ?? activeStop.location.longitude);
+          }
+        }
+        
+        return {
+          id: d.id,
+          startLat,
+          startLng,
+        };
+      });
+      
+      seedLocationsFromDrivers(driversData);
+    }
+  }, [realDrivers, realRoutes, seedLocationsFromDrivers]);
 
   // Map real DB drivers — use their actual UUIDs as map IDs
   const displayDrivers = useMemo(() => {
@@ -123,6 +156,21 @@ export default function TrackingPage() {
   const activeDrivers = useMemo(() => {
     return displayDrivers;
   }, [displayDrivers]);
+
+  // Center map on the selected/first driver's location on initial load
+  const [hasCenteredOnInit, setHasCenteredOnInit] = useState(false);
+  useEffect(() => {
+    if (!hasCenteredOnInit && liveLocations.length > 0) {
+      const currentSel = selectedDriver || activeDrivers[0] || displayDrivers[0];
+      if (currentSel) {
+        const loc = liveLocations.find((l) => l.driverId === currentSel.id);
+        if (loc && typeof loc.lat === "number" && typeof loc.lng === "number" && !isNaN(loc.lat) && !isNaN(loc.lng)) {
+          setMapCenter([loc.lat, loc.lng]);
+          setHasCenteredOnInit(true);
+        }
+      }
+    }
+  }, [liveLocations, selectedDriver, activeDrivers, displayDrivers, hasCenteredOnInit]);
 
   const focusDriver = (driver: Driver) => {
     setSelectedDriver(driver);

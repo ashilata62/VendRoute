@@ -97,13 +97,46 @@ export default function DashboardPage() {
       usersApi.getAll("DRIVER").then(res => { 
         if (res.success) {
           setDrivers(res.data);
-          seedLocationsFromDrivers(res.data.map((d: any) => d.id));
         }
       }).catch(() => {});
       locationsApi.getAll().then(res => { if (res.success) setLocations(res.data); }).catch(() => {});
     });
     fetchNotifications();
   }, []);
+
+  // Seed driver locations using their assigned route's stops
+  useEffect(() => {
+    if (drivers.length > 0) {
+      const driversData = drivers.map((d) => {
+        const route = routes.find(
+          (r: any) => r.driverId === d.id && (r.status === "IN_PROGRESS" || r.status === "PENDING")
+        ) || routes.find((r: any) => r.driverId === d.id);
+        
+        let startLat = undefined;
+        let startLng = undefined;
+        
+        if (route && route.routestop && route.routestop.length > 0) {
+          const sortedStops = [...route.routestop].sort(
+            (a: any, b: any) => (a.stopOrder || 0) - (b.stopOrder || 0)
+          );
+          const activeStop = sortedStops.find((s: any) => s.status !== "COMPLETED") || sortedStops[0];
+          
+          if (activeStop && activeStop.location) {
+            startLat = Number(activeStop.location.lat ?? activeStop.location.latitude);
+            startLng = Number(activeStop.location.lng ?? activeStop.location.longitude);
+          }
+        }
+        
+        return {
+          id: d.id,
+          startLat,
+          startLng,
+        };
+      });
+      
+      seedLocationsFromDrivers(driversData);
+    }
+  }, [drivers, routes, seedLocationsFromDrivers]);
 
   useEffect(() => {
     import("../services/api").then(({ reportsApi }) => {
